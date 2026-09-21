@@ -27,6 +27,22 @@ class EdgeRecoveryTest(unittest.TestCase):
         self.assertEqual(report['edge_support'],[.95,109/120])
         self.assertEqual(report['failed_checks'],[])
 
+    def test_configured_partial_rim_support_accepts_reported_case(self):
+        import json
+        root = Path(__file__).resolve().parents[2]
+        raw = json.loads((root/'configs/green_cup.json').read_text())
+        quality = quality_options(raw['green_cup']['perception']['stereo_rim'])
+        errors = np.full((2,120), .5)
+        errors[0,:15] = 2.1
+        errors[1,:3] = 2.1
+        report = check_edge_quality(errors, quality, .065, .0749/2)
+        self.assertEqual(report['edge_support'], [.875, .975])
+        self.assertEqual(report['failed_checks'], [])
+        errors[0,:19] = 2.1  # Below 85%, despite a small mean error.
+        with self.assertRaises(RimEdgeQualityError) as rejected:
+            check_edge_quality(errors, quality, .065, .0749/2)
+        self.assertIn('min_edge_support', rejected.exception.report['failed_checks'])
+
     def test_missing_edges_and_bad_view_still_rejected(self):
         for errors in [np.full((2,120),3.), np.array([[.1]*120,[1.3]*120])]:
             with self.assertRaises(RimEdgeQualityError):

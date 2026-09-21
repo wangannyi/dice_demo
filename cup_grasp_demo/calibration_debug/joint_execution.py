@@ -255,46 +255,70 @@ def run(request, *, connected=None, connection_evidence=None):
         report["motion_started_epoch_s"] = time.time()
         last_q = plan["start_q_rad"]
         last_time = 0.0
-        while True:
-            row = core.fresh_feedback(session, previous=previous)
-            previous = row
-            elapsed = time.monotonic() - start
-            if elapsed - last_time > cfg["command_lag_s"]:
-                raise RuntimeError("反馈/指令间隔超限；不能跳过大段运动")
-            observation = dict(
-                elapsed_s=elapsed,
-                feedback=row,
-                raw_error_deg=reference_errors(row, plan, elapsed),
-                error_deg=reference_errors(
-                    row, plan, elapsed, cfg.get("feedback_reference_delay_s", 0.0)
-                ),
-                tracking_check_passed=False,
-            )
-            observation["tracking_threshold_exceeded"] = tracking_exceedances(
-                observation["error_deg"], cfg
-            )
-            report["last_observation"] = observation
-            report["feedback"].append(observation)
-            feedback_check(row, plan, elapsed)
-            observation["tracking_check_passed"] = not observation["tracking_threshold_exceeded"]
-            target = joint_values(plan, min(elapsed, plan['duration_s']))
-            if elapsed >= plan["duration_s"]:
-                target = list(plan["start_q_rad"])
-            if max(abs(a - b) for a, b in zip(target, last_q)) > math.radians(
-                cfg["command_step_deg"]
-            ):
-                raise RuntimeError("相邻指令角度变化超限")
-            if not session.robot.get_joint_limits_enabled():
-                raise RuntimeError("SDK 关节限位被关闭")
-            report["motion_attempted"] = True
-            session.robot.move_js(target)
-            report["commands"].append(
-                dict(elapsed_s=time.monotonic() - start, target_q_rad=target)
-            )
-            last_q, last_time = target, elapsed
-            if elapsed >= plan["duration_s"]:
-                break
-            time.sleep(0.001)
+        rate = cfg.get('command_rate_hz')
+        reader = clock = None
+        if rate is not None:
+            from cup_grasp_demo.calibration_debug.joint_stream import (
+                DeadlineClock, FeedbackReader, stream_statistics)
+            clock = DeadlineClock(rate, start, monotonic=time.monotonic, sleep=time.sleep)
+            reader = FeedbackReader(
+                lambda **kwargs: core.fresh_feedback(session, **kwargs), previous).start()
+        try:
+            while True:
+                if reader is not None:
+                    clock.wait()
+                    row = reader.latest(time.time())
+                else:
+                    row = core.fresh_feedback(session, previous=previous)
+                is_new = row is not previous
+                previous = row
+                elapsed = time.monotonic() - start
+                if elapsed - last_time > cfg["command_lag_s"]:
+                    raise RuntimeError("反馈/指令间隔超限；不能跳过大段运动")
+                if is_new or reader is None:
+                    observed_elapsed = (max(0.0, row['observed_monotonic_s'] - start)
+                                        if reader is not None else elapsed)
+                    observation = dict(
+                        elapsed_s=observed_elapsed,
+                        feedback=row,
+                        raw_error_deg=reference_errors(row, plan, observed_elapsed),
+                        error_deg=reference_errors(
+                            row, plan, observed_elapsed, cfg.get("feedback_reference_delay_s", 0.0)
+                        ),
+                        tracking_check_passed=False,
+                    )
+                    observation["tracking_threshold_exceeded"] = tracking_exceedances(
+                        observation["error_deg"], cfg
+                    )
+                    report["last_observation"] = observation
+                    report["feedback"].append(observation)
+                    feedback_check(row, plan, observed_elapsed)
+                    observation["tracking_check_passed"] = not observation["tracking_threshold_exceeded"]
+                target = joint_values(plan, min(elapsed, plan['duration_s']))
+                if elapsed >= plan["duration_s"]:
+                    target = list(plan["start_q_rad"])
+                if max(abs(a - b) for a, b in zip(target, last_q)) > math.radians(
+                    cfg["command_step_deg"]
+                ):
+                    raise RuntimeError("相邻指令角度变化超限")
+                if not session.robot.get_joint_limits_enabled():
+                    raise RuntimeError("SDK 关节限位被关闭")
+                report["motion_attempted"] = True
+                session.robot.move_js(target)
+                report["commands"].append(
+                    dict(elapsed_s=time.monotonic() - start, target_q_rad=target)
+                )
+                last_q, last_time = target, elapsed
+                if elapsed >= plan["duration_s"]:
+                    break
+                if clock is not None:
+                    clock.advance()
+                else:
+                    time.sleep(0.001)
+        finally:
+            if reader is not None:
+                report['command_stream'] = stream_statistics(report['commands'], rate, clock)
+                reader.close()
         report["reference_send_elapsed_s"] = time.monotonic() - start
         report["duration_completed"] = (
             report["reference_send_elapsed_s"] >= plan["duration_s"]

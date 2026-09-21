@@ -18,7 +18,7 @@ from cup_grasp_demo.calibration_debug import shake, shake_study
 from cup_grasp_demo.calibration_debug.parameters import shake_options
 
 FEEDBACK = (
-    ROOT / "cup_grasp_demo/datasets/shake_assessment_20260918/controller_limits.json"
+    ROOT / "cup_grasp_demo/calibration_debug/fixtures/controller_limits.json"
 )
 
 
@@ -192,7 +192,7 @@ class CLITest(unittest.TestCase):
                 output=None,
                 feedback_json=None,
                 system_config=ROOT
-                / "cup_grasp_demo/calibration_debug/index_joint_center/config.json",
+                / "configs/green_cup.json",
                 config=fixture_config,
             )
             with (
@@ -233,7 +233,7 @@ class CLITest(unittest.TestCase):
             config = root / 'joint.json'; config.write_text('{}')
             table = root / 'table.json'; table.write_text('{}')
             args = SimpleNamespace(session=root, output=None, feedback_json=None,
-                system_config=ROOT / 'cup_grasp_demo/calibration_debug/index_joint_center/config.json',
+                system_config=ROOT / 'configs/green_cup.json',
                 config=config, table_scene=table)
             record = dict(scene=scene, calibration_quality_passed=False, input_hashes={})
             with patch.object(cli.planar_scene, 'verify', return_value=(record, {})), \
@@ -257,7 +257,7 @@ class CLITest(unittest.TestCase):
                 output=None,
                 feedback_json=FEEDBACK,
                 system_config=ROOT
-                / "cup_grasp_demo/calibration_debug/index_joint_center/config.json",
+                / "configs/green_cup.json",
             )
             with patch.object(
                 cli,

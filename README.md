@@ -155,6 +155,8 @@ FAST 复用 SDK/CAN、相机和模型，复用可用的预计算轨迹；只在�
 | `green_cup.camera` | RGB/深度 1280×720、15 FPS | RGB 裁剪 `[220,0,960,720]`；程序同步修正内参 |
 | `green_cup.joint_test_config` | `configs/joint_shake.json` | 摇晃配置 |
 
+杯沿质量参数位于 `green_cup.perception.stereo_rim`：`min_edge_support=0.85` 要求每路图像至少 85% 的采样杯沿点距离观测边缘小于 `edge_distance_px=2.0` 像素。平均边缘误差上限仍为 1.0 px，单路平均上限仍为 1.2 px；该比例不是 YOLO 置信度。
+
 六路手指顺序为：拇指尖、拇指根、食指、中指、无名指、小指。指令完成不等于已测量确认抓牢。TCP 偏移属于法兰坐标系，不能直接按图像左右方向修改。
 
 `configs/joint_shake.json`：
@@ -206,3 +208,11 @@ bash run_feedback.sh tie --execute        # 平局：手指往返 3 次
 去掉 `--execute` 仅预览。`bash run_feedback.sh --list` 查看动作列表。可在 `configs/result_feedback.json` 增删动作，分别设置机械臂速度、手指动作时间、先后/同时执行与启动时延；[参数与调试说明](docs/DEBUG.md#9-比大小后的反馈手势)。此独立脚本由上层程序在比大小后调用，不自动订阅比赛结果。
 
 反馈手势的灵巧手已默认使用 `finger_speed_mode: "max"`（目标位置＋时间 0）；机械臂为 50%。`finger_max_wait_s: 0.65` 是指令后的观察时间，不是限速参数。
+
+## 摇晃指令下发频率
+
+`configs/joint_shake.json` 的 `command_rate_hz=200` 表示每 5 ms 更新一次七轴 `move_js()` 目标，不是每秒摇晃 200 次。开发入口的 `calibration_debug/joint_test_config.json` 使用同一参数。支持 20–200 Hz；省略或设为 `null` 保留原来等待新反馈后发送的循环。
+
+200 Hz 模式使用独立只读反馈线程，发送线程按单调时钟调度；反馈过期、故障及运动约束检查仍有效。迟到时跳过错过的时隙，不连续补发积压目标。Python/Linux 调度与 CAN 发送仍可能有抖动，不能把配置值当作实测频率。
+
+摇晃 `actual.json` 中的 `command_stream` 记录 `requested_hz`、`achieved_hz`、`max_interval_ms`、`skipped_slots` 和 `max_lateness_ms`；频率基于 SDK 调用完成时间，不是 CAN 总线抓包时间。改配置后重新运行 Pipeline，独立关节测试需重新 plan。

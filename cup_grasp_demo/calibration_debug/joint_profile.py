@@ -24,6 +24,7 @@ DEFAULTS = dict(
     inactive_error_deg=0.5,
     command_step_deg=3.0,
     command_lag_s=0.15,
+    command_rate_hz=None,
 )
 
 
@@ -31,6 +32,8 @@ def options(raw):
     if not isinstance(raw, dict) or set(raw) - set(DEFAULTS):
         raise ValueError("Unknown joint-test configuration fields")
     result = dict(DEFAULTS, **raw)
+    if result["command_rate_hz"] is not None:
+        result["command_rate_hz"] = number(result["command_rate_hz"], "command_rate_hz", 20, 200, True)
     targets = result["controller_acceleration_rad_s2"]
     if targets is not None:
         if not isinstance(targets, list) or len(targets) != 7:
