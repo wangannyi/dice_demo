@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "serial": "346222071954",
+  "channel": "can0",
+  "home": "cup_grasp_demo/calibration_debug/home_reference.json",
+  "calibration": "nero_calibration/datasets/handeye_20260917_153833/dimensions_measured_86p5x108/result.json",
+  "orientation_reference": "cup_grasp_demo/datasets/silver_cup_review_20260917_01/grasp_reference.json",
+  "tcp_candidate": "cup_grasp_demo/side_grasp/TCP_MODEL_CANDIDATE.json",
+  "grasp_config": "cup_grasp_demo/side_grasp/CURRENT_GRASP.json",
+  "allow_provisional_calibration": true,
+  "plane_tolerance_mm": 5.0,
+  "contact_height_fraction": 0.8181818181818182,
+  "table_margin_mm": 10.0,
+  "cup_margin_mm": 5.0,
+  "clearance_height_mm": 180.0,
+  "speed_percent": 5,
+  "timeout_s": 40,
+  "start_tolerance_deg": 0.25,
+  "plan_max_age_s": 600
+}

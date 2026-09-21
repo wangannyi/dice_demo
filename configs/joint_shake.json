@@ -1,0 +1,51 @@
+{
+  "joints": [
+    1,
+    4,
+    5,
+    6,
+    7
+  ],
+  "amplitude_deg": [
+    5.0,
+    5.0,
+    5.0,
+    5.0,
+    5.0
+  ],
+  "velocity_deg_s": [
+    170.0,
+    170.0,
+    170.0,
+    200.0,
+    200.0
+  ],
+  "acceleration_deg_s2": [
+    277.8845,
+    277.8845,
+    277.8845,
+    277.8845,
+    277.8845
+  ],
+  "cycles": 6,
+  "limit_utilization": 1,
+  "controller_speed_percent": 100,
+  "tracking_error_deg": 5.0,
+  "inactive_error_deg": 0.5,
+  "command_step_deg": 3.0,
+  "command_lag_s": 0.15,
+  "feedback_reference_delay_s": 0.1,
+  "measurement_window_s": 0.12,
+  "tracking_error_action": "record",
+  "envelope_margin_deg": 5.0,
+  "controller_acceleration_rad_s2": [
+    5.0,
+    5.0,
+    5.0,
+    5.0,
+    5.0,
+    5.0,
+    5.0
+  ],
+  "phase_delay_deg": null
+}

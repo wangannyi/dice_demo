@@ -1,0 +1,33 @@
+{
+  "source": "user-provided /home/anny/Downloads/best.q.onnx",
+  "sha256": "eb353e9ec8da82677dae2a225b0d26b8e9624da1c01032c4892224a9cbc7eef3",
+  "size_bytes": 3601587,
+  "metadata": {
+    "description": "Ultralytics YOLOv8n-seg model trained on /data/hwj/ultralytics/datasets/cap/data.yaml",
+    "author": "Ultralytics",
+    "date": "2026-09-18T11:02:00.357958+08:00",
+    "version": "8.4.112",
+    "license": "AGPL-3.0 License (https://ultralytics.com/license)",
+    "docs": "https://docs.ultralytics.com",
+    "stride": "32",
+    "task": "segment",
+    "head": "Segment",
+    "batch": "1",
+    "imgsz": "[640, 640]",
+    "names": "{0: 'cap'}",
+    "args": "{'data': None, 'batch': 1, 'fraction': 1.0, 'quantize': None, 'dynamic': False, 'simplify': True, 'opset': 12, 'nms': False}",
+    "channels": "3",
+    "end2end": "False"
+  },
+  "opsets": [
+    {
+      "domain": "",
+      "version": 24
+    }
+  ],
+  "validation": {
+    "k3_runtime": "1.24.2+spacemit.a1",
+    "pc_runtime": "1.24.2",
+    "execution_provider": "CPUExecutionProvider"
+  }
+}

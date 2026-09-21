@@ -1,0 +1,6 @@
+{
+  "units": "m_rad",
+  "relative_to": "palm",
+  "pose": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+  "note": "Identity example equals the model palm. Set position/orientation of your selected point in this parent frame."
+}

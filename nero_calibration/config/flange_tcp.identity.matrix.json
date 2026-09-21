@@ -1,0 +1,31 @@
+{
+  "units": "m",
+  "relative_to": "flange",
+  "matrix": [
+    [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      1.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "note": "Identity: TCP coincides with the arm flange"
+}

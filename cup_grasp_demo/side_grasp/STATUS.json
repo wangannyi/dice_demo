@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "stage": "high_observation_reached",
+  "last_observed_joints_deg": [
+    30.555,
+    -82.042,
+    -75.485,
+    95.525,
+    8.442,
+    12.914,
+    -15.378
+  ],
+  "last_observed_control_mode": 1,
+  "last_observed_arm_status": 0,
+  "home_configuration_modified": false,
+  "hardware_at_saved_home": false,
+  "hand_commands_sent_in_this_review": false,
+  "latest_reviewed_image": "cup_grasp_demo/datasets/center_probe_20260917_01/post_rgbd/frame_000.png",
+  "latest_joint_feedback": "cup_grasp_demo/datasets/center_probe_20260917_01/post_joints_after.jsonl",
+  "execution_evidence": [
+    "cup_grasp_demo/datasets/high_probe_20260917_01/high_probe_actual.json",
+    "cup_grasp_demo/datasets/center_probe_20260917_01/high_probe_actual.json"
+  ],
+  "completed": [
+    "user confirmed original standard adapter",
+    "official hand joint geometry compared against current BrainCo URDF: 21 joint origins/axes/mimics match",
+    "software zero-position mapping checked",
+    "saved HOME confirmed before motion",
+    "high observation waypoint reached and observed",
+    "whole-hand observation waypoint reached and observed"
+  ],
+  "not_completed": [
+    "50 mm pregrasp arrival",
+    "contact TCP physical accuracy validation",
+    "finger closure and secure-cup verification",
+    "shake and reveal"
+  ],
+  "TCP_nominal_flange_mm": [
+    141.9192967268153,
+    6.44417513492756,
+    6.859290368968505
+  ],
+  "unverified_registration_correction_applied": false,
+  "calibration_quality_passed": false,
+  "automatic_pipeline_integrated": false,
+  "release_ready": false,
+  "observed_hand_height_check": {
+    "visible_hand_min_m": 0.20713115827,
+    "nominal_mesh_min_m": 0.21006892031326627,
+    "method": "Saved aligned median RGB-D in manual hand ROI compared with nominal mesh at actual feedback joints",
+    "does_not_validate_TCP": true
+  },
+  "next_step": "Resolve hand-frame/contact-point image correspondence while retaining the nominal installation transform; re-localize the cup and validate a fresh pregrasp plan before descent."
+}

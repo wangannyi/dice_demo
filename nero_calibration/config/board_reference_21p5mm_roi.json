@@ -1,0 +1,13 @@
+{
+  "type": "charuco",
+  "dictionary": "4x4_50",
+  "squares_x": 4,
+  "squares_y": 5,
+  "square_length_m": 0.0215,
+  "marker_length_m": 0.015,
+  "legacy_pattern": false,
+  "min_corners": 12,
+  "max_reprojection_px": 0.5,
+  "image_roi_xyxy": [455, 270, 640, 480],
+  "note": "Fixed table reference only, current 640x480 view. Recheck ROI after camera relocation. Uses previously measured table-board geometry, independent of the hand-board remeasurement."
+}

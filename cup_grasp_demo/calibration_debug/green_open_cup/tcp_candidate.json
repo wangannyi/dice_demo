@@ -1,0 +1,38 @@
+{
+  "name": "middle_root_palmar_surface",
+  "link": "right_base_link",
+  "local_point_m": [
+    -0.0027618033453023494,
+    0.009958489856175411,
+    0.08202823955590598
+  ],
+  "T_flange_contact_candidate": [
+    [
+      1.0,
+      0.0,
+      0.0,
+      0.12502826598954542
+    ],
+    [
+      0.0,
+      1.0,
+      0.0,
+      -0.002762148196754059
+    ],
+    [
+      0.0,
+      0.0,
+      1.0,
+      -0.013541855380896708
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "root_backoff_m": 0.003,
+  "physical_tcp_verified": false,
+  "source": "official mounting + rigid palm mesh at middle-finger root"
+}

@@ -1,0 +1,19 @@
+{
+  "executable": false,
+  "status": "blocked",
+  "sequence": [
+    "home",
+    "pregrasp",
+    "grasp"
+  ],
+  "base_targets": null,
+  "tcp_offset": null,
+  "joint_path": null,
+  "blockers": [
+    "No accepted and physically verified T_base_camera supplied",
+    "No verified flange-to-grasp-TCP transform supplied",
+    "No NERO seven-axis offline IK and collision-checked path supplied"
+  ],
+  "motion_sent": false,
+  "scope": "reach_grasp_pose_only"
+}

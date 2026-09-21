@@ -1,0 +1,206 @@
+{
+  "schema_version": 1,
+  "status": "synthetic_kinematics_complete",
+  "source": "synthetic_fk_only",
+  "model": "Nero seven-axis URDF",
+  "home_joints_deg": [
+    55.0,
+    -78.0,
+    80.0,
+    -45.0,
+    130.0,
+    -30.0,
+    40.0
+  ],
+  "sequence": [
+    "home",
+    "pregrasp",
+    "grasp"
+  ],
+  "stages": [
+    {
+      "name": "pregrasp",
+      "target_frame": "base_link_to_link7",
+      "target_matrix": [
+        [
+          -0.734013001,
+          0.07858537,
+          -0.674573386,
+          0.097072428
+        ],
+        [
+          0.542878327,
+          -0.528912592,
+          -0.652330125,
+          0.503788553
+        ],
+        [
+          -0.408053962,
+          -0.845030064,
+          0.345566425,
+          0.217839773
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "ik": {
+        "success": true,
+        "joints_deg": [
+          56.98843,
+          -78.023376,
+          80.067695,
+          -45.015615,
+          129.94558,
+          -29.975087,
+          40.018838
+        ],
+        "position_error_m": 3.0099473755490842e-05,
+        "orientation_error_rad": 1.6916308366751476e-06,
+        "iterations": 3,
+        "reason": "converged"
+      },
+      "joint_path": {
+        "type": "joint_linear_interpolation",
+        "max_sample_step_deg": 1.0,
+        "sample_count": 3,
+        "sampled_joints_deg": [
+          [
+            55.0,
+            -78.0,
+            80.0,
+            -45.0,
+            130.0,
+            -30.0,
+            40.0
+          ],
+          [
+            55.994215,
+            -78.011688,
+            80.033847,
+            -45.007807,
+            129.97279,
+            -29.987544,
+            40.009419
+          ],
+          [
+            56.98843,
+            -78.023376,
+            80.067695,
+            -45.015615,
+            129.94558,
+            -29.975087,
+            40.018838
+          ]
+        ],
+        "joint_limits_ok": true,
+        "continuity_ok": true,
+        "singularity_warning": false,
+        "scene_collision_verified": false,
+        "self_collision_verified": false,
+        "reason": "joint_checks_passed_collision_unverified"
+      }
+    },
+    {
+      "name": "grasp",
+      "target_frame": "base_link_to_link7",
+      "target_matrix": [
+        [
+          -0.730823271,
+          0.104154182,
+          -0.674573386,
+          0.097072428
+        ],
+        [
+          0.524088837,
+          -0.547536573,
+          -0.652330125,
+          0.503788553
+        ],
+        [
+          -0.437296511,
+          -0.830274417,
+          0.345566425,
+          0.217839773
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "ik": {
+        "success": true,
+        "joints_deg": [
+          57.006108,
+          -77.877253,
+          79.677428,
+          -45.035417,
+          130.243423,
+          -30.075766,
+          41.860447
+        ],
+        "position_error_m": 6.865119340334459e-05,
+        "orientation_error_rad": 5.139264954358802e-06,
+        "iterations": 2,
+        "reason": "converged"
+      },
+      "joint_path": {
+        "type": "joint_linear_interpolation",
+        "max_sample_step_deg": 1.0,
+        "sample_count": 3,
+        "sampled_joints_deg": [
+          [
+            56.98843,
+            -78.023376,
+            80.067695,
+            -45.015615,
+            129.94558,
+            -29.975087,
+            40.018838
+          ],
+          [
+            56.997269,
+            -77.950315,
+            79.872561,
+            -45.025516,
+            130.094501,
+            -30.025426,
+            40.939642
+          ],
+          [
+            57.006108,
+            -77.877253,
+            79.677428,
+            -45.035417,
+            130.243423,
+            -30.075766,
+            41.860447
+          ]
+        ],
+        "joint_limits_ok": true,
+        "continuity_ok": true,
+        "singularity_warning": false,
+        "scene_collision_verified": false,
+        "self_collision_verified": false,
+        "reason": "joint_checks_passed_collision_unverified"
+      }
+    }
+  ],
+  "kinematics_ok": true,
+  "scene_collision_verified": false,
+  "self_collision_verified": false,
+  "real_hand_eye_verified": false,
+  "grasp_tcp_verified": false,
+  "executable": false,
+  "motion_sent": false,
+  "blockers": [
+    "Accepted, physically checked T_base_camera is unavailable",
+    "Measured flange-to-right-Revo2 grasp TCP is unavailable",
+    "Nero, Revo2, fixtures, table, and cable collision model is incomplete"
+  ]
+}

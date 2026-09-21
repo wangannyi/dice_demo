@@ -1,0 +1,12 @@
+{
+  "type": "charuco",
+  "dictionary": "4x4_50",
+  "squares_x": 4,
+  "squares_y": 5,
+  "square_length_m": 0.0215,
+  "marker_length_m": 0.015,
+  "legacy_pattern": false,
+  "min_corners": 6,
+  "max_reprojection_px": 1.0,
+  "note": "4 by 5 board; corrected physical square 21.5 mm and marker 15 mm. Applies to both table reference and end-effector boards."
+}

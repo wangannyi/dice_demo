@@ -1,0 +1,282 @@
+{
+  "schema": 1,
+  "serial": "346222071954",
+  "channel": "can0",
+  "home": "cup_grasp_demo/calibration_debug/home_reference.json",
+  "home_open_hand": true,
+  "calibration": "configs/installation/camera.json",
+  "orientation_reference": "cup_grasp_demo/calibration_debug/green_open_cup/grasp_reference.json",
+  "tcp_candidate": "cup_grasp_demo/calibration_debug/green_open_cup/tcp_candidate.json",
+  "grasp_config": "cup_grasp_demo/side_grasp/CURRENT_GRASP.json",
+  "allow_provisional_calibration": true,
+  "plane_tolerance_mm": 6.0,
+  "contact_height_fraction": 0.9090909090909091,
+  "cup_selection": {
+    "mode": "size_range",
+    "height_range_mm": [
+      90,
+      140
+    ],
+    "diameter_range_mm": [
+      55,
+      95
+    ]
+  },
+  "contact_direction": {
+    "mode": "base_xy_angle_table_section",
+    "side": "positive",
+    "azimuth_deg": 20.0
+  },
+  "table_margin_mm": 10.0,
+  "cup_margin_mm": 5.0,
+  "clearance_height_mm": 180.0,
+  "speed_percent": 20,
+  "timeout_s": 40,
+  "start_tolerance_deg": 0.25,
+  "plan_max_age_s": 600,
+  "side_grasp": {
+    "finger_duration_s": 1.0,
+    "finger_settle_s": 0.1,
+    "cup_radius_percentile": 98.0,
+    "cup_model_padding_mm": 3.0,
+    "strategy": "direct_close",
+    "close_gap_mm": 10.0,
+    "thumb_base_target_0_100": 100,
+    "close_targets_0_100": [
+      100,
+      100,
+      100,
+      100,
+      100,
+      100
+    ],
+    "approach": {
+      "enabled": false,
+      "start_gap_mm": 30,
+      "step_mm": 2,
+      "speed_percent": 2
+    },
+    "allow_hand_cup_contact": true,
+    "transfer_mode": "direct_checked"
+  },
+  "tcp_offset_in_link_mm": [
+    0,
+    0,
+    0
+  ],
+  "shake": {
+    "strategy": "planar_js",
+    "frequency_hz": 1.44,
+    "amplitude_mm": 50.0,
+    "azimuth_deg": 10.0,
+    "duration_s": 20.0,
+    "limit_utilization": 1.0,
+    "joint_acceleration_cap_rad_s2": 5.0,
+    "joint_motion_cost": [
+      1,
+      4,
+      4,
+      1,
+      4,
+      4,
+      1
+    ],
+    "auto_reduce_frequency": true
+  },
+  "cup_perception": {
+    "backend": "yolo_seg_onnx",
+    "model": "cup_grasp_demo/models/cup_yolov8n_seg_20260918/best.q.onnx",
+    "confidence": 0.35,
+    "iou_threshold": 0.45,
+    "mask_threshold": 0.5,
+    "mask_erode_px": 1,
+    "min_workspace_fraction": 0.9,
+    "min_valid_depth_fraction": 0.5,
+    "ort_package_dir": "/usr/lib/python3.14/dist-packages",
+    "section_half_band_mm": 2.0
+  },
+  "fast_record_shake_video": false,
+  "fast_capture_reuse_max_age_s": 120,
+  "shake_study": {
+    "joint_motion_cost": [
+      1,
+      4,
+      4,
+      1,
+      4,
+      4,
+      1
+    ]
+  },
+  "joint_delivery": {
+    "limit_utilization": 1.0,
+    "acceleration_cap_rad_s2": 5.0,
+    "tracking_error_deg": 5.0,
+    "tracking_error_action": "record",
+    "envelope_margin_deg": 5.0,
+    "velocity_cap_deg_s": null
+  },
+  "fast_single_capture": true,
+  "fast_reuse_table": true,
+  "pipeline_strategy": "green_open_cup",
+  "green_cup": {
+    "reference": "cup_grasp_demo/calibration_debug/green_open_cup/grasp_reference.json",
+    "contact_offset_base_mm": [
+      0,
+      0,
+      30
+    ],
+    "tcp_offset_flange_mm": [
+      30,
+      15,
+      0
+    ],
+    "wrist_reference_deg": [
+      15,
+      -13,
+      5
+    ],
+    "lift_mm": 50,
+    "approach_clearance_mm": 0,
+    "open_targets_0_100": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "grip_targets_0_100": [
+      0,
+      100,
+      40,
+      40,
+      40,
+      100
+    ],
+    "finger_duration_s": 1.0,
+    "finger_settle_s": 0.0,
+    "joint_test_config": "configs/joint_shake.json",
+    "held_cup_margin_mm": 5,
+    "place_tolerance_mm": 3,
+    "perception": {
+      "height_range_mm": [
+        40,
+        180
+      ],
+      "diameter_range_mm": [
+        50,
+        150
+      ],
+      "rim_band_mm": 3,
+      "rim_rms_mm": 4,
+      "min_arc_deg": 160,
+      "min_area_px": 500,
+      "model": "cup_grasp_demo/models/green_20260920_1934/best_green.q.onnx",
+      "confidence": 0.35,
+      "iou_threshold": 0.45,
+      "mask_threshold": 0.5,
+      "ort_package_dir": "/usr/lib/python3.14/dist-packages",
+      "geometry_method": "stereo_rim",
+      "reference_dimensions_mm": {
+        "height": 65,
+        "diameter": 75
+      },
+      "reference_tolerance_mm": {
+        "height": 10,
+        "diameter": 10
+      },
+      "image_rim": {
+        "hue_range": [
+          35,
+          95
+        ],
+        "min_saturation": 45,
+        "min_value": 20,
+        "roi_expand_px": 4,
+        "contour_error_px": 2.0,
+        "min_image_arc_deg": 270,
+        "min_axis_ratio": 0.45,
+        "depth_band_px": 2.5,
+        "depth_tolerance_mm": 3.0,
+        "depth_sectors": 36,
+        "min_depth_sector_fraction": 0.5,
+        "min_depth_arc_deg": 180,
+        "min_depth_points": 40
+      },
+      "stereo_rim": {
+        "max_mean_edge_error_px": 1.0,
+        "max_view_edge_error_px": 1.2,
+        "edge_distance_px": 2.0,
+        "min_edge_support": 0.9,
+        "ambiguity_score_margin_px": 0.15,
+        "max_competing_center_distance_mm": 10.0,
+        "max_competing_diameter_difference_mm": 6.0,
+        "max_center_spread_mm": 3.0,
+        "max_height_spread_mm": 5.0,
+        "max_diameter_spread_mm": 5.0
+      },
+      "height_mode": "fixed",
+      "fixed_height_mm": 65,
+      "fixed_min_valid_frames": 3,
+      "inference_threads": 2,
+      "inference_provider": "spacemit",
+      "inference_cpu_ids": [
+        8,
+        9
+      ]
+    },
+    "home_table_scene": "cup_grasp_demo/calibration_debug/green_open_cup/home_table_scene.json",
+    "camera": {
+      "depth_resolution": [
+        1280,
+        720
+      ],
+      "fps": 15,
+      "color_resolution": [
+        1280,
+        720
+      ],
+      "crop_xywh": [
+        220,
+        0,
+        960,
+        720
+      ]
+    },
+    "open_feedback_reference_0_100": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "require_hand_position": false,
+    "approach_via_above": false,
+    "retreat_clearance_mm": 50,
+    "require_arm_position": false,
+    "fast_speed_percent": 30,
+    "shake_start_tolerance_deg": 0.5,
+    "recovery_attempts": 1,
+    "persistent_runtime": true,
+    "installation_requires_calibration": true,
+    "read_hand_feedback": false,
+    "place_arrival_tolerance_mm": 5.0,
+    "direct_return_home": true,
+    "fast_finger_duration_s": 0.5,
+    "fast_phase_speed_percent": {
+      "approach": 60,
+      "return_home": 60
+    },
+    "fast_camera_warmup_frames": 5,
+    "fast_camera_fresh_discard_frames": 0,
+    "precision_error_action": "record",
+    "settled_joint_delta_deg": 0.5,
+    "fast_cached_feedback": true,
+    "fast_overlap_grip_preparation": true,
+    "fast_uncompressed_capture": true,
+    "fast_analytic_rim_jacobian": true,
+    "fast_batched_ik_rotations": true
+  }
+}

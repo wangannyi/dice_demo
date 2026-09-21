@@ -1,0 +1,120 @@
+{
+  "speed_percent": 50,
+  "finger_duration_s": 0.5,
+  "gestures": {
+    "yeah": {
+      "joints_deg": [
+        0.116,
+        -90.329,
+        -20.379,
+        100.034,
+        -9.853,
+        -5.002,
+        5.068
+      ],
+      "hand_0_100": [
+        100,
+        100,
+        0,
+        0,
+        100,
+        100
+      ],
+      "speed_percent": 50,
+      "finger_duration_s": 0.5,
+      "execution": {
+        "mode": "together",
+        "delay_s": 0.0
+      },
+      "finger_speed_mode": "max",
+      "finger_max_wait_s": 0.65
+    },
+    "thumbs-up": {
+      "joints_deg": [
+        0.11,
+        -80.329,
+        -90.385,
+        100.029,
+        80.136,
+        -4.995,
+        5.064
+      ],
+      "hand_0_100": [
+        0,
+        0,
+        100,
+        100,
+        100,
+        100
+      ],
+      "speed_percent": 50,
+      "finger_duration_s": 0.5,
+      "execution": {
+        "mode": "together",
+        "delay_s": 0.0
+      },
+      "finger_speed_mode": "max",
+      "finger_max_wait_s": 0.65
+    },
+    "tie": {
+      "joints_deg": [
+        0.122,
+        -80.481,
+        -90.4,
+        110.059,
+        155.191,
+        -4.993,
+        5.265
+      ],
+      "hand_0_100": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "speed_percent": 50,
+      "finger_duration_s": 0.5,
+      "execution": {
+        "mode": "together",
+        "delay_s": 0
+      },
+      "finger_speed_mode": "max",
+      "finger_max_wait_s": 0.65,
+      "hand_sequence": {
+        "poses": [
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            40,
+            40,
+            40,
+            40
+          ]
+        ],
+        "cycles": 3,
+        "interval_s": 0.65
+      }
+    }
+  },
+  "aliases": {
+    "win": "yeah",
+    "lose": "thumbs-up",
+    "draw": "tie"
+  },
+  "execution": {
+    "mode": "together",
+    "delay_s": 0.0
+  },
+  "finger_speed_mode": "max",
+  "finger_max_wait_s": 0.65
+}

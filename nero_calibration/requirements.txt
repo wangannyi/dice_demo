@@ -1,0 +1,8 @@
+# K3 currently reuses ~/.venv-grasp (OpenCV 4.13 + RealSense + numpy).
+# Install platform-compatible builds; do not force x86 wheels onto riscv64.
+numpy
+opencv-contrib-python
+pyrealsense2
+python-can>=3.3.4
+typing-extensions>=3.7.4.3
+# pyAgxArm: use the validated local source checkout via NERO_SDK_DIR.

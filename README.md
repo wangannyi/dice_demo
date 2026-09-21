@@ -1,0 +1,208 @@
+# K3 机械臂抓杯摇骰 Pipeline
+
+在 SpacemiT K3 上，通过 NERO 七轴机械臂、右 Revo2 灵巧手和 RealSense D435i，完成绿色开口杯的定位、抓取、抬起、摇晃和放回。杯口朝上，工作区为红色桌布。
+
+```text
+HOME → CAPTURE → PLAN → APPROACH → GRIP → LIFT → SHAKE → LOWER → OPEN → RETURN_HOME
+归位     定位      规划     靠近       闭手    抬杯     摇晃      放下    张手       归位
+```
+
+- [分步调试与单项测试](docs/DEBUG.md)
+- [首次标定、示教点与相机移动后的校准](docs/CALIBRATION.md)
+- [上层应用接入接口](docs/INTEGRATION.md)
+- [第三方依赖与分发范围](THIRD_PARTY.md)
+
+## 1. 获取代码
+
+源码包包含程序、配置、检测模型、机械臂几何模型及一套参考标定结果，不包含虚拟环境、历史录像、运行日志或 SDK 二进制库。
+
+```bash
+sha256sum -c SHA256SUMS
+tar -xzf dice_demo-source.tar.gz
+cd dice_demo
+```
+
+也可直接拉取仓库：
+
+```bash
+git clone https://github.com/wangannyi/dice_demo.git
+cd dice_demo
+```
+
+构建新的源码包：
+
+```bash
+python3 scripts/package_release.py --output "dist/release_$(date +%Y%m%d_%H%M%S)"
+```
+
+输出包含 `dice_demo/` 源码目录、`dice_demo-source.tar.gz`、`SHA256SUMS`。目录内 `MANIFEST.sha256.json` 记录逐文件哈希。打包不会提交、上传或操作机械臂。
+
+## 2. 安装运行环境
+
+### 2.1 软件依赖
+
+需要 Linux SocketCAN、Python、NumPy、SciPy、带 ArUco 的 OpenCV、RealSense Python SDK、ONNX Runtime、python-can 和与 NERO 固件匹配的 pyAgxArm。ROS/MoveIt 和 MediaPipe 不是当前流程的运行依赖。
+
+K3 为 RISC-V。优先使用板卡提供的兼容库或已经验证的环境；不能复制 PC 的 x86 虚拟环境，也不能保证 PyPI 为 RISC-V 提供所有轮子。`requirements-vision.txt`、`requirements-sdk.txt` 是依赖清单，不是跨架构安装成功的承诺。
+
+已有 K3 环境默认使用：
+
+| 变量 | 默认位置 | 用途 |
+| --- | --- | --- |
+| `DICE_VISION_PYTHON` | `$HOME/.venv-grasp/bin/python` | 相机、识别、几何、规划 |
+| `DICE_SDK_PYTHON` | `$HOME/agilex-api-test/venv/bin/python` | CAN 和灵巧手执行器 |
+| `NERO_SDK_DIR` | `$HOME/agilex-api-test/pyAgxArm` | 已验证 SDK 源码根目录 |
+| `CALIB_PYTHON` | 与视觉解释器相同 | 标定 |
+
+新环境先安装本架构可用的依赖。具备对应轮子或源码构建环境时：
+
+```bash
+python3 -m venv --system-site-packages .venv-vision
+python3 -m venv --system-site-packages .venv-sdk
+.venv-vision/bin/python -m pip install -r requirements-vision.txt
+.venv-sdk/bin/python -m pip install -r requirements-sdk.txt
+# 将已验证的 pyAgxArm 源码放到指定目录；目录内应有 pyAgxArm/ 包。
+export NERO_SDK_DIR=/实际路径/pyAgxArm
+export DICE_VISION_PYTHON="$PWD/.venv-vision/bin/python"
+export DICE_SDK_PYTHON="$PWD/.venv-sdk/bin/python"
+source scripts/env.sh
+./scripts/check_environment.sh
+```
+
+检查命令只导入依赖并验证配置和网格，不打开相机或 CAN。SDK 与视觉环境可以共用解释器，但必须先验证所有依赖。`green_cup.perception.ort_package_dir` 指向 ONNX Runtime 的备用安装目录；当前 K3 为 `/usr/lib/python3.14/dist-packages`，其他环境应按安装位置调整。需要 X11 预览时，在 PC 使用 `ssh -X 用户@K3地址`，K3 安装 `xauth` 并确认 `DISPLAY` 已设置。
+
+### 2.2 硬件准备
+
+1. 固定机械臂基座、相机和桌面板，连接灵巧手。
+2. 执行 `lsusb -t`，确认 D435i 使用 `5000M` USB 3 链路。
+3. 执行 `ip -details link show can0`，确认 CAN 为 UP、1 Mbps。尚未启动时执行：
+
+```bash
+sudo ip link set can0 up type can bitrate 1000000
+```
+
+已 UP 时不要重复设置 bitrate；`Device or resource busy` 不等于 CAN 已故障。确认急停解除、机械臂七轴使能、WEB 灵巧手页面使能及 CAN 推送开启。程序支持从 WEB 切入 CAN，但不代替 WEB 灵巧手使能设置。运行期间关闭占用相机的 ffplay，不使用第二个机械臂控制程序。
+
+新安装先完成[标定](docs/CALIBRATION.md)。发行包将 `installation_requires_calibration` 设为 `true`，避免将示例标定当作新现场的有效标定。
+
+## 3. 一条命令运行
+
+从仓库根目录执行。默认配置为 `configs/green_cup.json`，运行结果保存在 `cup_grasp_demo/datasets/green_current`。
+
+```bash
+# 不访问硬件，只打印流程
+./run.sh fast
+
+# 分步运行；每阶段 Enter 继续、q 停止
+./run.sh step --show --execute
+
+# 自动连续运行，保留非 FAST 的执行与诊断路径
+./run.sh auto --execute
+
+# 快速连续运行，复用 SDK、相机和模型
+./run.sh fast --execute
+```
+
+| 模式 | 阶段确认 | 诊断 | 运动设置 |
+| --- | --- | --- | --- |
+| `step` | 每步 Enter | `--show` 可显示图像和 TCP | `speed_percent` |
+| `auto` | 连续执行 | 保留常规图像及记录；不弹 STEP 窗口 | `speed_percent` |
+| `fast` | 连续执行 | 精简图像；保存状态、计划、收据和错误 | FAST 专用参数 |
+
+默认运行到放杯并返回 HOME。可加 `--until ready`、`--until grip`、`--until shake` 分别停在靠近、闭手、摇完；停在后两者时可能仍持杯。没有 `--execute` 不会运动。
+
+切换配置或输出位置：
+
+```bash
+DICE_CONFIG="$PWD/configs/green_cup.json" \
+DICE_RUN="$PWD/cup_grasp_demo/datasets/green_current" \
+./run.sh fast --execute
+```
+
+不要在执行中改配置。HOME 会先发张手命令；故障后若仍持杯，不要直接重新启动流程。绿色流程目前不支持跨进程 `--resume`。
+
+## 4. 重要配置
+
+数值来自交付时 K3 配置快照，不使用聊天中的旧值。修改新入口使用的 `configs/green_cup.json`，不要同时维护旧入口配置。
+
+配置以文件实际值为准，修改后重新启动流程。普通到位精度使用 `record` 记录策略；通信故障、无有效目标、关节越界及碰撞等错误仍可能停止流程。失败状态和已完成阶段写入会话文件，见[接入接口](docs/INTEGRATION.md)。阶段耗时包括连接、规划、动作和反馈，不是单纯的电机运动时间。
+
+FAST 复用 SDK/CAN、相机和模型，复用可用的预计算轨迹；只在定位阶段识别杯子，减少诊断图片和固定等待。STEP 保留分段确认及可视化。两种模式均不能把指令发送成功解释成已抓牢。
+
+| 参数 | 交付值 | 含义 |
+| --- | --- | --- |
+| `serial` / `channel` | `346222071954` / `can0` | 相机与 CAN |
+| `calibration` | 参考标定文件路径 | 彩色相机到基座变换；新安装须更换 |
+| `home` | HOME JSON 路径 | 七轴 HOME 角度，度 |
+| `speed_percent` | 20 | STEP/AUTO 普通运动百分比 |
+| `green_cup.fast_speed_percent` | 30 | FAST 普通运动百分比 |
+| `green_cup.fast_phase_speed_percent` | approach、return_home 均 60 | 两段单独速度百分比 |
+| `green_cup.contact_offset_base_mm` | `[0,0,30]` | 杯口圆心在基座坐标系中的 TCP 目标偏移，mm |
+| `green_cup.tcp_offset_flange_mm` | `[30,15,0]` | 在 TCP 文件基础上、沿法兰坐标轴追加的偏移，mm |
+| `green_cup.wrist_reference_deg` | `[15,-13,5]` | J5/J6/J7 的 IK 偏好，不是固定锁定 |
+| `green_cup.lift_mm` | 50 | 抬杯高度，mm |
+| `green_cup.open_targets_0_100` | `[0,0,0,0,0,0]` | 张手目标 |
+| `green_cup.grip_targets_0_100` | `[0,100,40,40,40,100]` | 闭手目标 |
+| `green_cup.finger_duration_s` | 1 | 常规手指动作时间，秒 |
+| `green_cup.fast_finger_duration_s` | 0.5 | FAST 手指动作时间，秒 |
+| `green_cup.perception.height_mode` | `fixed` | `fixed` 已知杯高；`measured` 双目测高 |
+| `green_cup.perception.fixed_height_mm` | 65 | 固定模式杯高，mm |
+| `green_cup.perception.inference_provider` | `spacemit` | K3 AI 后端；`cpu` 使用普通 CPU 后端 |
+| `green_cup.perception.inference_threads` | 2 | AI 后端计算线程数；CPU 后端时为 CPU 推理线程数 |
+| `green_cup.perception.inference_cpu_ids` | `[8,9]` | 两个 A100 AI 核；CPU 后端设为 `[]` |
+| `green_cup.fast_camera_warmup_frames` | 5 | FAST 相机启动预热帧数；STEP 保持 20 帧 |
+| `green_cup.fast_camera_fresh_discard_frames` | 0 | FAST 正式采集前额外丢帧数；仍清理旧队列并要求 RGB/深度帧号推进 |
+| `green_cup.camera` | RGB/深度 1280×720、15 FPS | RGB 裁剪 `[220,0,960,720]`；程序同步修正内参 |
+| `green_cup.joint_test_config` | `configs/joint_shake.json` | 摇晃配置 |
+
+六路手指顺序为：拇指尖、拇指根、食指、中指、无名指、小指。指令完成不等于已测量确认抓牢。TCP 偏移属于法兰坐标系，不能直接按图像左右方向修改。
+
+`configs/joint_shake.json`：
+
+| 参数 | 交付值 | 含义 |
+| --- | --- | --- |
+| `joints` | `[1,4,5,6,7]` | 同时摇晃的关节编号 |
+| `amplitude_deg` | `[5,5,5,5,5]` | 各关节单侧幅度；负号表示反向 |
+| `velocity_deg_s` | `[170,170,170,200,200]` | 各关节速度预算，°/s |
+| `acceleration_deg_s2` | 各 277.8845 | 各关节加速度预算，°/s² |
+| `cycles` | 6 | 完整往返周期，另有渐入和回中心 |
+| `phase_delay_deg` | 省略或 `null` | 按 `joints` 顺序设置各轴相位滞后，0～360°；90° 表示晚四分之一周期开始 |
+| `controller_speed_percent` | 100 | 摇晃执行速度百分比 |
+
+当前 `stereo_config.json` 开发入口使用 `cup_grasp_demo/calibration_debug/joint_test_config.json`：`joints=[1,4,5,6,7]`、`amplitude_deg=[5,5,5,5,5]`、`phase_delay_deg=null`、`cycles=6`。当前各轴同步运动，没有相位延迟。关闭相位延迟推荐使用 `null`，增减关节时不必修改该字段；使用列表时必须与 `joints` 一一对应。当前五轴若设为 `[0,0,0,0,90]`，J7 相对 J6 滞后四分之一周期；每轴均从中心静止启动，完成自身周期后回中心，整体时长增加最大相位延迟。pipeline 在 HOME 之前校验摇晃参数，配置错误时不会先移动再报错。修改后重新生成计划，不执行旧计划。顶层 `configs/joint_shake.json` 已同步上述参数；以后修改使用入口实际指向的配置。
+
+速度预算不是实际到达速度；最终轨迹仍受关节行程及控制器限值约束。配置里的控制器加速度目标不代表每次 pipeline 都写入硬件参数。
+
+AI 推理通过 `SpaceMITExecutionProvider` 创建 CPU 8、9 上的计算线程。Python、相机、控制及未被 AI 后端接管的算子仍在普通 CPU 上运行。不要用 `taskset` 把整个 Pipeline 绑到 AI 核。配置为 `spacemit` 时依赖 `spacemit_ort`；后端初始化失败会报错。回退时同时设置 `inference_provider="cpu"`、`inference_threads=4`、`inference_cpu_ids=[]`，然后重新启动程序。
+
+## 5. 输出与项目结构
+
+`green_pipeline_state.json` 记录状态、每阶段耗时、路径复用和错误；`green_grasp_plan.json` 记录目标及规划耗时；`green_approach_timings.json` 拆分运动和后续准备；`runs/` 保存每次执行的 `request.json`、`actual.json` 和日志。固定 RUN 复用最新结果，但历史 runs 不自动清空。
+
+```text
+configs/                    交付使用的主配置、摇晃配置
+scripts/                    环境检查、源码打包、桌面参数登记
+cup_grasp_demo/              识别、规划、状态机和调试入口
+nero_revo2_control/          机械臂及灵巧手控制、运动学
+nero_calibration/           手眼标定、示教点记录、参考板恢复
+rgb_hand_tracking/          复用的 SDK 反馈与控制审计模块
+agx_arm_ros/.../agx_arm_urdf/ 几何模型，不要求 ROS 运行时
+docs/                       调试和标定指南
+```
+
+`rgb_hand_tracking` 中保留历史视觉实验源码是为了兼容被复用的底层模块；当前绿色杯 pipeline 不运行 MediaPipe。软件测试不能替代新安装后的实物接触、抓牢和运动通路验收。
+
+## 6. 比大小后的反馈动作
+
+独立脚本：机械臂赢了比 yeah，输了点赞。完成放杯后调用，动作完成保持姿态；不启动相机或 YOLO。
+
+```bash
+cd /home/test2/dice_demo
+bash run_feedback.sh yeah --execute       # 机械臂赢
+bash run_feedback.sh thumbs-up --execute  # 机械臂输
+bash run_feedback.sh tie --execute        # 平局：手指往返 3 次
+```
+
+去掉 `--execute` 仅预览。`bash run_feedback.sh --list` 查看动作列表。可在 `configs/result_feedback.json` 增删动作，分别设置机械臂速度、手指动作时间、先后/同时执行与启动时延；[参数与调试说明](docs/DEBUG.md#9-比大小后的反馈手势)。此独立脚本由上层程序在比大小后调用，不自动订阅比赛结果。
+
+反馈手势的灵巧手已默认使用 `finger_speed_mode: "max"`（目标位置＋时间 0）；机械臂为 50%。`finger_max_wait_s: 0.65` 是指令后的观察时间，不是限速参数。

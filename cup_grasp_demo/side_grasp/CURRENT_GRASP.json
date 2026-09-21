@@ -1,0 +1,98 @@
+{
+  "schema": 1,
+  "definition_id": "silver_side_index_height_9_of_11",
+  "source": "TCP修改为食指第一个关节中心；新的TCP与杯子接触点位于杯子9/11处；当前在抓取位置，五指张开",
+  "status": "standard_mount_confirmed_high_observation_reached_TCP_accuracy_pending",
+  "motion_ready": false,
+  "automatic_pipeline_integrated": false,
+  "target": "silver_inverted_cup_in_red_workspace",
+  "height_definition": {
+    "origin": "table_surface",
+    "direction": "table_normal_toward_cup_top",
+    "cup_top_fraction": 1,
+    "contact_fraction_numerator": 9,
+    "contact_fraction_denominator": 11,
+    "cup_height_source": "current_aligned_rgbd_and_instance_mask"
+  },
+  "hand_contact_landmark": "index_finger_PIP_palmar_surface_point_indicated_by_user_red_marks",
+  "finger_order": [
+    "thumb_tip",
+    "thumb_base",
+    "index",
+    "middle",
+    "ring",
+    "pinky"
+  ],
+  "preform": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "pregrasp_surface_gap_m": 0.05,
+  "closure_targets": [
+    [
+      0,
+      100,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      100,
+      100,
+      100,
+      100,
+      100,
+      100
+    ]
+  ],
+  "shake_constraint": "cup_mouth_on_table",
+  "T_flange_contact": null,
+  "new_section_diameter_m": null,
+  "contact_base_m": null,
+  "pregrasp_base_m": null,
+  "example_only": {
+    "cup_height_mm": 114.2,
+    "contact_height_mm": 93.43636363636364,
+    "use_as_motion_target": false
+  },
+  "invalidated": {
+    "previous_contact_height_fraction": 0.6,
+    "scope": [
+      "middle_finger_TCP_transform_candidates",
+      "previous_taught_grasp_reference_for_current_contact",
+      "cup_contact_target",
+      "pregrasp_target",
+      "derived_flange_targets_and_IK_paths"
+    ],
+    "reason": "User changed both the hand contact landmark and cup contact height; measure the new TCP and refit the new cup section before planning",
+    "historical_66p8_mm_diameter_applies_only_to": "0.6H section",
+    "previous_hand_contact_landmark": "middle_finger_PIP_palmar_surface_center"
+  },
+  "exact_joint_identity": "PIP, confirmed by user",
+  "grasp_reference": "cup_grasp_demo/datasets/silver_index_contact_20260917_01/grasp_reference.json",
+  "landmark_authority": "User annotated contact surface; do not substitute a URDF joint axis origin",
+  "grasp_reference_valid": false,
+  "physical_tcp_verified": false,
+  "reference_state": "The referenced contact dataset was captured at HOME; user photos specify the contact landmark. It is not a live robot-state record. Read latest_debug_status for the last observed hardware state.",
+  "user_photo_files": [
+    "cup_grasp_demo/datasets/silver_index_contact_20260917_01/user_contact_side.jpg",
+    "cup_grasp_demo/datasets/silver_index_contact_20260917_01/user_contact_top.jpg"
+  ],
+  "tcp_estimation_method": "official mounting chain plus zero-posture hand mesh red-point surface offset; independent of cup location",
+  "tcp_candidate": "cup_grasp_demo/side_grasp/TCP_MODEL_CANDIDATE.json",
+  "contact_teaching_required": false,
+  "mount_confirmation": {
+    "type": "original_standard_revo2_adapter",
+    "source": "User confirmed: 原厂标准转接件",
+    "extra_extension_m": 0.0,
+    "mount_type_confirmed": true,
+    "mount_orientation_independently_verified": false,
+    "ICP_translation_correction_applied": false
+  },
+  "latest_debug_status": "cup_grasp_demo/side_grasp/STATUS.json"
+}

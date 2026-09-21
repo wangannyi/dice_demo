@@ -1,0 +1,67 @@
+{
+  "timestamp_domain": "timestamp_domain.global_time",
+  "instance_id": "346222071954:21:cup:0",
+  "frame_id": "346222071954:21",
+  "mask_source": "yolov8_seg_coco_alias_green_filter",
+  "schema_version": 1,
+  "frame": "color_optical",
+  "units": "m",
+  "timestamp_ms": 1789465739487.7493,
+  "valid": true,
+  "geometry": {
+    "center_m": [
+      0.03448312597614737,
+      -0.0800533820796927,
+      0.5707442538660312
+    ],
+    "support_center_m": [
+      0.02756010621761313,
+      -0.06123773802773366,
+      0.5999855238697288
+    ],
+    "axis": [
+      0.19526592263973602,
+      -0.5307010847885439,
+      -0.8247591030476205
+    ],
+    "axis_source": "support_plane_normal_upright_assumption",
+    "center_definition": "axis_midpoint_from_support_to_observed_top",
+    "dimensions": {
+      "observed_height_m": 0.07090863234039203,
+      "observed_side_diameter_m": 0.07654984138281354,
+      "sections": [
+        {
+          "height_m": 0.015267867498379887,
+          "diameter_m": 0.0816205708488443
+        },
+        {
+          "height_m": 0.02642520854561463,
+          "diameter_m": 0.07880483858781662
+        },
+        {
+          "height_m": 0.03771409427943098,
+          "diameter_m": 0.07429484417781045
+        },
+        {
+          "height_m": 0.04835752214211725,
+          "diameter_m": 0.07205592734767438
+        }
+      ]
+    },
+    "quality": {
+      "table_inlier_fraction": 0.94,
+      "table_rms_m": 0.001274803947871934,
+      "side_rms_m": 0.0016207808736105093,
+      "min_side_arc_deg": 150.27841346712842,
+      "section_center_spread_m": 0.002142960349170021,
+      "object_points": 6454,
+      "side_sections": 4,
+      "hardware_validated": false,
+      "axis_measured_independently": false,
+      "hidden_surface_measured": false,
+      "complete_height_verified": false,
+      "valid_depth_fraction": 0.9732063492063492
+    }
+  },
+  "reason": null
+}

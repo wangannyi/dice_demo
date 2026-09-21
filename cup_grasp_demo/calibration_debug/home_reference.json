@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "kind": "user_specified_debug_home",
+  "source": "User supplied J1-J7 degrees",
+  "joint_order": [
+    "J1",
+    "J2",
+    "J3",
+    "J4",
+    "J5",
+    "J6",
+    "J7"
+  ],
+  "joints_deg": [
+    0,
+    -70,
+    -90,
+    100,
+    -10,
+    -5,
+    5
+  ],
+  "joints_rad": [
+    0.0,
+    -1.2217304763960306,
+    -1.5707963267948966,
+    1.7453292519943295,
+    -0.17453292519943295,
+    -0.08726646259971647,
+    0.08726646259971647
+  ],
+  "arm_home_feedback_valid": false,
+  "physical_return_verified": false,
+  "finger_home_position_0_100": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ]
+}

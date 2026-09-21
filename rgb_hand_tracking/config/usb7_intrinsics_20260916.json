@@ -1,0 +1,663 @@
+{
+  "schema": 1,
+  "kind": "usb_rgb_intrinsics_calibration",
+  "camera": {
+    "backend": "v4l2_rgb",
+    "host": "test2@10.0.91.132",
+    "device": "/dev/video7",
+    "width": 1280,
+    "height": 720,
+    "format": "MJPG",
+    "intrinsics_file": null,
+    "camera_epoch": "usb7_overhead_20260916",
+    "reported_fps": 30.0,
+    "timestamp": "host_monotonic_after_read_not_exposure",
+    "v4l2_controls_at_capture": "\nUser Controls\n\n                     brightness 0x00980900 (int)    : min=1 max=255 step=1 default=128 value=50 flags=has-min-max\n                       contrast 0x00980901 (int)    : min=1 max=255 step=1 default=128 value=128 flags=has-min-max\n                     saturation 0x00980902 (int)    : min=1 max=255 step=1 default=128 value=128 flags=has-min-max\n                            hue 0x00980903 (int)    : min=0 max=255 step=1 default=128 value=128 flags=has-min-max\n        white_balance_automatic 0x0098090c (bool)   : default=0 value=1\n                           gain 0x00980913 (int)    : min=0 max=255 step=1 default=255 value=255 flags=has-min-max\n      white_balance_temperature 0x0098091a (int)    : min=300 max=600 step=1 default=417 value=417 flags=inactive, has-min-max\n                      sharpness 0x0098091b (int)    : min=1 max=255 step=1 default=128 value=128 flags=has-min-max\n         backlight_compensation 0x0098091c (int)    : min=0 max=8 step=1 default=4 value=4 flags=has-min-max\n\nCamera Controls\n\n                  auto_exposure 0x009a0901 (menu)   : min=0 max=3 default=0 value=1 (Manual Mode)\n         exposure_time_absolute 0x009a0902 (int)    : min=5 max=2500 step=1 default=2500 value=2500 flags=has-min-max\n                  zoom_absolute 0x009a090d (int)    : min=100 max=200 step=1 default=100 value=100 flags=has-min-max\n",
+    "v4l2_device_info": "Driver Info:\n\tDriver name      : uvcvideo\n\tCard type        : 1080P USB Camera: 1080P USB Cam\n\tBus info         : usb-xhci-hcd.15.auto-1.1\n\tDriver version   : 6.18.3\n\tCapabilities     : 0x84a00001\n\t\tVideo Capture\n\t\tMetadata Capture\n\t\tStreaming\n\t\tExtended Pix Format\n\t\tDevice Capabilities\n\tDevice Caps      : 0x04200001\n\t\tVideo Capture\n\t\tStreaming\n\t\tExtended Pix Format\nMedia Driver Info:\n\tDriver name      : uvcvideo\n\tModel            : 1080P USB Camera: 1080P USB Cam\n\tSerial           : 44434000_P030C01_SN0002\n\tBus info         : usb-xhci-hcd.15.auto-1.1\n\tMedia version    : 6.18.3\n\tHardware revision: 0x00001200 (4608)\n\tDriver version   : 6.18.3\nInterface Info:\n\tID               : 0x03000002\n\tType             : V4L Video\nEntity Info:\n\tID               : 0x00000001 (1)\n\tName             : 1080P USB Camera: 1080P USB Cam\n\tFunction         : V4L2 I/O\n\tFlags            : default\n\tPad 0x01000007   : 0: Sink\n\t  Link 0x02000010: from remote pad 0x100000a of entity 'Extension 4' (Video Pixel Formatter): Data, Enabled, Immutable\n"
+  },
+  "image_size": [
+    1280,
+    720
+  ],
+  "board": {
+    "type": "charuco",
+    "dictionary": "4x4_50",
+    "squares_x": 4,
+    "squares_y": 5,
+    "square_length_m": 0.022,
+    "marker_length_m": 0.0155,
+    "legacy_pattern": false,
+    "mount": "locating_pin_or_frame",
+    "T_base_board": null,
+    "board_face_above_cup_support_m": null,
+    "previous_setup_face_height_m": 0.004,
+    "previous_setup_height_reverified": false
+  },
+  "distortion_model": "opencv_brown_5",
+  "distortion_order": [
+    "k1",
+    "k2",
+    "p1",
+    "p2",
+    "k3"
+  ],
+  "calibration_flags": 128,
+  "calibration_flag_names": [
+    "CALIB_FIX_K3"
+  ],
+  "estimated_distortion_parameters": [
+    "k1",
+    "k2",
+    "p1",
+    "p2"
+  ],
+  "fixed_distortion_parameters": {
+    "k3": 0.0
+  },
+  "camera_matrix": [
+    [
+      760.622150775098,
+      0.0,
+      631.206160701527
+    ],
+    [
+      0.0,
+      765.1726173785759,
+      357.9253192654043
+    ],
+    [
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "distortion_coefficients": [
+    0.12964638477416476,
+    -0.12162780929499599,
+    -0.0034925772410754423,
+    -0.003270542448536036,
+    0.0
+  ],
+  "quality_passed": true,
+  "quality_reasons": [],
+  "quality_thresholds": {
+    "minimum_views": 20,
+    "maximum_training_rms_px": 0.8,
+    "maximum_holdout_rms_px": 1.2,
+    "minimum_corner_hull_fraction": 0.4,
+    "minimum_corner_grid_cells_3x3": 6,
+    "minimum_tilted_views_15deg": 4,
+    "minimum_maximum_tilt_deg": 25.0,
+    "minimum_normal_spread_deg": 15.0,
+    "minimum_board_scale_ratio": 1.5
+  },
+  "accepted_views": 31,
+  "training_views": 24,
+  "holdout_views": 7,
+  "training_rms_px": 0.13837709395521397,
+  "holdout_pnp_rms_px": 0.15677253071965527,
+  "coverage": {
+    "corner_hull_fraction": 0.40520177111770583,
+    "corner_grid_cells_3x3": 9,
+    "occupied_corner_grid_cells": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        1
+      ],
+      [
+        0,
+        2
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        0
+      ],
+      [
+        2,
+        1
+      ],
+      [
+        2,
+        2
+      ]
+    ],
+    "board_scale_ratio": 2.9145645335271446
+  },
+  "pose_diversity": {
+    "maximum_tilt_deg": 27.52784384249944,
+    "tilted_views_15deg": 10,
+    "normal_spread_deg": 50.32428489438166
+  },
+  "views": [
+    {
+      "image_path": "session_0/sample_000.png",
+      "group": "holdout",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.22900670766830444,
+      "tilt_deg": 15.652691170312881,
+      "corner_hull_fraction": 0.006024674315301834,
+      "board_depth_m": 0.6038209543082687
+    },
+    {
+      "image_path": "session_0/sample_001.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.1426161378622055,
+      "tilt_deg": 15.942280319279332,
+      "corner_hull_fraction": 0.005984346752344815,
+      "board_depth_m": 0.6025946117778972
+    },
+    {
+      "image_path": "session_0/sample_002.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.19580429792404175,
+      "tilt_deg": 12.855638581041397,
+      "corner_hull_fraction": 0.005868767635074618,
+      "board_depth_m": 0.5981335849293923
+    },
+    {
+      "image_path": "session_0/sample_003.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 11,
+      "rms_px": 0.13879495859146118,
+      "tilt_deg": 22.91840715403394,
+      "corner_hull_fraction": 0.005549714629509658,
+      "board_depth_m": 0.5953467843291483
+    },
+    {
+      "image_path": "session_0/sample_004.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.14955869317054749,
+      "tilt_deg": 19.104766405802184,
+      "corner_hull_fraction": 0.006255384563828557,
+      "board_depth_m": 0.5855366617487524
+    },
+    {
+      "image_path": "session_0/sample_005.png",
+      "group": "holdout",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.12341246753931046,
+      "tilt_deg": 15.758048553013491,
+      "corner_hull_fraction": 0.005997394090667916,
+      "board_depth_m": 0.5915200575342938
+    },
+    {
+      "image_path": "session_0/sample_006.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.19132545590400696,
+      "tilt_deg": 20.793341400612462,
+      "corner_hull_fraction": 0.006009190862015304,
+      "board_depth_m": 0.5841894144622787
+    },
+    {
+      "image_path": "session_0/sample_007.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.12123709917068481,
+      "tilt_deg": 14.23224728290674,
+      "corner_hull_fraction": 0.00526483425435294,
+      "board_depth_m": 0.6105853457473405
+    },
+    {
+      "image_path": "session_0/sample_008.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.12334036827087402,
+      "tilt_deg": 14.09376675397543,
+      "corner_hull_fraction": 0.005330187218208569,
+      "board_depth_m": 0.6039726839368925
+    },
+    {
+      "image_path": "session_0/sample_009.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.11341545730829239,
+      "tilt_deg": 13.686423873684085,
+      "corner_hull_fraction": 0.004881089015680118,
+      "board_depth_m": 0.6213119577132722
+    },
+    {
+      "image_path": "session_0/sample_010.png",
+      "group": "holdout",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.1313016414642334,
+      "tilt_deg": 13.264058716993942,
+      "corner_hull_fraction": 0.004795500615597727,
+      "board_depth_m": 0.6240054867978421
+    },
+    {
+      "image_path": "session_0/sample_011.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.1229754239320755,
+      "tilt_deg": 12.52263281665454,
+      "corner_hull_fraction": 0.005273148083659989,
+      "board_depth_m": 0.6230555490842986
+    },
+    {
+      "image_path": "session_0/sample_012.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.13779759407043457,
+      "tilt_deg": 13.235236829359627,
+      "corner_hull_fraction": 0.005367208715777249,
+      "board_depth_m": 0.6212160238939729
+    },
+    {
+      "image_path": "session_0/sample_013.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.09406451880931854,
+      "tilt_deg": 14.853950597559805,
+      "corner_hull_fraction": 0.005447033870420152,
+      "board_depth_m": 0.6147346444979128
+    },
+    {
+      "image_path": "session_0/sample_014.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.1972939521074295,
+      "tilt_deg": 23.775510878174085,
+      "corner_hull_fraction": 0.006083068140070383,
+      "board_depth_m": 0.6104032607942724
+    },
+    {
+      "image_path": "session_0/sample_015.png",
+      "group": "holdout",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.15200838446617126,
+      "tilt_deg": 27.52784384249944,
+      "corner_hull_fraction": 0.005277025520142868,
+      "board_depth_m": 0.5471669676273132
+    },
+    {
+      "image_path": "session_0/sample_016.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.16145837306976318,
+      "tilt_deg": 8.13743478968838,
+      "corner_hull_fraction": 0.005848206080653552,
+      "board_depth_m": 0.5746266428937002
+    },
+    {
+      "image_path": "session_0/sample_017.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.11943653225898743,
+      "tilt_deg": 15.546615570480995,
+      "corner_hull_fraction": 0.0050060680027046245,
+      "board_depth_m": 0.6192184253073589
+    },
+    {
+      "image_path": "session_0/sample_018.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.11952482163906097,
+      "tilt_deg": 18.63661055296464,
+      "corner_hull_fraction": 0.005006994700008565,
+      "board_depth_m": 0.6183252129664049
+    },
+    {
+      "image_path": "session_0/sample_019.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.08871226012706757,
+      "tilt_deg": 12.189795160111125,
+      "corner_hull_fraction": 0.00767527651736398,
+      "board_depth_m": 0.4939205133051852
+    },
+    {
+      "image_path": "session_0/sample_020.png",
+      "group": "holdout",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.15227758884429932,
+      "tilt_deg": 6.008968213974712,
+      "corner_hull_fraction": 0.008074426742162662,
+      "board_depth_m": 0.48502022305010106
+    },
+    {
+      "image_path": "session_0/sample_021.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.1370634287595749,
+      "tilt_deg": 7.65512246378373,
+      "corner_hull_fraction": 0.008919708434589717,
+      "board_depth_m": 0.4770632739187956
+    },
+    {
+      "image_path": "session_0/sample_022.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.17483213543891907,
+      "tilt_deg": 11.886502164515772,
+      "corner_hull_fraction": 0.02722463549758888,
+      "board_depth_m": 0.2816325692774096
+    },
+    {
+      "image_path": "session_0/sample_023.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.11564121395349503,
+      "tilt_deg": 13.05019779856034,
+      "corner_hull_fraction": 0.006732883477792105,
+      "board_depth_m": 0.5276237069670522
+    },
+    {
+      "image_path": "session_1/sample_000.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 10,
+      "rms_px": 0.07070959359407425,
+      "tilt_deg": 14.401584737584171,
+      "corner_hull_fraction": 0.004359965142780816,
+      "board_depth_m": 0.6136544318036419
+    },
+    {
+      "image_path": "session_1/sample_001.png",
+      "group": "holdout",
+      "pnp_valid": true,
+      "corner_count": 9,
+      "rms_px": 0.16580830514431,
+      "tilt_deg": 12.647614422396014,
+      "corner_hull_fraction": 0.0057427823786626205,
+      "board_depth_m": 0.4987295937767248
+    },
+    {
+      "image_path": "session_1/sample_002.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.11867721378803253,
+      "tilt_deg": 13.3500974328824,
+      "corner_hull_fraction": 0.008338131211008255,
+      "board_depth_m": 0.4894180935563265
+    },
+    {
+      "image_path": "session_1/sample_003.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.13724426925182343,
+      "tilt_deg": 12.772349483856361,
+      "corner_hull_fraction": 0.007154459447733517,
+      "board_depth_m": 0.5162445327174879
+    },
+    {
+      "image_path": "session_1/sample_004.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 12,
+      "rms_px": 0.12644082307815552,
+      "tilt_deg": 12.600171608040617,
+      "corner_hull_fraction": 0.006944818618002273,
+      "board_depth_m": 0.5225890538612982
+    },
+    {
+      "image_path": "session_1/sample_005.png",
+      "group": "training",
+      "pnp_valid": true,
+      "corner_count": 8,
+      "rms_px": 0.12331673502922058,
+      "tilt_deg": 11.548026984470717,
+      "corner_hull_fraction": 0.0032670139841098314,
+      "board_depth_m": 0.5518883987579151
+    },
+    {
+      "image_path": "session_1/sample_006.png",
+      "group": "holdout",
+      "pnp_valid": true,
+      "corner_count": 8,
+      "rms_px": 0.09389326721429825,
+      "tilt_deg": 12.119445903618741,
+      "corner_hull_fraction": 0.0032049017646123604,
+      "board_depth_m": 0.5554058345117142
+    }
+  ],
+  "skipped_samples": [],
+  "provenance": {
+    "manifest_sha256": "4729b8a261562046a3e622072b8ff63710c7d739419b230332a645c7032def50",
+    "source_sha256": {
+      "usb_intrinsics.py": "b791d67640ba9dc53e7ef7228573f0c82f835b17c29d354bae7650f257eab833",
+      "board_rgb.py": "d5a59e536c65c27f39c660430f83642aa8c0c82f9fb9a3f90a516b159ddc6bca"
+    },
+    "samples": [
+      {
+        "image_path": "session_0/sample_000.png",
+        "sha256_image": "aa9951edafb2f4249ff1b22a175d45214b4a732909b73bea7e376068f93e666b",
+        "timestamp_s": 162663.872663071,
+        "observation_sha256": "3233569b88634c218eccc5417c959935cdab03d3f48ed8a3653dfdc1b4d7db02"
+      },
+      {
+        "image_path": "session_0/sample_001.png",
+        "sha256_image": "93390054d7ff616e06ab975cae9ee1ee6881816fa359618c35a5b0653f127e9c",
+        "timestamp_s": 162665.180776877,
+        "observation_sha256": "ee68e7a9c825a62a1217da1730bbbfd8be007cf829b3a186000a3d7f77870113"
+      },
+      {
+        "image_path": "session_0/sample_002.png",
+        "sha256_image": "a9a953f6138d4d88519c38e998b7925847ce57feb914e24325da8246daba9831",
+        "timestamp_s": 162666.452699465,
+        "observation_sha256": "d0cc27283b21a4911d9afe4a0134097422956b8254071f44812bc32374fee4bc"
+      },
+      {
+        "image_path": "session_0/sample_003.png",
+        "sha256_image": "f931c3e20595f0e327d3a904c25a065650aba1a54eae4c295276a1c9f88a7fae",
+        "timestamp_s": 162667.656596701,
+        "observation_sha256": "9b17f026ee169b4340c778dcad39a3635ea107e40b5f82c7b978ea5aa6ca7aa9"
+      },
+      {
+        "image_path": "session_0/sample_004.png",
+        "sha256_image": "fdf70bbc620a04155e0e0c52811b4e26e56b86fd75642effff44c38340699441",
+        "timestamp_s": 162669.260534209,
+        "observation_sha256": "99c8305c8e95832bae74cbaa8bd8df7915c0433c82f01757d0d3d2d29f39cade"
+      },
+      {
+        "image_path": "session_0/sample_005.png",
+        "sha256_image": "512f6c2c8b3c6adca06af8a1aff63a093aba2249a278cdd53c80aa2fc013f5ed",
+        "timestamp_s": 162670.460548293,
+        "observation_sha256": "b9ec852486348ecb5a9c32dc07e56ad152b950c0672ab4fa99711b7173159b88"
+      },
+      {
+        "image_path": "session_0/sample_006.png",
+        "sha256_image": "609475088b2afd3ae20d234dd403a55f0a2e4772fcb7dcb146d92a917c64a854",
+        "timestamp_s": 162684.435755062,
+        "observation_sha256": "48135bdac1afaa509468936aef5f9f62b63ec094ebe031da6819c46d4c8bc395"
+      },
+      {
+        "image_path": "session_0/sample_007.png",
+        "sha256_image": "f3e5c3589617a8d086783c90c1331de6a6ae71b93e35163749cff653ec8b0868",
+        "timestamp_s": 162685.639716146,
+        "observation_sha256": "cbdfb27aebaa1f13f1b21bd1fe0f2b4e2e1572ccec18f3c40e3cfe0f62719800"
+      },
+      {
+        "image_path": "session_0/sample_008.png",
+        "sha256_image": "726fc373b6380bdf28634c5274d03bfbe8cc7cca2d4dedc32ef821db698967df",
+        "timestamp_s": 162690.655504841,
+        "observation_sha256": "95f705f7162d6de5a5d3098106576fc64bfefde88f0186dd1815097d0b7781ec"
+      },
+      {
+        "image_path": "session_0/sample_009.png",
+        "sha256_image": "93137b445eb0ae69a21dd0f36dc9950ba4e58ae852aa66fd6afa2db6f6532cd4",
+        "timestamp_s": 162691.859472736,
+        "observation_sha256": "e0b9c3f4983df271c202478d00f0616152e51008a1e2ff13f5b8a2b8e95289b5"
+      },
+      {
+        "image_path": "session_0/sample_010.png",
+        "sha256_image": "f4c17168515c0f3a9dfd8361fa242ad8fc2d5c5805f8c72bbe55a433095a9c21",
+        "timestamp_s": 162697.03922935,
+        "observation_sha256": "0ec37e6327488a6b1367869a358be7da06423edd2f248aa638a53391cc0ca6f5"
+      },
+      {
+        "image_path": "session_0/sample_011.png",
+        "sha256_image": "380d878fc502ca4e9b54b0ed6e61e199286479a68e34aed4a6fa023a5d21f238",
+        "timestamp_s": 162740.729063163,
+        "observation_sha256": "8b4172c983ccda0f97c1a1354c1a5b1a8b5b5b862ae3176f925867d481afbdb8"
+      },
+      {
+        "image_path": "session_0/sample_012.png",
+        "sha256_image": "668f245f3fddb2c6aaf354ea4f8147db4fe07f22a7d4ba487934f291c0f6fa3f",
+        "timestamp_s": 162743.772873356,
+        "observation_sha256": "7e9c70739bcfdf9fd1e5c72af760caf7f616a1b09e093c9e9046d7eba5086aff"
+      },
+      {
+        "image_path": "session_0/sample_013.png",
+        "sha256_image": "71c3f3b66d61f86b1b0f6418007bc445a36e5c45aa1f4dc4f82076e826de33d8",
+        "timestamp_s": 162744.976859989,
+        "observation_sha256": "425fa4c80822b52dbb18dee364abcf685df6c9a5354e6e9201b612914d565ebd"
+      },
+      {
+        "image_path": "session_0/sample_014.png",
+        "sha256_image": "e1daba6ac8876fb12634c64bc8aca7f4a9231476e47ad7e897c4f94532b281df",
+        "timestamp_s": 162746.180877367,
+        "observation_sha256": "57255a189d9a18cb78246b5cf74c6b545292947bcd8f30ec6731df8543f77256"
+      },
+      {
+        "image_path": "session_0/sample_015.png",
+        "sha256_image": "88300ed9553dd7b5d0bd41044f5dd3803673dee81e62abc01d52bd747fa2892c",
+        "timestamp_s": 162747.684748444,
+        "observation_sha256": "cba9cbe6177c444935580dda12cb709d21151e3e5d25d598873f04ab66a7c97a"
+      },
+      {
+        "image_path": "session_0/sample_016.png",
+        "sha256_image": "f96dabb1a8e062738190c3685efd7f853edda31d67be983221ddfd71900f8ddc",
+        "timestamp_s": 162749.288844707,
+        "observation_sha256": "fef4a5d0ce316ae7408793590b316ded48a400c8244b7e213d8dbc62c295169f"
+      },
+      {
+        "image_path": "session_0/sample_017.png",
+        "sha256_image": "f8bb308e32aa9fd451b7be9467b71524daf2f6c0d46996c04f8db02006847eb4",
+        "timestamp_s": 162750.528603047,
+        "observation_sha256": "4a4c12cfd016fc92a610d6b783cefbca942d9e1c9333f1a9db59799cc837a136"
+      },
+      {
+        "image_path": "session_0/sample_018.png",
+        "sha256_image": "117174191cca7bb78450ce86811ed3c05f5d913138f8e722f04c19185b5f392a",
+        "timestamp_s": 162760.32414638,
+        "observation_sha256": "c57b12809cc51b55672450a455b76b77a9b5deab1b1b0a4809d484c697b85932"
+      },
+      {
+        "image_path": "session_0/sample_019.png",
+        "sha256_image": "97590a7069bba9528e959372189f92167d4fac6a861a6728d7b5b6e48b9a5115",
+        "timestamp_s": 162761.560132706,
+        "observation_sha256": "9b79a888b3938f088f84bb50b48c20cf30ec91a250a7f33c7f5e17e0f5797a24"
+      },
+      {
+        "image_path": "session_0/sample_020.png",
+        "sha256_image": "4a7c25bae95b63a7ad93ec3750f0f8312009fd353f87440991a695ececea3661",
+        "timestamp_s": 162762.995990851,
+        "observation_sha256": "f57857b62cf9fa8e42cd4f6c56a5d4be0771f60a3d987075977984aeee9d132d"
+      },
+      {
+        "image_path": "session_0/sample_021.png",
+        "sha256_image": "bcf4711e6fd14d2a40c1dbf59277135a6147d61e6ef23b5a1b01f6f006772a18",
+        "timestamp_s": 162765.13591881,
+        "observation_sha256": "d47c51231020826290778d0fc725a4d9aaa2db0f947397851fd12722bedbd205"
+      },
+      {
+        "image_path": "session_0/sample_022.png",
+        "sha256_image": "0b7a16732708b0620176e59e1282184b7e52e054001cfe8aba76fc99d2d14f0a",
+        "timestamp_s": 162770.855739854,
+        "observation_sha256": "49e2a473d64a6cfb81206c5d38dee2981bd2560a45af23668caa9676de98f6b9"
+      },
+      {
+        "image_path": "session_0/sample_023.png",
+        "sha256_image": "6c124ed278f09691619a93d7d82078d1d247ee6e051d7ead549f0b3ea0f89e1a",
+        "timestamp_s": 162772.727556677,
+        "observation_sha256": "387f24a7ee17fa1dfc30360c8204197958110c033259843096a4430f18255791"
+      },
+      {
+        "image_path": "session_1/sample_000.png",
+        "sha256_image": "a2bbc650708e4a4d55d17d44a4c1d1b5ab4526486a15e664107af6c97dcaf954",
+        "timestamp_s": 162867.006265122,
+        "observation_sha256": "2e3d4690f594695ab623e1746c46dc08012a8038822383ad20ace387813c42cc"
+      },
+      {
+        "image_path": "session_1/sample_001.png",
+        "sha256_image": "ca86fb595a2b55d7b31f44e2d601b0a49b8227ea14008631811c139215069f0c",
+        "timestamp_s": 162878.410258185,
+        "observation_sha256": "68293efb24c2441aa6c35e66f27a055912d58674a835661983e009228b507cfb"
+      },
+      {
+        "image_path": "session_1/sample_002.png",
+        "sha256_image": "30e908bcc06b9d884135bc18960e103545b416a9fc8f1ece1001ea79c641a6e6",
+        "timestamp_s": 162881.886015461,
+        "observation_sha256": "2a2d2ec1b290cb0020f5a0c697b1b1daa52d410508d35bc293991940c9892e11"
+      },
+      {
+        "image_path": "session_1/sample_003.png",
+        "sha256_image": "b950aaf4c33933cb71d8d8cbdb0583e65aa0c9ae9f7818a11cdbef9ed0fd2fcb",
+        "timestamp_s": 162885.498452803,
+        "observation_sha256": "4a3a7fa4b3341a74bedcb3e9b5ef8035e6cc3e8012497c19a611dff88197e5c5"
+      },
+      {
+        "image_path": "session_1/sample_004.png",
+        "sha256_image": "eb344888249055b46c45621e105e79d3fdafc8b12ae207561ae37eb9d2fc390c",
+        "timestamp_s": 162888.074107991,
+        "observation_sha256": "b3c937a1f26873de06c5588ab1441b1d00953cdb8f581959f4bf6c3aa34d61a0"
+      },
+      {
+        "image_path": "session_1/sample_005.png",
+        "sha256_image": "3b90907a2e0043d3437aa1a6d31a789dc62009f39a84608d6a82b59422958c3a",
+        "timestamp_s": 162896.829371969,
+        "observation_sha256": "70d14b04a574dfca1e6218a92c837c6af3f37fa82f2c8c8e4ea6453dd8307ead"
+      },
+      {
+        "image_path": "session_1/sample_006.png",
+        "sha256_image": "fa45af1243a6303eb057ea8985ee5634617154710f14693808df822418acf64b",
+        "timestamp_s": 162898.037927705,
+        "observation_sha256": "47bbf9b5e989dd40070fa28d03287fb9f3f3d6bb219b7af4f1cbef2e06306ac8"
+      }
+    ],
+    "opencv_version": "4.13.0"
+  },
+  "motion_target_valid": false,
+  "limitations": [
+    "Holdout PnP fits each held-out board pose; residuals are in pixels.",
+    "Pixel residuals and quality_passed do not establish millimeter accuracy.",
+    "Calibration is tied to this image size, lens focus and camera mode.",
+    "Board/base transform and physical palm contact transform remain separate."
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "kind": "usb_rgb_scene_reference",
+  "camera_epoch": "usb7_home_updated_20260916_02",
+  "intrinsics_file": "usb7_intrinsics_20260916.json",
+  "intrinsics_sha256": "b6b8541b7d41d06291cd3627c5a891ab1611968cc79fac6d06804c3a49934611",
+  "intrinsics_refitted": false,
+  "intrinsics_reuse_reason": "Same USB camera, 1280x720 MJPG and unchanged optical controls; current user-updated HOME and latest camera/board observation.",
+  "actual_camera_mode": {
+    "width": 1280,
+    "height": 720,
+    "pixel_format": "MJPG",
+    "zoom_absolute": 100
+  },
+  "board_pose_valid": true,
+  "reference_frame_id": 0,
+  "reference_image_sha256": "a4f23badbbc38d62206a5111bd5a165f0b96e6d9ff6c1e5e92792ccbdde6045a",
+  "reference_capture_timestamp_monotonic_s": 167729.188223866,
+  "T_camera_board_reference": [
+    [
+      0.9973492161031772,
+      -0.0022032113026648854,
+      0.07273023441687584,
+      0.15086656358522385
+    ],
+    [
+      -0.022596480730239055,
+      0.9407442213836726,
+      0.3383632796150248,
+      0.11194722062773425
+    ],
+    [
+      -0.06916603354961044,
+      -0.33910979902265187,
+      0.9382007269288544,
+      0.6216189090401316
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "board_pose_reprojection_rms_px": 0.10595827529921194,
+  "board_positive_z": "into_table",
+  "board_origin": "printed_pattern_corner",
+  "active_geometry_uses_fresh_per_frame_pose": true,
+  "T_base_board": null,
+  "base_board_calibration_valid": false,
+  "base_board_status": "Physical board/base correspondence required after board relocation; HOME alone does not determine this transform.",
+  "physical_contact_transform_valid": false,
+  "current_visual_counts": {
+    "frames": 51,
+    "hand": 0,
+    "board_pose": 51,
+    "cup_top_pixels": 30,
+    "cup_metric": 29
+  },
+  "independent_metric_accuracy_validated": false,
+  "motion_target_valid": false,
+  "source_evidence": "/home/anny/.codex/visualizations/2026/09/16/01a0a7e5-adc8-7022-af6d-179e4a82b2dd/scene_metric_20260916_155912/home_updated_20260916_02/rgb"
+}

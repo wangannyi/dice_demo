@@ -1,0 +1,8 @@
+# On riscv64 use compatible system/vendor builds; this is not a wheel lockfile.
+numpy
+scipy
+opencv-contrib-python
+pyrealsense2
+onnxruntime
+python-can>=3.3.4
+typing-extensions

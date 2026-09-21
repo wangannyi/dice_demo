@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "status": "model_estimate_not_attachment_calibration",
+  "marker_id": 40,
+  "marker_size_m": 0.03,
+  "marker_size_user_confirmed": true,
+  "hand_frame": "right_base_link",
+  "definition": "y=0, z=half mean four-finger root height; span along X between outer static visual surfaces",
+  "palm_side": "+X",
+  "back_side": "-X",
+  "reference_section": {
+    "y_m": 0.0,
+    "z_m": 0.041068125,
+    "back_x_m": -0.018658056,
+    "palm_x_m": 0.0079313057,
+    "thickness_m": 0.0265893617
+  },
+  "nominal_back_to_palm_m": 0.0265893617,
+  "central_10mm_patch_thickness_range_m": [
+    0.0244677113,
+    0.0338669676
+  ],
+  "centerline_sections": [
+    {
+      "y_m": 0.0,
+      "z_m": 0.025,
+      "back_x_m": -0.0194783618,
+      "palm_x_m": 0.0146258107,
+      "thickness_m": 0.0341041725
+    },
+    {
+      "y_m": 0.0,
+      "z_m": 0.035,
+      "back_x_m": -0.0190167429,
+      "palm_x_m": 0.0108005298,
+      "thickness_m": 0.0298172727
+    },
+    {
+      "y_m": 0.0,
+      "z_m": 0.045,
+      "back_x_m": -0.0183961524,
+      "palm_x_m": 0.0065388891,
+      "thickness_m": 0.0249350415
+    },
+    {
+      "y_m": 0.0,
+      "z_m": 0.055,
+      "back_x_m": -0.01760866,
+      "palm_x_m": 0.005297028,
+      "thickness_m": 0.022905688
+    },
+    {
+      "y_m": 0.0,
+      "z_m": 0.065,
+      "back_x_m": -0.0166383902,
+      "palm_x_m": 0.0044934532,
+      "thickness_m": 0.0211318434
+    },
+    {
+      "y_m": 0.0,
+      "z_m": 0.075,
+      "back_x_m": -0.0140801159,
+      "palm_x_m": 0.0018130274,
+      "thickness_m": 0.0158931433
+    }
+  ],
+  "T_marker_contact": null,
+  "motion_target_valid": false,
+  "limitations": [
+    "Thickness varies across shell; exact marker model location not measured",
+    "Tape/paper thickness, mounting tilt and model-to-hardware mismatch not measured",
+    "A scalar thickness does not determine lateral offset or full rigid transform",
+    "Visual template center is not verified physical contact center"
+  ],
+  "source_sha256": {
+    "agx_arm_ros/src/agx_arm_description/agx_arm_urdf/revo2/urdf/revo2_right_hand.urdf": "2e040f2f45582ab0caf131f0f5857fe8b54ccc02d19d2efcb921170011503ca8",
+    "agx_arm_ros/src/agx_arm_description/agx_arm_urdf/revo2/meshes/revo2_right_hand/right_base_link.STL": "2754b59a9132a04a28cf5725d5478599218c9f7dd4b2e13329147e824211ec44",
+    "agx_arm_ros/src/agx_arm_description/agx_arm_urdf/revo2/meshes/revo2_right_hand/right_base_visual_link.STL": "7357830cda11d9749adc1e796aa0e493f8001ac2c21815d40fdc1406a3b3457c"
+  }
+}

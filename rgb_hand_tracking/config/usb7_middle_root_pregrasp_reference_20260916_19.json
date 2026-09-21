@@ -1,0 +1,124 @@
+{
+  "schema": 1,
+  "kind": "usb_rgb_operator_middle_root_pregrasp_reference",
+  "execution_enabled": false,
+  "motion_target_valid": false,
+  "reference_activation_valid": false,
+  "physical_contact_verified": false,
+  "source": "user_positioned_arm_and_reported_cup_relocation",
+  "contact_definition": {
+    "user_description": "大概是中指指根碰到杯子顶部边缘",
+    "region": "palmar_contact_area_near_middle_finger_root",
+    "definition_is_approximate": true,
+    "auxiliary_landmark_index": 9,
+    "landmark_is_contact_surface": false,
+    "physical_point_hand_frame_m": null,
+    "side_view_hardware_synchronized": false,
+    "old_palm_center_radius_relation_reused": false
+  },
+  "camera_configuration_epoch": "usb7_home_updated_20260916_02",
+  "marker_attachment_epoch": "hand_marker_20260916_03",
+  "arm": {
+    "joints_rad": [
+      0.5237384019384584,
+      -1.7452943454092897,
+      -1.7104750268320028,
+      1.832613167886566,
+      -1.3962459483029437,
+      -1.7453292519943296e-05,
+      -0.17458528507699278
+    ],
+    "joints_deg": [
+      30.008000000000003,
+      -99.998,
+      -98.003,
+      105.001,
+      -79.999,
+      -0.001,
+      -10.003
+    ],
+    "source": "fresh_stationary_passive_sdk_feedback",
+    "return_trajectory_validated": false,
+    "near_limit_note": "J2 approximately -100 degrees; verify all SDK limits and avoid negative perturbation at this boundary"
+  },
+  "hand": {
+    "position_0_100": {
+      "thumb_tip": 18,
+      "thumb_base": 36,
+      "index_finger": 0,
+      "middle_finger": 0,
+      "ring_finger": 0,
+      "pinky_finger": 0
+    },
+    "raw_position_0_255": {
+      "thumb_tip": 46,
+      "thumb_base": 92,
+      "index_finger": 0,
+      "middle_finger": 0,
+      "ring_finger": 0,
+      "pinky_finger": 0
+    },
+    "fresh_frame_count": 40,
+    "all_samples_held_same_position": true,
+    "hand_feedback_hardware_synchronized_with_rgb_fk": false,
+    "force_scale_calibrated": false
+  },
+  "marker": {
+    "raw_corner_reference_px": [
+      [
+        541.7962646484375,
+        443.21453857421875
+      ],
+      [
+        511.0484619140625,
+        468.8611755371094
+      ],
+      [
+        493.1637420654297,
+        446.0933074951172
+      ],
+      [
+        522.9224853515625,
+        421.37396240234375
+      ]
+    ],
+    "corner_detector": "collector fixed subpixel window 2; future control must use consistent corner convention",
+    "T_marker_contact": null,
+    "physical_branch_verified": false
+  },
+  "cup": {
+    "current_reference_valid": false,
+    "center_board_m": null,
+    "rim_target": null,
+    "old_reference_invalidated": true,
+    "old_reference_reason": "cup relocated by operator",
+    "current_reference_reason": "top edge occluded by hand; fresh current cup observation required"
+  },
+  "saved_home_changed": false,
+  "sources": {
+    "pose_dataset": {
+      "path": "output/grasp_pose_record_20260916_19/dataset.json",
+      "sha256": "b51b03687ac37fd1931b3a9ede90e117e5834054f596727f82348cab89093fe5"
+    },
+    "rgb_scene_summary": {
+      "path": "output/grasp_pose_scene_20260916_19/summary.json",
+      "sha256": "bce171c2ece20d8624c1769ed49730dec17b44f97446f3892702b67ba0a648ad"
+    },
+    "finger_before": {
+      "path": "output/grasp_pose_scene_20260916_19/grasp_pose_fingers_20260916_19.json",
+      "sha256": "99dbe9cef15ba2fdcdbfa7b1d895bbb8a97aa9f07d65242bb50a0f27bfcf20b6"
+    },
+    "finger_after": {
+      "path": "output/grasp_pose_record_20260916_19/grasp_pose_fingers_after_20260916_19.json",
+      "sha256": "05febaebcd4f42a302904b0b6c9edf5c44811d434ead8fcb51840318bd4d7509"
+    },
+    "user_side_view": {
+      "path": "output/grasp_pose_record_20260916_19/user_side_view.jpg",
+      "sha256": "233a0cec74926ac8d4985d1e7a6ba8b5068e61c3e561701836240431e6acbffa"
+    },
+    "saved_home": {
+      "path": "config/usb7_home_20260916.json",
+      "sha256": "ea6969797f702f110febc344d6b8acfb255a228ed938d391747c663068f40721"
+    }
+  }
+}
