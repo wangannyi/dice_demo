@@ -51,10 +51,12 @@ bash run.sh control --execute
 | `{"id":"3","command":"advance","until":"GRIP"}` | 顺序执行到 GRIP 并停下；不会跳过中间阶段 |
 | `{"id":"4","command":"advance","until":"RETURN_HOME"}` | 完成剩余放杯和归位阶段 |
 | `{"id":"5","command":"refresh_perception"}` | CAPTURE 后、APPROACH 前退回 CAPTURE，重新识别和规划；杯位可能变化或计划过期时使用 |
-| `{"id":"6","command":"new_cycle"}` | 仅在 RETURN_HOME 完成后重置状态，保留 SDK/相机连接进入下一轮 |
-| `{"id":"7","command":"close"}` | 释放 SDK/相机并退出；未完成流程记为 `PAUSED` |
+| `{"id":"6","command":"action","name":"yeah"}` | 空闲时执行静态动作（手势/归位）。名字可用 `home`、`result_feedback.json` 的 gestures 与别名；执行完保持姿态 |
+| `{"id":"7","command":"actions"}` | 列出全部可用动作名（含 `home` 与别名） |
+| `{"id":"8","command":"close"}` | 释放 SDK/相机并退出；未完成流程记为 `PAUSED` |
+| ~~`new_cycle`~~ | **已移除**：轮次概念取消，RETURN_HOME 完成自动复位回空闲，直接 `advance` 即下一轮 |
 
-启动时返回 `ready`，每阶段返回 `phase_started`、`phase_completed`，目标阶段结束后返回 `command_completed`。`status` 事件含 `status`、`next_phase`、`completed_phases`；错误命令返回 `rejected`，阶段执行失败返回 `failed` 且进程退出。到 `RETURN_HOME` 后状态为 `COMPLETED`，进程仍等待 `new_cycle` 或 `close`。上层必须持续读取 stdout，按 `id` 和事件判断完成；**不要靠固定睡眠或耗时文本推断动作完成**。阶段执行时追加的命令会排队，按顺序处理；运行中中止仍使用 SIGINT，并核实硬件状态。
+启动时返回 `ready`（含可用动作列表），每阶段返回 `phase_started`、`phase_completed`，目标阶段结束后返回 `command_completed`。**RETURN_HOME 完成发 `run_completed` 并自动复位回空闲**（无轮次；直接 `advance` 即开始下一次抓取）。静态动作返回 `action_started`、`action_completed`（含收据路径与耗时）；未知动作名返回 `rejected(unknown_action)` 不中断会话。**抓取流程进行中（已开始未跑完 RETURN_HOME）请求 `action` 一律 `rejected(flow_in_progress)`**——包括持杯间隙；空闲时静态动作随意调度互切。`status` 事件含 `status`、`next_phase`、`completed_phases`；阶段执行失败返回 `failed` 且进程退出。上层必须持续读取 stdout，按 `id` 和事件判断完成；**不要靠固定睡眠或耗时文本推断动作完成**。阶段执行时追加的命令会排队，按顺序处理（链结束后依次执行）；运行中中止仍使用 SIGINT，并核实硬件状态。
 
 ```python
 import json
