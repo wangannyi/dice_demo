@@ -7,7 +7,12 @@ import sys
 import time
 from pathlib import Path
 import numpy as np
-from core import matrix, pose_matrix, matrix_pose, inverse, tcp_transform, solve, distance
+import sys as _sys
+from pathlib import Path as _Path
+_ROOT = _Path(__file__).resolve().parents[1]
+if str(_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_ROOT))
+from nero_calibration.core import matrix, pose_matrix, matrix_pose, inverse, tcp_transform, solve, distance
 
 ROOT = Path(__file__).resolve().parent
 
@@ -82,7 +87,7 @@ def read_resume_dataset(path, board, tcp_name, tcp):
 
 
 def capture_sample(arm, camera, detector, frame_check=None):
-    from sensors import assert_still
+    from nero_calibration.sensors import assert_still
     poses = []
     # Require stationary fresh observations before and around image acquisition.
     for _ in range(8):
@@ -165,7 +170,7 @@ def main(argv=None):
         print(json.dumps(out, indent=2))
         return 0
     if args.command == 'feedback-check':
-        from sensors import NeroFeedback, assert_still
+        from nero_calibration.sensors import NeroFeedback, assert_still
         t = tcp_transform(args.tcp, args.tcp_config)
         arm = NeroFeedback(args.channel)
         try:
@@ -188,7 +193,7 @@ def main(argv=None):
         print(json.dumps({'result': str(args.output), 'quality_passed': result['quality_passed']}))
         return 0 if result['quality_passed'] else 2
     import cv2
-    from sensors import RealSenseCamera, NeroFeedback, CharucoDetector
+    from nero_calibration.sensors import RealSenseCamera, NeroFeedback, CharucoDetector
     cfg = json.loads(args.board.read_text())
     detector = CharucoDetector(cfg)
     tcp = tcp_transform(args.tcp, args.tcp_config) if args.command == 'collect' else np.eye(4)
@@ -205,7 +210,7 @@ def main(argv=None):
     previous_sigint_handler = None
     try:
         if args.command == 'collect' and args.preview:
-            from preview import CollectionPreview
+            from nero_calibration.preview import CollectionPreview
             preview = CollectionPreview()
         camera = RealSenseCamera(args.serial, **({"image_profile": cfg["image_profile"]} if "image_profile" in cfg else {}))
         if resume:
@@ -269,7 +274,7 @@ def main(argv=None):
                 write_image_new(args.dataset/(stem+'.png'), image)
                 write_image_new(args.dataset/(stem+'_detected.png'), vis)
                 write_new(args.dataset/(stem+'.json'), sample)
-                from pose_teaching import export_poses
+                from nero_calibration.pose_teaching import export_poses
                 export_poses(args.dataset)
                 accepted.append(f)
                 count += 1

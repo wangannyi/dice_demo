@@ -11,9 +11,14 @@ from pathlib import Path
 import sys
 import time
 
-from finger_feedback_probe import BroadcastCache, FINGERS, _copy_getter
-from passive_pose_bridge import PassivePoseSession, load_sdk_runtime
-from visual_servo_probe import (AuditedSendGuard, control_lock, evidence_blockers,
+import sys as _sys
+from pathlib import Path as _Path
+_ROOT = _Path(__file__).resolve().parents[1]
+if str(_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_ROOT))
+from rgb_hand_tracking.finger_feedback_probe import BroadcastCache, FINGERS, _copy_getter
+from rgb_hand_tracking.passive_pose_bridge import PassivePoseSession, load_sdk_runtime
+from rgb_hand_tracking.visual_servo_probe import (AuditedSendGuard, control_lock, evidence_blockers,
                                 host_control_evidence, ready_blockers, stopped_window)
 
 

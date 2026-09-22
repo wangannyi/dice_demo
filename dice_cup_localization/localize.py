@@ -6,7 +6,12 @@ from pathlib import Path
 
 import numpy as np
 
-from geometry import localize
+import sys as _sys
+from pathlib import Path as _Path
+_ROOT = _Path(__file__).resolve().parents[1]
+if str(_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_ROOT))
+from dice_cup_localization.geometry import localize
 
 
 def main():

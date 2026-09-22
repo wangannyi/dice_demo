@@ -23,9 +23,14 @@ import time
 
 import numpy as np
 
-from cartesian_microstep import _numbers, _pose, _rotation, _rotation_vector
-from taught_pregrasp import plan_taught_pregrasp
-from visual_servo_probe import (AuditedSendGuard, PassivePoseSession, TOLERANCE_RAD,
+import sys as _sys
+from pathlib import Path as _Path
+_ROOT = _Path(__file__).resolve().parents[1]
+if str(_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_ROOT))
+from rgb_hand_tracking.cartesian_microstep import _numbers, _pose, _rotation, _rotation_vector
+from rgb_hand_tracking.taught_pregrasp import plan_taught_pregrasp
+from rgb_hand_tracking.visual_servo_probe import (AuditedSendGuard, PassivePoseSession, TOLERANCE_RAD,
                                 control_lock, evidence_blockers, fresh_feedback,
                                 fresh_hold, host_control_evidence, joint_limits,
                                 load_sdk_runtime, numbers, ready_blockers,

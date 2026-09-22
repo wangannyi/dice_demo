@@ -24,11 +24,16 @@ import uuid
 import cv2
 import numpy as np
 
-from board_rgb import BoardRgbObserver
-from marker_frontend import MarkerRgbCamera
-import marker_registration as registration
-from rgb_geometry import CalibratedRgbGeometry
-from tracker import MarkerTracker
+import sys as _sys
+from pathlib import Path as _Path
+_ROOT = _Path(__file__).resolve().parents[1]
+if str(_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_ROOT))
+from rgb_hand_tracking.board_rgb import BoardRgbObserver
+from rgb_hand_tracking.marker_frontend import MarkerRgbCamera
+from rgb_hand_tracking import marker_registration as registration
+from rgb_hand_tracking.rgb_geometry import CalibratedRgbGeometry
+from rgb_hand_tracking.tracker import MarkerTracker
 
 
 PACKETS = ('joint_12', 'joint_34', 'joint_56', 'joint_7')

@@ -15,10 +15,15 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / 'nero_revo2_control'))
-from calibrate import capture_sample, read_dataset, write_image_new, write_new
-from core import inverse, matrix
+import sys as _sys
+from pathlib import Path as _Path
+_ROOT = _Path(__file__).resolve().parents[1]
+if str(_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_ROOT))
+from nero_calibration.calibrate import capture_sample, read_dataset, write_image_new, write_new
+from nero_calibration.core import inverse, matrix
 from kinematics import load_model
-from sensors import CharucoDetector, NeroFeedback, RealSenseCamera
+from nero_calibration.sensors import CharucoDetector, NeroFeedback, RealSenseCamera
 
 
 def digest(path):

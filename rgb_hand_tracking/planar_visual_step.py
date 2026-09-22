@@ -13,7 +13,12 @@ from pathlib import Path
 
 import numpy as np
 
-from cartesian_microstep import _numbers, _rotation, _rotation_vector
+import sys as _sys
+from pathlib import Path as _Path
+_ROOT = _Path(__file__).resolve().parents[1]
+if str(_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_ROOT))
+from rgb_hand_tracking.cartesian_microstep import _numbers, _rotation, _rotation_vector
 
 
 SCHEMA = 'local_planar_raw_tag_jacobian_v1'

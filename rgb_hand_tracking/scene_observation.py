@@ -217,7 +217,7 @@ def load_metric_geometry(config, config_path):
     calibration_report = json.loads(path.read_text())
     if not isinstance(calibration_report, dict):
         raise ValueError('USB intrinsics report must be a JSON object')
-    from rgb_geometry import CalibratedRgbGeometry
+    from rgb_hand_tracking.rgb_geometry import CalibratedRgbGeometry
     return CalibratedRgbGeometry(config, calibration_report)
 
 
@@ -332,12 +332,12 @@ def main():
         parser.error('--marker-roi-rescue requires live marker_guided capture')
     if args.ort_package_dir:
         sys.path.append(str(args.ort_package_dir))
-    from board_rgb import BoardRgbObserver
-    from cup_top import CupTopDetector
+    from rgb_hand_tracking.board_rgb import BoardRgbObserver
+    from rgb_hand_tracking.cup_top import CupTopDetector
     config = json.loads(args.config.read_text())
     profile = None
     if args.rgb_profile:
-        from camera_profile import CameraBrightnessProfile
+        from rgb_hand_tracking.camera_profile import CameraBrightnessProfile
         try:
             profile = CameraBrightnessProfile(args.device, json.loads(args.rgb_profile.read_text()),
                                               config['camera'])
@@ -359,7 +359,7 @@ def main():
         'opencv_4_6' if args.metric_geometry else 'native'))
     args.output.mkdir(parents=True, exist_ok=False)
     if args.hand_backend == 'marker_guided':
-        from marker_hand import MarkerGuidedObserver
+        from rgb_hand_tracking.marker_hand import MarkerGuidedObserver
         hand = MarkerGuidedObserver(args.marker_binary, marker_id=args.marker_id,
                                    max_gap_s=args.marker_max_gap_s,
                                    search_mode=args.marker_search_mode)
@@ -376,10 +376,10 @@ def main():
             if profile is not None:
                 profile.apply()
             if args.hand_backend == 'marker_guided':
-                from marker_frontend import MarkerRgbCamera
+                from rgb_hand_tracking.marker_frontend import MarkerRgbCamera
                 tracker_factory = None
                 if args.marker_roi_rescue:
-                    from marker_roi_tracker import RoiRescueMarkerTracker
+                    from rgb_hand_tracking.marker_roi_tracker import RoiRescueMarkerTracker
                     tracker_factory = RoiRescueMarkerTracker
                 camera = MarkerRgbCamera(args.device, config['camera'],
                                          camera_epoch=config['camera']['camera_epoch'],

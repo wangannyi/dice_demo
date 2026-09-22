@@ -15,13 +15,18 @@ import uuid
 import cv2
 import numpy as np
 
-from board_rgb import BoardRgbObserver
-from camera_profile import CameraBrightnessProfile
-from cup_top import CupTopDetector
-from marker_frontend import MarkerRgbCamera
-import marker_registration as registration
-from rgb_geometry import CalibratedRgbGeometry
-from usb_marker_registration_capture import (
+import sys as _sys
+from pathlib import Path as _Path
+_ROOT = _Path(__file__).resolve().parents[1]
+if str(_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_ROOT))
+from rgb_hand_tracking.board_rgb import BoardRgbObserver
+from rgb_hand_tracking.camera_profile import CameraBrightnessProfile
+from rgb_hand_tracking.cup_top import CupTopDetector
+from rgb_hand_tracking.marker_frontend import MarkerRgbCamera
+from rgb_hand_tracking import marker_registration as registration
+from rgb_hand_tracking.rgb_geometry import CalibratedRgbGeometry
+from rgb_hand_tracking.usb_marker_registration_capture import (
     PassivePoseClient, checked_snapshot, commit_sample, fixed_window_tracker,
     stationarity_evidence)
 

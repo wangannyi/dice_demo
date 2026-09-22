@@ -1,7 +1,12 @@
 """Read-only arm feedback and camera capture; no motion/mode/enable calls."""
 import time
 import numpy as np
-from core import distance, pose_matrix
+import sys as _sys
+from pathlib import Path as _Path
+_ROOT = _Path(__file__).resolve().parents[1]
+if str(_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_ROOT))
+from nero_calibration.core import distance, pose_matrix
 
 
 class NeroFeedback:
@@ -77,7 +82,7 @@ def opencv_distortion(model, coeffs):
 class RealSenseCamera:
     def __init__(self, serial=None, image_profile=None):
         import pyrealsense2 as rs
-        from image_profile import profile_options
+        from nero_calibration.image_profile import profile_options
         resolution, fps, self.crop = profile_options(image_profile)
         self.rs = rs
         self.pipeline = rs.pipeline()
@@ -115,7 +120,7 @@ class RealSenseCamera:
         frame = self.pipeline.wait_for_frames(3000).get_color_frame()
         if not frame:
             raise RuntimeError('Missing RGB frame')
-        from image_profile import crop_image
+        from nero_calibration.image_profile import crop_image
         return crop_image(np.asanyarray(frame.get_data()), self.crop)
 
     def close(self):

@@ -12,7 +12,12 @@ import json
 import math
 from pathlib import Path
 
-from kinematics import load_model
+import sys as _sys
+from pathlib import Path as _Path
+_ROOT = _Path(__file__).resolve().parents[1]
+if str(_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_ROOT))
+from nero_revo2_control.kinematics import load_model
 
 
 READY_HOME_DEG = (55.0, -78.0, 80.0, -45.0, 130.0, -30.0, 40.0)

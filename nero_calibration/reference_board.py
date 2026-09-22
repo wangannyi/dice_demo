@@ -10,8 +10,13 @@ import time
 import cv2
 import numpy as np
 
-from calibrate import write_image_new, write_new
-from core import average, distance, inverse, matrix, matrix_pose
+import sys as _sys
+from pathlib import Path as _Path
+_ROOT = _Path(__file__).resolve().parents[1]
+if str(_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_ROOT))
+from nero_calibration.calibrate import write_image_new, write_new
+from nero_calibration.core import average, distance, inverse, matrix, matrix_pose
 
 
 GEOMETRY_KEYS = ('type', 'dictionary', 'squares_x', 'squares_y',
@@ -126,7 +131,7 @@ def restore(registration, observation, allow_provisional=False):
 
 
 def observe(board_path, serial, reference_id, output, frame_count):
-    from sensors import CharucoDetector, RealSenseCamera
+    from nero_calibration.sensors import CharucoDetector, RealSenseCamera
     if not 10 <= frame_count <= 120:
         raise ValueError('--frames must be between 10 and 120')
     cfg, board_source = load_source(board_path)

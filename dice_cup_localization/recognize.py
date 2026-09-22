@@ -9,9 +9,14 @@ import sys
 import cv2
 import numpy as np
 
-from geometry import Config, localize
-from red_workspace import RedWorkspace
-from yolo_seg import YoloSegmentor, select_green_cup
+import sys as _sys
+from pathlib import Path as _Path
+_ROOT = _Path(__file__).resolve().parents[1]
+if str(_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_ROOT))
+from dice_cup_localization.geometry import Config, localize
+from dice_cup_localization.red_workspace import RedWorkspace
+from dice_cup_localization.yolo_seg import YoloSegmentor, select_green_cup
 
 CAP_MODEL_SHA256 = 'c45d2b7fa61c45c5ef608cabbefd69fd9befe19243a14685e69b2ad645505ec0'
 PERCEPTIVE_COCO_MODEL_SHA256 = '55e02f2a98581a134515d6a342b0342bc8d29a69c6d4d34f2421fba0fcde91d4'
