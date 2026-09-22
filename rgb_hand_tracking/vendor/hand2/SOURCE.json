@@ -1,9 +1,0 @@
-{
-  "source": "/home/anny/Downloads/hand2.zip",
-  "files_unmodified": {
-    "models/hand_detector.onnx": "933d10acd1ed811f28b092886d0f798c54cb94d9020bdcfc06528d3405b252a1",
-    "models/hand_landmarks.onnx": "a16640344bf80c2ff8f02fb478a304fb779da46992d615230cca8458a7537363",
-    "src/hand_pipeline.cpp": "e19ab696ee70bb2ce4ad1ea860cea6ede5badad9ba0a023eb18144ac88de2ac4",
-    "src/hand_pipeline.h": "38a19a4e086e8a156bc482646399ed36716b8e29895d1b3f49168556ad03ee75"
-  }
-}

@@ -217,12 +217,15 @@ AI 推理通过 `SpaceMITExecutionProvider` 创建 CPU 8、9 上的计算线程�
 configs/                    交付使用的主配置、摇晃配置
 scripts/                    环境检查、源码打包、桌面参数登记
 cup_grasp_demo/              识别、规划、状态机和调试入口
-nero_revo2_control/          机械臂及灵巧手控制、运动学
+nero_revo2_control/          机械臂及灵巧手控制、运动学（含 URDF）
 nero_calibration/           手眼标定、逐帧示教轨迹、自动重采、参考板恢复
-rgb_hand_tracking/          复用的 SDK 反馈与控制审计模块
-agx_arm_ros/.../agx_arm_urdf/ 几何模型，不要求 ROS 运行时
+rgb_hand_tracking/          仅保留被复用的 SDK 反馈与控制审计底层模块
+                            （visual_servo_probe / passive_pose_bridge / finger_feedback_probe）
+agx_arm_ros/.../agx_arm_urdf/ NERO+右 Revo2 几何模型（手部几何运行时读取），不要求 ROS
 docs/                       调试和标定指南
 ```
+
+2026-09-22 瘦身：移除与绿杯流程无关的 rgb_hand_tracking 历史视觉实验源码、agx_arm_urdf 中 Piper 系四型臂与左手/视觉网格、cup_grasp_demo 顶层旧银杯流程（pipeline/execute/top_*/grasp 等及其测试）、dice_cup_localization 的 recognize/red_workspace/localize 旧入口、kernel_usbcan 构建工件。
 
 `rgb_hand_tracking` 中保留历史视觉实验源码是为了兼容被复用的底层模块；当前绿色杯 pipeline 不运行 MediaPipe。软件测试不能替代新安装后的实物接触、抓牢和运动通路验收。
 

@@ -128,40 +128,6 @@ class GeometryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             estimate_points(obj, table)
 
-    def test_cli_registered_depth_end_to_end(self):
-        obj, table, expected = scene(noise=0)
-        depth = np.zeros((480, 640), dtype=np.uint16)
-        mask = np.zeros(depth.shape, dtype=bool)
-        table_mask = mask.copy()
-        for points, target in ((table, table_mask), (obj, mask)):
-            for x, y, z in points:
-                u, v = round(600*x/z + 320), round(600*y/z + 240)
-                if 0 <= u < 640 and 0 <= v < 480:
-                    if depth[v, u] == 0 or z*1000 < depth[v, u]:
-                        depth[v, u] = round(z*1000)
-                        target[v, u] = True
-        table_mask &= ~mask
-        metadata = {'timestamp_ms': 123, 'timestamp_domain': 'synthetic',
-                    'frame_id': 'synthetic:1', 'instance_id': 'cup-1', 'mask_source': 'synthetic',
-                    'depth_registered_to': 'color_optical', 'depth_scale_m': .001,
-                    'intrinsics': {'frame': 'color_optical', 'height': 480, 'width': 640,
-                                   'fx': 600, 'fy': 600, 'cx': 320, 'cy': 240,
-                                   'dist_coeffs': [0]*5}}
-        with tempfile.TemporaryDirectory() as folder:
-            bundle = Path(folder) / 'frame.npz'
-            meta = Path(folder) / 'frame.json'
-            np.savez(bundle, depth=depth, object_mask=mask, table_mask=table_mask)
-            meta.write_text(json.dumps(metadata), encoding='utf-8')
-            proc = subprocess.run([sys.executable, str(Path(__file__).resolve().parents[2] / 'dice_cup_localization/localize.py'),
-                                   str(bundle), str(meta)], capture_output=True, text=True,
-                                  check=False)
-            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
-            result = json.loads(proc.stdout)
-            np.testing.assert_allclose(result['geometry']['center_m'], expected, atol=.003)
-            metadata['depth_registered_to'] = 'depth_optical'
-            result = localize(depth, mask, table_mask, metadata)
-            self.assertFalse(result['valid'])
-
 
 class PlaneRefinementTest(unittest.TestCase):
     def test_refine_before_support_gate(self):
