@@ -4,7 +4,7 @@
   "channel": "can0",
   "home": "configs/actions/home.json",
   "home_open_hand": true,
-  "calibration": "nero_calibration/datasets/handeye_20260920_203405/dimensions_measured_86p5x108/result.json",
+  "calibration": "configs/calibration/handeye_result.json",
   "orientation_reference": "cup_grasp_demo/flow/green_open_cup/grasp_reference.json",
   "tcp_candidate": "cup_grasp_demo/flow/green_open_cup/tcp_candidate.json",
   "grasp_config": "cup_grasp_demo/side_grasp/CURRENT_GRASP.json",

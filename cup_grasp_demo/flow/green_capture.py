@@ -7,7 +7,7 @@ def capture_arguments(cfg):
     profile = cfg.get("green_cup", {}).get("camera", {})
     if not isinstance(profile, dict) or set(profile) - {"depth_resolution", "fps", "color_resolution", "crop_xywh"}:
         raise ValueError("Invalid green_cup.camera option")
-    from nero_calibration.image_profile import profile_options
+    from cup_grasp_demo.flow.image_profile import profile_options
     color, _, crop = profile_options(profile)
     resolution = profile.get("depth_resolution", [640, 480])
     fps = profile.get("fps", 15)

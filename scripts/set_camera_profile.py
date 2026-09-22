@@ -19,10 +19,7 @@ GREEN_FILES = (
     'cup_grasp_demo/flow/green_open_cup/stereo_config.json',
     'cup_grasp_demo/flow/green_open_cup/config.json',
 )
-BOARD_FILES = (
-    'nero_calibration/config/board_hand_redcloth.json',
-    'nero_calibration/config/board_reference_redcloth.json',
-)
+# 标定板参数文件已随标定工具分离到 ../biaoding/config/，不再由本脚本同步。
 DEFAULT_COLOR = [1280, 720]
 DEFAULT_DEPTH = [1280, 720]
 DEFAULT_CROP = [220, 0, 960, 720]

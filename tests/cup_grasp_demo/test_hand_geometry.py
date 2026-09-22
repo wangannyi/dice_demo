@@ -12,7 +12,7 @@ import numpy as np
 from cup_grasp_demo.hand_geometry import (
     RightRevo2Model, check_hand_pose, check_plan_geometry, main,
 )
-from nero_calibration.core import PALM
+from cup_grasp_demo.flow.transforms import PALM
 
 
 class HandGeometryTest(unittest.TestCase):

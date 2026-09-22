@@ -16,7 +16,7 @@ import numpy as np
 from cup_grasp_demo.hand_geometry import (
     DESCRIPTION, FLANGE_XACRO, RightRevo2Model, _fixed_joint, _stl_bounds,
 )
-from nero_calibration.core import matrix
+from cup_grasp_demo.flow.transforms import matrix
 from nero_revo2_control.kinematics import _axis_rotation, _rpy_transform, load_model
 
 ROOT = Path(__file__).resolve().parents[2]

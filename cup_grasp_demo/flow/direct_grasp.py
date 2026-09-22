@@ -8,7 +8,7 @@ import numpy as np
 from cup_grasp_demo.flow.core import Screen, flange_target, make_plan, read_json
 from cup_grasp_demo.flow.grasp import require_at_point, target_points
 from cup_grasp_demo.flow.parameters import approach_options, closure_targets, hand_contact_allowed
-from nero_calibration.core import matrix
+from cup_grasp_demo.flow.transforms import matrix
 from nero_revo2_control.kinematics import load_model
 
 

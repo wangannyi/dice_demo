@@ -33,7 +33,7 @@ from cup_grasp_demo.hand_geometry import RightRevo2Model  # noqa: E402
 from cup_grasp_demo.planning import load_calibration  # noqa: E402
 from cup_grasp_demo.side_grasp.preview_index import load_batch  # noqa: E402
 from dice_cup_localization.geometry import Config, _plane, deproject  # noqa: E402
-from nero_calibration.core import inverse, matrix, pose_matrix  # noqa: E402
+from cup_grasp_demo.flow.transforms import inverse, matrix, pose_matrix  # noqa: E402
 from nero_revo2_control.kinematics import load_model  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
