@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 .venv*/
 .deps/
+vendor-site/
 .ruff_cache/
 dist/
 **/datasets/

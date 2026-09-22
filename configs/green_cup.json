@@ -222,8 +222,8 @@
       "inference_threads": 2,
       "inference_provider": "spacemit",
       "inference_cpu_ids": [
-        8,
-        9
+        12,
+        13
       ]
     },
     "home_table_scene": "cup_grasp_demo/calibration_debug/green_open_cup/home_table_scene.json",
