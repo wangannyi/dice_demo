@@ -14,11 +14,8 @@ import tempfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
-GREEN_FILES = (
-    'configs/green_cup.json',
-    'cup_grasp_demo/flow/green_open_cup/stereo_config.json',
-    'cup_grasp_demo/flow/green_open_cup/config.json',
-)
+GREEN_FILES = ('vision/camera.json',)
+CAMERA_FILE = 'vision/camera.json'
 # 标定板参数文件已随标定工具分离到 ../biaoding/config/，不再由本脚本同步。
 DEFAULT_COLOR = [1280, 720]
 DEFAULT_DEPTH = [1280, 720]
@@ -77,8 +74,8 @@ def updated_files(root, link, *, color=None, depth=None, fps=None, crop=None,
                                          else [0, 0, *color])
     check_profile(link, color, depth, fps, crop)
     files = {name: json.loads((root / name).read_text())
-             for name in GREEN_FILES + BOARD_FILES}
-    previous = files[GREEN_FILES[0]]['green_cup']['camera']
+             for name in GREEN_FILES}
+    previous = files[GREEN_FILES[0]]
     spatial_change = (previous['color_resolution'] != color or
                       previous.get('crop_xywh') != crop)
     if spatial_change and (hand_roi is None or reference_roi is None):
@@ -87,20 +84,11 @@ def updated_files(root, link, *, color=None, depth=None, fps=None, crop=None,
         if roi is not None:
             check_roi(roi, crop)
     for name in GREEN_FILES:
-        green = files[name]['green_cup']
-        green['camera'] = dict(depth_resolution=depth.copy(), fps=fps,
-                               color_resolution=color.copy(), crop_xywh=crop.copy())
-        if spatial_change:
-            green['installation_requires_calibration'] = True
-    for name in BOARD_FILES:
-        board = files[name]
-        board['image_profile'] = dict(color_resolution=color.copy(), fps=fps,
-                                      crop_xywh=crop.copy())
-        roi = hand_roi if name == BOARD_FILES[0] else reference_roi
-        if roi is not None:
-            board['image_roi_xyxy'] = roi
-        if spatial_change and name == BOARD_FILES[0]:
-            board['image_exclude_rois_xyxy'] = []
+        camera = files[name]
+        camera['color_resolution'] = color.copy()
+        camera['depth_resolution'] = depth.copy()
+        camera['fps'] = fps
+        camera['crop_xywh'] = crop.copy()
     return files, spatial_change
 
 
@@ -121,7 +109,7 @@ def apply_profile(root, link, *, color=None, depth=None, fps=None, crop=None,
                 temporary.replace(path)
             finally:
                 temporary.unlink(missing_ok=True)
-    camera = files[GREEN_FILES[0]]['green_cup']['camera']
+    camera = files[GREEN_FILES[0]]
     return dict(link=link, camera=camera, spatial_change=spatial_change,
                 recalibration_required=spatial_change, files=list(files), dry_run=dry_run)
 

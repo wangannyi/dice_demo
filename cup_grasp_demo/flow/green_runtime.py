@@ -121,12 +121,14 @@ class VisionResources:
         from vision.capture.realsense_session import CaptureSession, argument_parser
         from cup_grasp_demo.flow.green_capture import capture_arguments
         self.cfg = cfg
-        args = argument_parser().parse_args(['--output', str(output), '--serial', cfg['serial'],
+        from vision.capture.config import load_camera_config
+        camera = load_camera_config()
+        args = argument_parser().parse_args(['--output', str(output), '--serial', camera['serial'],
                                             *capture_arguments(cfg)])
         args.unique_warmup = True
         args.fast_storage = cfg['green_cup'].get('fast_uncompressed_capture', False)
-        args.warmup_frames = cfg['green_cup'].get('fast_camera_warmup_frames', 20)
-        args.fresh_discard_frames = cfg['green_cup'].get('fast_camera_fresh_discard_frames', 2)
+        args.warmup_frames = camera['warmup_frames']
+        args.fresh_discard_frames = camera['fresh_discard_frames']
         if type(args.warmup_frames) is not int or not 1 <= args.warmup_frames <= 60:
             raise ValueError('fast_camera_warmup_frames must be 1..60')
         if type(args.fresh_discard_frames) is not int or not 0 <= args.fresh_discard_frames <= 5:

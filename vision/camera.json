@@ -1,0 +1,10 @@
+{
+  "serial": "346222071954",
+  "color_resolution": [1280, 720],
+  "depth_resolution": [1280, 720],
+  "fps": 6,
+  "crop_xywh": [220, 0, 960, 720],
+  "warmup_frames": 5,
+  "fresh_discard_frames": 0,
+  "calibration_file": "configs/calibration/handeye_result.json"
+}

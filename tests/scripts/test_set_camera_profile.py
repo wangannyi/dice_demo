@@ -1,10 +1,11 @@
-"""Camera profile switching keeps calibration geometry."""
+"""Camera profile switching writes vision/camera.json."""
 import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from scripts.set_camera_profile import GREEN_FILES, ROOT, apply_profile
+from scripts.set_camera_profile import apply_profile, GREEN_FILES, ROOT
 
 
 class CameraProfileTests(unittest.TestCase):
@@ -25,7 +26,7 @@ class CameraProfileTests(unittest.TestCase):
     def test_unsupported_usb2_profile_is_rejected_before_writes(self):
         with self.assertRaisesRegex(ValueError, 'USB 2 profile'):
             apply_profile(self.root, 'usb2', fps=15)
-        self.assertEqual(self.read(GREEN_FILES[0])['green_cup']['camera']['fps'], 6)
+        self.assertEqual(self.read(GREEN_FILES[0])['fps'], 6)
 
 
 if __name__ == '__main__':

@@ -228,23 +228,6 @@
     },
     "home_table_scene": "cup_grasp_demo/flow/green_open_cup/home_table_scene.json",
     "table_plane_source": "calibrated",
-    "camera": {
-      "depth_resolution": [
-        1280,
-        720
-      ],
-      "fps": 6,
-      "color_resolution": [
-        1280,
-        720
-      ],
-      "crop_xywh": [
-        220,
-        0,
-        960,
-        720
-      ]
-    },
     "rtsp": {
       "enabled": true,
       "host": "127.0.0.1",
@@ -276,8 +259,6 @@
       "approach": 60,
       "return_home": 60
     },
-    "fast_camera_warmup_frames": 5,
-    "fast_camera_fresh_discard_frames": 0,
     "precision_error_action": "record",
     "hand_start_tolerance_deg": 1.0,
     "settled_joint_delta_deg": 0.5,

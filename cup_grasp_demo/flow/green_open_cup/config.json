@@ -208,23 +208,6 @@
       "fixed_height_mm": 65
     },
     "home_table_scene": "cup_grasp_demo/flow/green_open_cup/home_table_scene.json",
-    "camera": {
-      "depth_resolution": [
-        1280,
-        720
-      ],
-      "fps": 6,
-      "color_resolution": [
-        1280,
-        720
-      ],
-      "crop_xywh": [
-        220,
-        0,
-        960,
-        720
-      ]
-    },
     "open_feedback_reference_0_100": [
       0,
       19,
