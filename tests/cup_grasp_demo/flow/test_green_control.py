@@ -66,9 +66,9 @@ class ControlSessionTest(unittest.TestCase):
             self.assertEqual(server.serve(), 0)
             self.assertEqual(flow.perform.call_count, 5)
             self.assertEqual([x['code'] for x in events(outgoing) if x['event'] == 'rejected'],
-                             ['duplicate_id', 'already_completed', 'cycle_in_progress'])
+                             ['duplicate_id', 'already_completed', 'removed'])
 
-    def test_refresh_only_before_approach_and_new_cycle_reuses_flow(self):
+    def test_return_home_auto_resets_without_new_cycle(self):
         with tempfile.TemporaryDirectory() as directory:
             flow = self.fake_flow()
             outgoing = io.StringIO()
@@ -77,7 +77,6 @@ class ControlSessionTest(unittest.TestCase):
                     dict(command='advance', until='PLAN'),
                     dict(command='refresh_perception'),
                     dict(command='advance', until='RETURN_HOME'),
-                    dict(command='new_cycle'),
                     dict(command='advance'),
                     dict(command='close')),
                 outgoing, io.StringIO())
@@ -88,6 +87,79 @@ class ControlSessionTest(unittest.TestCase):
             self.assertEqual(names[-1], 'HOME')
             self.assertEqual(names.count('RETURN_HOME'), 1)
             self.assertEqual(server.cycle, 2)
+            reports = events(outgoing)
+            completed = [x for x in reports if x['event'] == 'run_completed']
+            self.assertEqual(len(completed), 1)
+            self.assertEqual(completed[0]['runs'], 1)
+            after = [x for x in reports if x['event'] == 'command_completed'
+                     and x.get('through') == 'RETURN_HOME']
+            self.assertEqual(after[0]['next_phase'], 'HOME')
+
+    def test_action_dispatches_in_idle_and_records_history(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            outgoing = io.StringIO()
+            seen = []
+            def fake_run_action(name):
+                seen.append(name)
+                if name == 'nope':
+                    raise ValueError('未知动作：nope；可选：yeah')
+                return dict(name=name, receipt='/tmp/receipt.json', elapsed_s=1.5)
+            server = control.ControlSession(
+                flow, Path(directory) / 'state.json', commands(
+                    dict(command='actions'),
+                    dict(command='action', name='win'),
+                    dict(command='action', name='nope'),
+                    dict(command='close')),
+                outgoing, io.StringIO(),
+                actions=['home', 'yeah', 'win'], run_action=fake_run_action)
+            self.assertEqual(server.serve(), 0)
+            reports = events(outgoing)
+            listed = next(x for x in reports if x['event'] == 'actions')
+            self.assertEqual(listed['names'], ['home', 'win', 'yeah'])
+            self.assertEqual(seen, ['win', 'nope'])
+            started = next(x for x in reports if x['event'] == 'action_started')
+            self.assertEqual(started['name'], 'win')
+            done = next(x for x in reports if x['event'] == 'action_completed')
+            self.assertEqual((done['name'], done['receipt']), ('win', '/tmp/receipt.json'))
+            rejected = [x for x in reports if x['event'] == 'rejected']
+            self.assertEqual(rejected[0]['code'], 'unknown_action')
+            self.assertIn('yeah', rejected[0]['message'])
+            state = json.loads((Path(directory) / 'state.json').read_text())
+            self.assertEqual(state['actions'][0]['name'], 'win')
+
+    def test_action_rejected_while_flow_in_progress(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            outgoing = io.StringIO()
+            def fake_run_action(name):
+                raise AssertionError('must not run mid-flow')
+            server = control.ControlSession(
+                flow, Path(directory) / 'state.json', commands(
+                    dict(command='advance', until='GRIP'),
+                    dict(command='action', name='home'),
+                    dict(command='close')),
+                outgoing, io.StringIO(),
+                actions=['home'], run_action=fake_run_action)
+            self.assertEqual(server.serve(), 0)
+            rejected = [x for x in events(outgoing) if x['event'] == 'rejected']
+            self.assertEqual(rejected[0]['code'], 'flow_in_progress')
+            self.assertIn('LIFT', rejected[0]['message'])
+            ready = events(outgoing)[0]
+            self.assertEqual(ready['actions'], ['home'])
+
+    def test_action_without_runtime_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            outgoing = io.StringIO()
+            server = control.ControlSession(
+                flow, Path(directory) / 'state.json', commands(
+                    dict(command='action', name='yeah'),
+                    dict(command='close')),
+                outgoing, io.StringIO())
+            self.assertEqual(server.serve(), 0)
+            rejected = [x for x in events(outgoing) if x['event'] == 'rejected']
+            self.assertEqual(rejected[0]['code'], 'no_actions')
 
     def test_failure_stops_following_phases(self):
         with tempfile.TemporaryDirectory() as directory:
