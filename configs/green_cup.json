@@ -279,6 +279,7 @@
     "fast_camera_warmup_frames": 5,
     "fast_camera_fresh_discard_frames": 0,
     "precision_error_action": "record",
+    "hand_start_tolerance_deg": 1.0,
     "settled_joint_delta_deg": 0.5,
     "fast_cached_feedback": true,
     "fast_overlap_grip_preparation": true,

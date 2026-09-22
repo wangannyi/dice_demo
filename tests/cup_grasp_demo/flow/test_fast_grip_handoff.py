@@ -84,6 +84,23 @@ class SettlingTest(unittest.TestCase):
             self.assertNotIsInstance(error.exception,StartPositionChanged)
         self.assertIs(hand_start(dict(plan,kind='green_arm_plan'),actual,status,[True]*7,cfg,{}).get('stages'),plan['stages'])
 
+    def test_configured_hand_start_tolerance_admits_post_shake_drift(self):
+        import math
+        from cup_grasp_demo.flow.hardware import hand_start
+        cfg=dict(pipeline_strategy='green_open_cup',green_cup={
+            'precision_error_action':'record','hand_start_tolerance_deg':1.0})
+        plan=dict(kind='green_hand_command',stages=[],start_q_rad=[0]*7)
+        status=NS(arm_status=0,motion_status=0,ctrl_mode=1)
+        # 20260922 现场实测形态：J6 偏 0.579°（旧 0.5° 容差拒绝），1.0° 放行并记录
+        drifted=[0]*6+[math.radians(.579)]
+        report={}
+        hand_start(plan,drifted,status,[True]*7,cfg,report)
+        self.assertAlmostEqual(report['hand_start_reference']['error_deg'],.579)
+        # 超过配置容差仍拒绝
+        worse=[0]*6+[math.radians(1.01)]
+        with self.assertRaises(RuntimeError):
+            hand_start(plan,worse,status,[True]*7,cfg,{})
+
     def test_lift_endpoint_bounds_include_tcp_and_orientation(self):
         import numpy as np
         from cup_grasp_demo.flow.green_prepared import lift_seed_close

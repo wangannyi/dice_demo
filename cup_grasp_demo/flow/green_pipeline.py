@@ -66,6 +66,9 @@ def validate(cfg):
             raise ValueError(key + ' must be boolean')
     if g.get('precision_error_action', 'stop') not in ('stop', 'record'):
         raise ValueError('precision_error_action must be stop or record')
+    hand_bound = g.get('hand_start_tolerance_deg', 0.5)
+    if isinstance(hand_bound, bool) or not isinstance(hand_bound, (int, float)) or not math.isfinite(hand_bound) or not 0.1 <= hand_bound <= 5.0:
+        raise ValueError('hand_start_tolerance_deg must be 0.1..5.0 degrees')
     delta = g.get('settled_joint_delta_deg', .05)
     if isinstance(delta, bool) or not isinstance(delta, (int, float)) or not math.isfinite(delta) or not .05 <= delta <= .5:
         raise ValueError('settled_joint_delta_deg must be 0.05..0.5')

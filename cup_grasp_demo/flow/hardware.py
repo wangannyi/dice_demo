@@ -23,11 +23,16 @@ def hand_start(plan, current, status, enabled, cfg, result):
             or green.get('precision_error_action') != 'record'
             or plan.get('kind') != 'green_hand_command' or plan.get('stages')):
         return plan
-    # Retain the existing 0.5-degree abnormal-motion bound and healthy idle gate.
+    # Healthy idle gate with a configurable abnormal-motion bound.  The legacy
+    # 0.5-degree default is tight for shake-then-release, where wrist settling
+    # commonly lands 0.1-0.6 degrees off the planned pose.
+    tolerance = green.get('hand_start_tolerance_deg', 0.5)
+    if type(tolerance) is not float or not 0.1 <= tolerance <= 5.0:
+        raise ValueError('hand_start_tolerance_deg must be a float 0.1..5.0 degrees')
     try:
-        validate_start(plan, current, status, enabled, .5)
+        validate_start(plan, current, status, enabled, tolerance)
     except StartPositionChanged:
-        raise RuntimeError('Hand start exceeds 0.5 degree motion bound') from None
+        raise RuntimeError(f'Hand start exceeds {tolerance} degree motion bound') from None
     error = math.degrees(max(abs(a-b) for a,b in zip(current, plan['start_q_rad'])))
     result['hand_start_reference'] = dict(error_deg=error, action='use_current_idle_pose',
                                          joints_rad=list(current))
