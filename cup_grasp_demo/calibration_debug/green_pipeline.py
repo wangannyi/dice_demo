@@ -261,7 +261,9 @@ class Workflow:
 
     def prepare_step_runtime(self):
         """Connect once before the first STEP prompt; subsequent frames remain fresh."""
-        if self.args.mode != 'step' or not self.g.get('persistent_runtime', True):
+        # 'fast' here means the CONTROL session reusing FAST phase parameters;
+        # the one-shot FAST CLI never calls this.
+        if self.args.mode not in ('step', 'fast') or not self.g.get('persistent_runtime', True):
             return
         self.prepare_vision()
         try:
@@ -966,11 +968,14 @@ class Workflow:
                 start = self.snapshot()
                 already_home = np.max(np.abs(np.asarray(start) - self.home)) <= math.radians(.5)
                 if already_home:
-                    self._geometry_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='green-geometry')
+                    # CONTROL cycles reach HOME repeatedly; reuse the pools.
+                    if getattr(self, '_geometry_pool', None) is None:
+                        self._geometry_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='green-geometry')
                     self._geometry_future = self._geometry_pool.submit(
                         copy_context().run, lambda: Screen(table_only=True))
                     route = dict(start_q_rad=start, stages=[], blockers=[])
-                    self._capture_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='green-capture')
+                    if getattr(self, '_capture_pool', None) is None:
+                        self._capture_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='green-capture')
                     self._capture_future = self._capture_pool.submit(self.capture)
                 else:
                     route = arm_plan(start, [self.home], self.scene, self.cfg)

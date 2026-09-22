@@ -192,7 +192,11 @@ def run(args, incoming=None, outgoing=None, diagnostic=None):
         emit(outgoing, "preview", phases=list(PHASES), execute=False)
         return 0
     runtime_args = copy.copy(args)
-    runtime_args.mode = "step"  # Reuse STEP's persistent SDK/camera behavior.
+    # Run the phase machine with FAST parameters (fast_speed_percent 30,
+    # approach/return 60, finger 0.25 s, trapezoid profile, no joint-snapshot
+    # brackets around capture, background capture when already home).  The
+    # persistent startup below still pre-connects SDK/camera/model like STEP.
+    runtime_args.mode = "fast"
     runtime_args.show = False
     flow = None
     server = None
