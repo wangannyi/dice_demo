@@ -15,7 +15,7 @@ import time
 
 from cup_grasp_demo.flow.core import cached_screen_geometry
 from cup_grasp_demo.flow.green_pipeline import PHASES, Workflow
-from cup_grasp_demo.flow.pipeline_runner import save
+from cup_grasp_demo.flow.core import save
 from cup_grasp_demo.flow.session_storage import session_lock
 
 

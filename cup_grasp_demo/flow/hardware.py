@@ -130,10 +130,8 @@ def main(argv=None, *, connected=None):
         with (control_lock('/tmp/nero_' + args.channel + '_control.lock') if connected is None else nullcontext()), redirect_stdout(sys.stderr):
             before = host_control_evidence(args.channel) if connected is None else connected[2]
             robot = demo.create_robot(args.channel) if connected is None else connected[0]
-            is_grasp = bool(request and request['plan'].get('kind') == 'side_grasp_debug_plan')
-            is_home_open = bool(request and request['plan'].get('kind') == 'home_open_debug_plan')
             is_green_hand = bool(request and request['plan'].get('kind') in ('green_hand_command', 'green_home_open', 'feedback_together'))
-            hand = (robot.init_effector(robot.OPTIONS.EFFECTOR.REVO2) if is_grasp or is_home_open or is_green_hand else None) if connected is None else connected[1]
+            hand = (robot.init_effector(robot.OPTIONS.EFFECTOR.REVO2) if is_green_hand else None) if connected is None else connected[1]
             if connected is None:
                 robot.connect()
             conflicts = evidence_blockers(before, host_control_evidence(args.channel))
@@ -150,8 +148,6 @@ def main(argv=None, *, connected=None):
                 plan, cfg = request['plan'], request['config']
                 plan = hand_start(plan, joints, status, enabled, cfg, result)
                 validate_start(plan, joints, status, enabled, cfg['start_tolerance_deg'])
-                if is_home_open and plan.get('open_hand_target_0_100') != [0] * 6:
-                    raise ValueError('HOME 只允许六路全 0 张手')
                 from joint_delivery import ServoJointRobot
                 result['joint_delivery_events'] = []
                 motion_robot = ServoJointRobot(robot, demo, result['joint_delivery_events'],
@@ -182,12 +178,6 @@ def main(argv=None, *, connected=None):
                 elif is_green_hand:
                     from green_hand_execution import execute
                     execute(plan, cfg, robot, hand, demo, result, arm_step=arm_step)
-                elif is_grasp:
-                    from grasp_execution import execute
-                    execute(plan, cfg, robot, hand, demo, arm_step, result)
-                elif is_home_open:
-                    from home_execution import execute_home
-                    execute_home(plan, cfg, robot, hand, demo, arm_step, result)
                 else:
                     for stage in plan['stages']:
                         arm_step(stage, cfg['speed_percent'])

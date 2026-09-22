@@ -28,7 +28,7 @@ from cup_grasp_demo.flow.green_cup_planning import (
     solve,
     vertical_targets,
 )
-from cup_grasp_demo.flow.pipeline_runner import save, log_output
+from cup_grasp_demo.flow.core import save, log_output
 from cup_grasp_demo.flow.session_storage import session_lock
 from cup_grasp_demo.flow.shake import Kinematics
 from cup_grasp_demo.flow.joint_profile import make_plan as joint_plan, trajectory as joint_trajectory

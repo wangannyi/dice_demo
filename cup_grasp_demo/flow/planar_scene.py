@@ -5,7 +5,6 @@ import time
 
 from cup_grasp_demo.flow import debug as common
 from cup_grasp_demo.flow.core import configured_tcp, digest, load_config, read_json
-from cup_grasp_demo.flow.pipeline_home import home_scene
 
 
 def capture(args):
@@ -44,3 +43,20 @@ def verify(path, config_path):
         if digest(name) != expected:
             raise ValueError('桌面依赖已改变，请重新 table-capture：'+name)
     return record, load_config(config_path)
+
+
+def home_scene(run, cfg):
+    """Fit the red table without requiring a visible, unoccluded cup."""
+    meta, depth, image, _ = load_batch(run)
+    camera, quality = common.camera_transform(meta, cfg)
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    red = (((hsv[:, :, 0] < 15) | (hsv[:, :, 0] > 165))
+           & (hsv[:, :, 1] > 70) & (hsv[:, :, 2] > 50))
+    table, normal, fraction, rms = _plane(
+        deproject(depth, red, meta['intrinsics'], meta['depth_scale_m']),
+        Config(plane_tolerance_m=cfg['plane_tolerance_mm'] / 1000))
+    scene = dict(cup_support_base_m=(camera[:3, :3] @ table + camera[:3, 3]).tolist(),
+                 cup_normal_base=(camera[:3, :3] @ normal).tolist(),
+                 cup_envelope_radius_m=0, geometry=dict(height_m=0),
+                 table_fit=dict(inlier_fraction=fraction, rms_mm=rms * 1000))
+    return scene, quality

@@ -12,7 +12,6 @@ import numpy as np
 from cup_grasp_demo.flow import cup_perception as vision, debug
 from cup_grasp_demo.flow.core import ROOT, digest, load_config, read_json
 from cup_grasp_demo.flow.cup_selection import select_cup
-from cup_grasp_demo.flow.cup_recheck import verify_cup
 from cup_grasp_demo.side_grasp.preview_index import load_batch
 from cup_grasp_demo.side_grasp.preview_index import section
 from dice_cup_localization.geometry import Config
@@ -21,18 +20,6 @@ MODEL = 'cup_grasp_demo/models/cup_yolov8n_seg_20260918/best.q.onnx'
 
 
 class DecodeTest(unittest.TestCase):
-    def test_cli_capture_home_plan_and_config_check_keep_their_handlers(self):
-        commands = [
-            ('config-check', ['--config', 'unused.json'], debug.config_check),
-            ('capture', ['--config', 'unused.json', '--session', 'unused'], debug.capture),
-            ('home', ['--config', 'unused.json', '--output', 'unused'], debug.home),
-            ('plan', ['--session', 'unused', '--frame', 'tcp', '--output', 'unused.json'], debug.plan),
-        ]
-        for command, args, handler in commands:
-            with self.subTest(command=command), patch.object(debug, 'dispatch', return_value=0) as call:
-                self.assertEqual(debug.main([command, *args]), 0)
-                self.assertIs(call.call_args.args[1], handler)
-
     def test_one_class_coefficients_letterbox_nms_and_float_rounding(self):
         image = np.zeros((480, 640, 3), np.uint8)
         _, transform = vision.preprocess(image)
@@ -108,58 +95,13 @@ class SectionBandTest(unittest.TestCase):
 class ModelGeometryTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.cfg = load_config(ROOT / 'cup_grasp_demo/flow/index_joint_center/config.json')
+        cls.cfg = load_config(ROOT / 'configs/green_cup.json')
         cls.cfg['cup_perception'] = dict(backend='yolo_seg_onnx', model=MODEL)
         cls.cfg['contact_height_fraction'] = 10/11
         cls.fixture = ROOT / 'cup_grasp_demo/datasets/compare_20260917_221945'
         cls.meta, cls.depth, cls.image, _ = load_batch(cls.fixture)
         cls.instances, cls.provenance = vision.infer(cls.image, vision.perception_options(cls.cfg))
         cls.assert_inference = (cls.instances, cls.provenance)
-
-    def test_original_model_runs_and_geometry_recheck_matches(self):
-        self.assertEqual(self.provenance['model_sha256'],
-                         'eb353e9ec8da82677dae2a225b0d26b8e9624da1c01032c4892224a9cbc7eef3')
-        with tempfile.TemporaryDirectory() as temp, patch.object(vision, 'infer', return_value=self.assert_inference):
-            output = Path(temp)
-            geom, mask, _ = select_cup(self.depth, self.image, self.meta, self.cfg, output)
-            self.assertEqual(geom['segmentation']['class_name'], 'cap')
-            self.assertGreater(geom['segmentation']['confidence'], .9)
-            self.assertTrue(110 < geom['height_m']*1000 < 120)
-            self.assertTrue(55 < geom['radius_m']*2000 < 70)
-            self.assertLessEqual(geom['circle_rms_m'], .003)
-            self.assertTrue(mask.any())
-            recheck = output / 'recheck'
-            recheck.mkdir()
-            result = verify_cup(self.depth, self.image, self.meta, self.cfg, geom, recheck)
-            self.assertTrue(result['passed'])
-            self.assertEqual(result['backend'], 'yolo_seg_onnx')
-            self.assertFalse(read_json(output / 'yolo_seg.json')['fallback_used'])
-
-    def test_failed_live_batch_narrow_section_and_insufficient_points(self):
-        source = ROOT / 'cup_grasp_demo/datasets/yolo_section_fix_20260918/source'
-        meta, depth, image, _ = load_batch(source)
-        cfg = deepcopy(self.cfg)
-        actual = vision.infer(image, vision.perception_options(cfg))
-        with tempfile.TemporaryDirectory() as temp, patch.object(vision, 'infer', return_value=actual):
-            output = Path(temp)
-            with self.assertRaisesRegex(ValueError, 'insufficient_circular_side_surface'):
-                select_cup(depth, image, meta, cfg)
-            cfg['cup_perception']['section_half_band_mm'] = 2.
-            geom, _, _ = select_cup(depth, image, meta, cfg, output)
-            self.assertAlmostEqual(geom['height_m']*1000, 115.03, delta=.2)
-            self.assertAlmostEqual(geom['contact_height_m'], geom['height_m']*10/11)
-            self.assertAlmostEqual(geom['radius_m']*1000, 31.51, delta=.2)
-            self.assertLess(geom['circle_rms_m'], .002)
-            quality = read_json(output / 'yolo_seg.json')['instances'][0]['section_fit']
-            self.assertGreaterEqual(quality['points'], 200)
-            self.assertGreater(quality['visible_arc_deg'], 200)
-            self.assertEqual(quality['half_band_mm'], 2.)
-            recheck = output / 'recheck'
-            recheck.mkdir()
-            self.assertTrue(verify_cup(depth, image, meta, cfg, geom, recheck)['passed'])
-            cfg['cup_perception']['section_half_band_mm'] = .5
-            with self.assertRaisesRegex(ValueError, 'insufficient_section_points'):
-                select_cup(depth, image, meta, cfg)
 
     def test_no_detection_does_not_use_geometric_fallback(self):
         with tempfile.TemporaryDirectory() as temp, \

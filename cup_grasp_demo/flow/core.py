@@ -6,6 +6,8 @@ from contextvars import ContextVar
 from pathlib import Path
 import hashlib
 import json
+import os
+import uuid
 import math
 import time
 
@@ -410,3 +412,39 @@ def measured_offset(first, second):
         raise ValueError('Flange orientations differ')
     delta = np.array(second['error_base_mm']) - first['error_base_mm']
     return (np.array(first['R_base_flange']).T @ delta).tolist()
+
+
+def save(path, value):
+    """Commit an in-flight marker before hardware work; retain it across crashes."""
+    temporary = path.with_name(path.name + '.' + uuid.uuid4().hex + '.tmp')
+    try:
+        with temporary.open('x') as stream:
+            json.dump(value, stream, indent=2, ensure_ascii=False, allow_nan=False)
+            stream.write('\n')
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+@contextmanager
+def log_output(path):
+    """Capture Python prints AND inherited child-process output; always restore FDs."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open('x', buffering=1) as stream:
+        sys.stdout.flush()
+        sys.stderr.flush()
+        saved = (os.dup(1), os.dup(2))
+        try:
+            os.dup2(stream.fileno(), 1)
+            os.dup2(stream.fileno(), 2)
+            with redirect_stdout(stream), redirect_stderr(stream):
+                yield
+        finally:
+            sys.stdout.flush()
+            sys.stderr.flush()
+            os.dup2(saved[0], 1)
+            os.dup2(saved[1], 2)
+            for descriptor in saved:
+                os.close(descriptor)
