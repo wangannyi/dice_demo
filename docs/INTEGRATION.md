@@ -62,7 +62,7 @@ import os
 from pathlib import Path
 import subprocess
 
-root = Path('/home/test2/dice_demo')
+root = Path('/home/spacemit/projects/dice-game/dice_demo')
 session = root / 'cup_grasp_demo/datasets/app_control_001'
 session.mkdir(parents=True, exist_ok=True)
 env = dict(os.environ, DICE_CONFIG=str(root / 'configs/green_cup.json'),
@@ -192,6 +192,6 @@ def shake_once(root: Path):
 
 ## 7. 配置部署
 
-主配置 `configs/green_cup.json`；摇晃 `configs/joint_shake.json`；反馈 `configs/result_feedback.json`。完整字段与安装见[README](../README.md)，重新布置现场见[标定指南](CALIBRATION.md)。配置变更只在任务结束后进行，新的调用读取新配置。
+主配置 `configs/green_cup.json`；摇晃与反馈等静态动作 `configs/actions/`（`joint_shake.json`、`result_feedback.json`、`home.json`）。完整字段与安装见[README](../README.md)，重新布置现场见[标定指南](CALIBRATION.md)。配置变更只在任务结束后进行，新的调用读取新配置。
 
 默认打包命令生成的发布包中，相机标定为参考数据，`installation_requires_calibration=true`。仓库 `main` 和 `--site-active` 包保留当前 K3 的现场配置，只适用于这套固定安装。接收方先完成本机标定与桌面注册，不能直接用开发现场的坐标启动动作。运行记录留在本机，不提交到源码仓库。

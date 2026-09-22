@@ -54,9 +54,9 @@ K3 为 RISC-V。优先使用板卡提供的兼容库或已经验证的环境；�
 
 | 变量 | 默认位置 | 用途 |
 | --- | --- | --- |
-| `DICE_VISION_PYTHON` | `$HOME/.venv-grasp/bin/python` | 相机、识别、几何、规划 |
-| `DICE_SDK_PYTHON` | `$HOME/agilex-api-test/venv/bin/python` | CAN 和灵巧手执行器 |
-| `NERO_SDK_DIR` | `$HOME/agilex-api-test/pyAgxArm` | 已验证 SDK 源码根目录 |
+| `DICE_VISION_PYTHON` | 探测 `$HOME/.venv-grasp` → `$HOME/agilex-api-test/venv` → `/usr/bin/python3`（本板用系统 python） | 相机、识别、几何、规划 |
+| `DICE_SDK_PYTHON` | 同上回退链 | CAN 和灵巧手执行器 |
+| `NERO_SDK_DIR` | 探测 `$HOME/agilex-api-test/pyAgxArm` → `vendor-site/pyAgxArm`（本板用后者） | 已验证 SDK 源码根目录 |
 | `CALIB_PYTHON` | 与视觉解释器相同 | 标定 |
 
 新环境先安装本架构可用的依赖。具备对应轮子或源码构建环境时：
@@ -249,7 +249,7 @@ docs/                        调试、标定、接入、环境文档
 独立脚本：机械臂赢了比 yeah，输了点赞。完成放杯后调用，动作完成保持姿态；不启动相机或 YOLO。
 
 ```bash
-cd /home/test2/dice_demo
+cd ~/projects/dice-game/dice_demo
 bash run_feedback.sh yeah --execute       # 机械臂赢
 bash run_feedback.sh thumbs-up --execute  # 机械臂输
 bash run_feedback.sh tie --execute        # 平局：手指往返 3 次

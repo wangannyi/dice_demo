@@ -13,7 +13,7 @@
 ## 2. 环境和板配置
 
 ```bash
-cd /home/test2/dice_demo
+cd ~/projects/dice-game/dice_demo
 source scripts/env.sh
 cd nero_calibration
 ```

@@ -1,6 +1,6 @@
 # K3 运行环境与依赖清单
 
-核对日期：2026-09-22。以下是当前 `/home/test2/dice_demo` 已运行环境的实测清单；版本代表当前安装状态，不代表所有板卡必须使用这些版本。安装入口见[顶层 README](../README.md#2-安装运行环境)。
+核对日期：2026-09-22（主 K3 部署实测，路径 `~/projects/dice-game/dice_demo`）。本板不使用虚拟环境：`scripts/env.sh` 探测 `$HOME/.venv-grasp`/`$HOME/agilex-api-test` 均不存在时自动回退系统 `/usr/bin/python3` + 仓库自带依赖（`vendor-site/`、`nero_calibration/.deps/`）。版本代表当前安装状态，不代表所有板卡必须使用这些版本。安装入口见[顶层 README](../README.md#2-安装运行环境)。
 
 ## 1. 系统与硬件运行条件
 
@@ -17,7 +17,7 @@
 
 `python3` 的 Debian 元包版本为 `3.14.3-0ubuntu2`，实际解释器报告 `3.14.4`；判断 Python 扩展 ABI 时以解释器版本为准。
 
-当前驱动文件为 `/lib/modules/6.18.3-gsusb/kernel/drivers/net/can/usb/gs_usb.ko.zst`。仓库的 `kernel_usbcan_20260921` 是另一套可选内核构建工具，不是当前内核名称；已有可用 `can0` 时不需要更换内核。
+当前内核 `6.18.3-generic-usbcan`（USB-CAN 驱动已内建，`gs_usb` 等模块齐全）。历史构建工具目录已随 2026-09-22 瘦身移除。
 
 ### 系统库和工具
 
@@ -39,29 +39,27 @@
 
 ## 2. Python 环境分工
 
-两个环境均为 Python **3.14.4**，`pyvenv.cfg` 的 `include-system-site-packages = false`。
+统一使用系统 Python **3.14.4**（`/usr/bin/python3`）；视觉与机械臂执行共用同一解释器，差异只在 `PYTHONPATH` 注入的仓库自带依赖。
 
 | 环境 | 实际解释器 | 执行内容 |
 | --- | --- | --- |
-| 视觉/标定 | `/home/test2/.venv-grasp/bin/python` | pipeline 状态机、相机、YOLO、杯口定位、IK、路径检查、标定 |
-| 机械臂执行 | `/home/test2/agilex-api-test/venv/bin/python` | 持久 SDK 子进程、SocketCAN、`move_js`、手指指令、关节摇晃 |
-| 系统 Python | `/usr/bin/python3` | 系统工具；不是默认 pipeline 入口解释器 |
+| 视觉/标定/执行 | `/usr/bin/python3`（env.sh 回退链终点） | pipeline 状态机、相机、YOLO、IK、标定、持久 SDK 子进程、SocketCAN、`move_js`、手指指令 |
 
-`run.sh` 会加载 `scripts/env.sh` 并显式选择解释器，不要求先 `source activate`。终端提示符显示哪个虚拟环境，不等于两个子系统都使用该环境。
+`run.sh` 会加载 `scripts/env.sh` 并显式选择解释器（探测顺序：`$HOME/.venv-grasp` → `$HOME/agilex-api-test/venv` → `/usr/bin/python3`），不要求先 `source activate`。
 
 ### 视觉环境的主要 Python 依赖
 
 | 包 | 当前版本 | 实际来源/用途 |
 | --- | --- | --- |
-| NumPy | `2.5.3` | `.venv-grasp/lib/python3.14/site-packages`；矩阵计算 |
-| SciPy | `1.18.1` | 同一虚拟环境；IK、优化和几何 |
-| OpenCV | 模块 `4.13.0`；发行包 `opencv-contrib-python==4.13.0.92` | 同一虚拟环境；图像、窗口和 `cv2.aruco` |
-| pyrealsense2 | `2.57.7` | 同一虚拟环境；D435i 采集 |
+| NumPy | `2.3.5` | apt `python3-numpy`（`/usr/lib/python3/dist-packages`）；矩阵计算 |
+| SciPy | `1.16.3` | apt `python3-scipy`；IK、优化和几何 |
+| OpenCV | 模块 `4.10.0` | apt `python3-opencv`（绑定层含 `cv2.aruco`）；图像处理 |
+| pyrealsense2 | `2.57.7` | 仓库 `vendor-site/`；D435i 采集 |
 | ONNX Runtime | `1.24.2+spacemit.a1` | `/usr/lib/python3.14/dist-packages/onnxruntime`；厂商构建 |
 | spacemit-ort | `2.0.6` | `/usr/lib/python3.14/dist-packages/spacemit_ort`；注册 SpaceMIT 推理后端 |
 | python-can | `4.6.1` | 通过 `PYTHONPATH` 优先使用 `nero_calibration/.deps/can`；标定反馈读取 |
 | typing_extensions | `4.16.0` | `nero_calibration/.deps`；SDK 兼容依赖 |
-| pyAgxArm | 包版本 `1.0.0` | 外部 SDK 源码目录；标定和 SDK API |
+| pyAgxArm | 包版本 `1.0.0` | 仓库 `vendor-site/pyAgxArm`；标定和 SDK API |
 
 `pyrealsense2` 不提供本次可读的模块 `__version__`，上表版本来自发行包元数据。其原生扩展为 `cpython-314-riscv64-linux-gnu.so`；`pyrealsense2.libs` 内携带 librealsense2、libusb、libudev，不能只复制一个 Python 文件或一个 `.so`。
 
@@ -80,7 +78,7 @@
 
 ### pyAgxArm 源码
 
-- 目录：`/home/test2/agilex-api-test/pyAgxArm`。
+- 目录：仓库内 `vendor-site/pyAgxArm`（env.sh 的 `NERO_SDK_DIR` 默认指向此处；`$HOME/agilex-api-test/pyAgxArm` 存在时优先）。
 - 实测提交：`e7aef17d54cac80cbaeb1b4110ab3d8f1337a95b`。
 - 本次 `git status --short` 无输出。
 - 两个环境都通过 `NERO_SDK_DIR` 和 `PYTHONPATH` 使用该源码。
@@ -116,23 +114,23 @@ ROS 2 / MoveIt、MediaPipe、TensorFlow、PyTorch、Ultralytics Python 运行库
 
 | 变量 | 默认值/行为 |
 | --- | --- |
-| `DICE_VISION_PYTHON` | `$HOME/.venv-grasp/bin/python` |
-| `DICE_SDK_PYTHON` | `$HOME/agilex-api-test/venv/bin/python` |
-| `NERO_SDK_DIR` | `$HOME/agilex-api-test/pyAgxArm` |
+| `DICE_VISION_PYTHON` | 探测回退链终点 `/usr/bin/python3` |
+| `DICE_SDK_PYTHON` | 同上 |
+| `NERO_SDK_DIR` | `vendor-site/pyAgxArm` |
 | `CALIB_PYTHON` | 默认跟随视觉解释器 |
 | `PYTHONPATH` | 加入项目根目录、SDK 源码、`nero_calibration/.deps` |
 | `OPENBLAS_NUM_THREADS` | `1` |
 | `PYTHONNOUSERSITE` | `1`，不加载用户级 site-packages |
 | `QT_X11_NO_MITSHM` | `1`，用于 X11 预览兼容 |
 
-`nero_calibration/run_k3.sh` 单独使用 `CALIB_PYTHON`，默认也指向 `$HOME/.venv-grasp/bin/python`。
+`nero_calibration/run_k3.sh` 单独使用 `CALIB_PYTHON`，默认同样走 env.sh 回退链（本板为系统 python）。
 
 ## 5. 环境核验命令
 
 以下命令只读取环境，不发送机械臂动作：
 
 ```bash
-cd /home/test2/dice_demo
+cd ~/projects/dice-game/dice_demo
 source scripts/env.sh
 bash scripts/check_environment.sh
 "$DICE_VISION_PYTHON" --version
@@ -147,4 +145,4 @@ ip -details link show can0
 
 `check_environment.sh` 验证核心包导入、ArUco、配置路径、检测模型和几何模型；不打开相机或 CAN。本次已通过。该脚本没有创建 SpaceMIT 推理会话，不能单独证明加速后端推理成功。
 
-模块来源可通过各解释器的 `模块.__file__` 核对。迁移时需同时保留系统厂商包、RISC-V/Python 3.14 扩展构建产物、SDK 源码、`.deps`、模型与配置；两个虚拟环境的包清单只是其中一部分。仓库 `requirements-vision.txt` 和 `requirements-sdk.txt` 尚不是完整可复现的版本锁文件。
+模块来源可通过各解释器的 `模块.__file__` 核对。迁移时需同时保留系统厂商包、RISC-V/Python 3.14 扩展构建产物、SDK 源码、`.deps`、模型与配置；`vendor-site/` 与 `nero_calibration/.deps` 的包清单只是其中一部分。仓库 `requirements-vision.txt` 和 `requirements-sdk.txt` 尚不是完整可复现的版本锁文件。

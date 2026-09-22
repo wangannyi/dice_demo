@@ -33,7 +33,7 @@ STEP 在第一条提示前连接 CAN SDK、预热相机并加载 YOLO；等待 E
 | APPROACH | 到抓取位；查看 TCP 投影与实际中指指根是否一致 |
 | GRIP | 发送六路闭手目标，确认实物持杯情况 |
 | LIFT | 抬升配置距离 |
-| SHAKE | 按 `configs/joint_shake.json` 执行往复 |
+| SHAKE | 按 `configs/actions/joint_shake.json` 执行往复 |
 | LOWER | 放回抓取时的放置高度 |
 | OPEN | 张手放杯 |
 | RETURN_HOME | 返回 HOME |
@@ -71,7 +71,7 @@ TCP 图中的点来自关节反馈、模型和标定变换，不能当成相机�
 
 ```bash
 JT="$DICE_ROOT/cup_grasp_demo/flow/run_joint_test.sh"
-JCFG="$DICE_ROOT/configs/joint_shake.json"
+JCFG="$DICE_ROOT/configs/actions/joint_shake.json"
 "$JT" plan --config "$JCFG" --system-config "$CFG" --session "$RUN" &&
 "$JT" run --plan "$RUN/joint_plan.json" --execute
 ```
@@ -147,7 +147,7 @@ FAST 的桌面拟合不通过或工作区杯子候选不唯一时，复用相机
 独立入口 `run_feedback.sh` 不运行抓杯流程、不采集相机或调用 YOLO。先完成放杯，再执行反馈动作；当前 yeah、thumbs-up 配置为机械臂与手指同时启动，时延为 0；也可配置先后执行。完成后保持姿态，不自动返回 HOME。保留现有 CAN 控制、关节路径和桌面检查，使用当前标定对应的已保存桌面记录。
 
 ```bash
-cd /home/test2/dice_demo
+cd ~/projects/dice-game/dice_demo
 # 仅查看目标，不连接硬件
 bash run_feedback.sh yeah
 bash run_feedback.sh thumbs-up
@@ -221,7 +221,7 @@ bash run_feedback.sh my_action --execute    # 新增动作的调用方式
 ### 平局：手指往返动作
 
 ```bash
-cd /home/test2/dice_demo
+cd ~/projects/dice-game/dice_demo
 bash run_feedback.sh tie             # 预览
 bash run_feedback.sh tie --execute   # 执行；draw 为同义别名
 ```
@@ -247,7 +247,7 @@ FAST 启动性能通过 `green_cup.fast_parallel_startup` 开关对比。设为 
 
 ## 摇晃指令下发频率
 
-`configs/joint_shake.json` 的 `command_rate_hz=200` 表示每 5 ms 更新一次七轴 `move_js()` 目标，不是每秒摇晃 200 次。开发入口的 `flow/joint_test_config.json` 使用同一参数。支持 20–200 Hz；省略或设为 `null` 保留原来等待新反馈后发送的循环。
+`configs/actions/joint_shake.json` 的 `command_rate_hz=200` 表示每 5 ms 更新一次七轴 `move_js()` 目标，不是每秒摇晃 200 次。开发入口的 `flow/joint_test_config.json` 使用同一参数。支持 20–200 Hz；省略或设为 `null` 保留原来等待新反馈后发送的循环。
 
 200 Hz 模式使用独立只读反馈线程，发送线程按单调时钟调度；反馈过期、故障及运动约束检查仍有效。迟到时跳过错过的时隙，不连续补发积压目标。Python/Linux 调度与 CAN 发送仍可能有抖动，不能把配置值当作实测频率。
 
