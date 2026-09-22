@@ -3,6 +3,7 @@
 import argparse
 import sys
 import json
+import threading
 import time
 from pathlib import Path
 
@@ -68,6 +69,23 @@ class CaptureSession:
         self.pipeline = None
         self.started = False
         self.timings = {}
+        # Streaming mode: with a sink installed (before start()), one reader
+        # thread owns every pipeline call - it feeds the sink continuously and
+        # serves capture requests, so librealsense never sees two concurrent
+        # wait_for_frames callers.
+        self.stream_sink = None
+        self._reader = None
+        self._reader_stop = threading.Event()
+        self._request = None
+        self._request_error = None
+        self._request_done = threading.Event()
+        self._request_lock = threading.Lock()
+
+    def set_stream_sink(self, sink):
+        """Install callable(ndarray) for continuous cropped color frames."""
+        if self.started:
+            raise RuntimeError('Stream sink must be installed before start()')
+        self.stream_sink = sink
 
     def start(self):
         import pyrealsense2 as rs
@@ -111,29 +129,80 @@ class CaptureSession:
                     previous = current
                 warmed += 1
             self.timings["warmup_s"] = time.perf_counter() - warmup_started
+            if self.stream_sink is not None:
+                self._reader = threading.Thread(target=self._reader_loop,
+                                                name='capture-reader', daemon=True)
+                self._reader.start()
         except BaseException:
             self.close()
             raise
 
+    def _reader_loop(self):
+        while not self._reader_stop.is_set():
+            request = self._take_request()
+            if request is not None:
+                self._serve_request(*request)
+                continue
+            try:
+                frames = self.pipeline.wait_for_frames(2000)
+                color = frames.get_color_frame()
+                if color:
+                    self.stream_sink(crop_image(np.asanyarray(color.get_data()), self.crop))
+            except Exception:
+                # A camera hiccup must not kill the reader; pending capture
+                # requests surface their own timeout below.
+                time.sleep(0.5)
+
+    def _take_request(self):
+        with self._request_lock:
+            request, self._request = self._request, None
+        return request
+
+    def _serve_request(self, output, count, fresh):
+        try:
+            self._capture_frames(output, count, fresh, announce=False)
+            self._request_error = None
+        except BaseException as exc:
+            self._request_error = exc
+        finally:
+            self._request_done.set()
+
     def capture(self, output, count, *, fresh=False):
-        import pyrealsense2 as rs
-        from copy import copy
         if not self.started:
             raise RuntimeError('Camera has not started')
         if type(count) is not int or not 1 <= count <= 10:
             raise ValueError('Capture count must be 1..10')
-        args = copy(self.args)
-        args.output = Path(output)
-        args.output.mkdir(parents=True, exist_ok=False)
-        pipeline, profile, scale, alignment = self.pipeline, self.profile, self.scale, self.alignment
+        output = Path(output)
+        output.mkdir(parents=True, exist_ok=False)
+        if self._reader is not None and self._reader.is_alive():
+            with self._request_lock:
+                if self._request is not None:
+                    raise RuntimeError('A capture request is already in progress')
+                self._request_error = None
+                self._request_done.clear()
+                self._request = (output, count, fresh)
+            if not self._request_done.wait(timeout=30 + 5 * count):
+                raise TimeoutError('Camera capture request timed out')
+            if self._request_error is not None:
+                raise self._request_error
+            return
+        self._capture_frames(output, count, fresh, announce=True)
+
+    def _capture_frames(self, output, count, fresh, *, announce):
+        pipeline = self.pipeline
+        args = self.args
         capture_started = time.perf_counter()
         boundary = None
         if fresh:
-            # Drop the queued set. FAST uses the next advancing RGB/depth set,
-            # rather than unconditionally discarding two more frame periods.
-            queued = pipeline.poll_for_frames()
-            if queued:
-                boundary = frame_numbers(queued, args.stereo)
+            # The reader (streaming mode) consumes frames continuously, so no
+            # queued set can exist; only burn the configured discard frames.
+            # The non-reader path keeps the legacy poll-drop below.
+            if self._reader is None:
+                # Drop the queued set. FAST uses the next advancing RGB/depth set,
+                # rather than unconditionally discarding two more frame periods.
+                queued = pipeline.poll_for_frames()
+                if queued:
+                    boundary = frame_numbers(queued, args.stereo)
             for _ in range(getattr(args, 'fresh_discard_frames', 2)):
                 boundary = frame_numbers(pipeline.wait_for_frames(3000), args.stereo)
         for index in range(count):
@@ -142,69 +211,88 @@ class CaptureSession:
             wait_s = time.perf_counter() - wait_started
             if fresh:
                 boundary = frame_numbers(frames, args.stereo)
-            raw_depth = frames.get_depth_frame()
-            raw_color = frames.get_color_frame()
-            aligned = alignment.process(frames)
-            color, depth = aligned.get_color_frame(), aligned.get_depth_frame()
-            if not color or not depth or not raw_depth or not raw_color:
-                raise RuntimeError('Missing RGB-D frame')
-            cp = color.profile.as_video_stream_profile()
-            dp = raw_depth.profile.as_video_stream_profile()
-            ci = crop_intrinsics(intrinsics_dict(cp.get_intrinsics()), self.crop)
-            ci['frame'] = 'color_optical'
-            ext = dp.get_extrinsics_to(cp)
-            prefix = args.output / f'frame_{index:03d}'
-            image = crop_image(np.asanyarray(color.get_data()), self.crop)
-            png_options = [cv2.IMWRITE_PNG_COMPRESSION, 0] if getattr(args, 'fast_storage', False) else []
-            if not cv2.imwrite(str(prefix)+'.png', image, png_options):
-                raise RuntimeError('Failed to save color')
-            arrays = dict(depth=crop_image(np.asanyarray(depth.get_data()), self.crop),
-                          native_depth=np.asanyarray(raw_depth.get_data()).copy())
-            stereo = {}
-            if args.stereo:
-                for side, number in [('left', 1), ('right', 2)]:
-                    frame = frames.get_infrared_frame(number)
-                    if not frame:
-                        raise RuntimeError('Missing IR frame')
-                    ir_profile = frame.profile.as_video_stream_profile()
-                    ir_ext = ir_profile.get_extrinsics_to(cp)
-                    arrays['ir_'+side] = np.asanyarray(frame.get_data()).copy()
-                    stereo[side] = dict(intrinsics=intrinsics_dict(ir_profile.get_intrinsics()),
-                                        to_color_rotation=list(ir_ext.rotation),
-                                        to_color_translation=list(ir_ext.translation))
-                    stereo[side+'_frame_number'] = frame.get_frame_number()
-                    stereo[side+'_timestamp_ms'] = frame.get_timestamp()
-            saver = np.savez if getattr(args, 'fast_storage', False) else np.savez_compressed
-            saver(str(prefix)+'.npz', **arrays)
-            metadata = {'capture_profile': {'color_resolution': [ci['width'], ci['height']],
-                        'source_color_resolution': self.color_resolution, 'crop_xywh': self.crop,
-                        'depth_resolution': [dp.width(), dp.height()],
-                        'color_fps': cp.fps(), 'depth_fps': dp.fps(),
-                        'usb_type': profile.get_device().get_info(rs.camera_info.usb_type_descriptor)},
-                        'serial': args.serial, 'timestamp_ms': color.get_timestamp(),
-                        'timestamp_domain': str(color.get_frame_timestamp_domain()),
-                        'depth_timestamp_ms': raw_depth.get_timestamp(),
-                        'depth_timestamp_domain': str(raw_depth.get_frame_timestamp_domain()),
-                        'color_frame_number': color.get_frame_number(),
-                        'depth_frame_number': raw_depth.get_frame_number(),
-                        'frame_id': f'{args.serial}:{color.get_frame_number()}',
-                        'depth_registered_to': 'color_optical', 'depth_scale_m': scale,
-                        'intrinsics': ci, 'native_depth_intrinsics': intrinsics_dict(dp.get_intrinsics()),
-                        'depth_to_color': {'rotation_column_major': list(ext.rotation),
-                                           'translation_m': list(ext.translation)},
-                        'alignment': 'librealsense rs.align(color)', 'filters': []}
-            if args.stereo:
-                metadata['stereo'] = stereo
-            metadata['capture_timing'] = dict(self.timings, fresh_wait_s=wait_s,
-                compressed_storage=not getattr(args, 'fast_storage', False),
-                elapsed_capture_s=time.perf_counter()-capture_started,
-                warmup_frames=getattr(args, 'warmup_frames', 20),
-                unique_warmup=getattr(args, 'unique_warmup', False),
-                fresh_discard_frames=getattr(args, 'fresh_discard_frames', 2))
-            Path(str(prefix)+'.json').write_text(json.dumps(metadata, indent=2))
-            print(prefix, flush=True)
+            prefix = self._save_frameset(output, index, frames, wait_s, capture_started)
+            if announce:
+                print(prefix, flush=True)
+            if self.stream_sink is not None:
+                color = frames.get_color_frame()
+                if color:
+                    self.stream_sink(crop_image(np.asanyarray(color.get_data()), self.crop))
+
+    def _save_frameset(self, output, index, frames, wait_s, capture_started):
+        import pyrealsense2 as rs
+        args = self.args
+        pipeline, profile, scale, alignment = self.pipeline, self.profile, self.scale, self.alignment
+        raw_depth = frames.get_depth_frame()
+        raw_color = frames.get_color_frame()
+        aligned = alignment.process(frames)
+        color, depth = aligned.get_color_frame(), aligned.get_depth_frame()
+        if not color or not depth or not raw_depth or not raw_color:
+            raise RuntimeError('Missing RGB-D frame')
+        cp = color.profile.as_video_stream_profile()
+        dp = raw_depth.profile.as_video_stream_profile()
+        ci = crop_intrinsics(intrinsics_dict(cp.get_intrinsics()), self.crop)
+        ci['frame'] = 'color_optical'
+        ext = dp.get_extrinsics_to(cp)
+        prefix = output / f'frame_{index:03d}'
+        image = crop_image(np.asanyarray(color.get_data()), self.crop)
+        png_options = [cv2.IMWRITE_PNG_COMPRESSION, 0] if getattr(args, 'fast_storage', False) else []
+        if not cv2.imwrite(str(prefix)+'.png', image, png_options):
+            raise RuntimeError('Failed to save color')
+        arrays = dict(depth=crop_image(np.asanyarray(depth.get_data()), self.crop),
+                      native_depth=np.asanyarray(raw_depth.get_data()).copy())
+        stereo = {}
+        if args.stereo:
+            for side, number in [('left', 1), ('right', 2)]:
+                frame = frames.get_infrared_frame(number)
+                if not frame:
+                    raise RuntimeError('Missing IR frame')
+                ir_profile = frame.profile.as_video_stream_profile()
+                ir_ext = ir_profile.get_extrinsics_to(cp)
+                arrays['ir_'+side] = np.asanyarray(frame.get_data()).copy()
+                stereo[side] = dict(intrinsics=intrinsics_dict(ir_profile.get_intrinsics()),
+                                    to_color_rotation=list(ir_ext.rotation),
+                                    to_color_translation=list(ir_ext.translation))
+                stereo[side+'_frame_number'] = frame.get_frame_number()
+                stereo[side+'_timestamp_ms'] = frame.get_timestamp()
+        saver = np.savez if getattr(args, 'fast_storage', False) else np.savez_compressed
+        saver(str(prefix)+'.npz', **arrays)
+        metadata = {'capture_profile': {'color_resolution': [ci['width'], ci['height']],
+                    'source_color_resolution': self.color_resolution, 'crop_xywh': self.crop,
+                    'depth_resolution': [dp.width(), dp.height()],
+                    'color_fps': cp.fps(), 'depth_fps': dp.fps(),
+                    'usb_type': profile.get_device().get_info(rs.camera_info.usb_type_descriptor)},
+                    'serial': args.serial, 'timestamp_ms': color.get_timestamp(),
+                    'timestamp_domain': str(color.get_frame_timestamp_domain()),
+                    'depth_timestamp_ms': raw_depth.get_timestamp(),
+                    'depth_timestamp_domain': str(raw_depth.get_frame_timestamp_domain()),
+                    'color_frame_number': color.get_frame_number(),
+                    'depth_frame_number': raw_depth.get_frame_number(),
+                    'frame_id': f'{args.serial}:{color.get_frame_number()}',
+                    'depth_registered_to': 'color_optical', 'depth_scale_m': scale,
+                    'intrinsics': ci, 'native_depth_intrinsics': intrinsics_dict(dp.get_intrinsics()),
+                    'depth_to_color': {'rotation_column_major': list(ext.rotation),
+                                       'translation_m': list(ext.translation)},
+                    'alignment': 'librealsense rs.align(color)', 'filters': []}
+        if args.stereo:
+            metadata['stereo'] = stereo
+        metadata['capture_timing'] = dict(self.timings, fresh_wait_s=wait_s,
+            compressed_storage=not getattr(args, 'fast_storage', False),
+            elapsed_capture_s=time.perf_counter()-capture_started,
+            warmup_frames=getattr(args, 'warmup_frames', 20),
+            unique_warmup=getattr(args, 'unique_warmup', False),
+            fresh_discard_frames=getattr(args, 'fresh_discard_frames', 2))
+        Path(str(prefix)+'.json').write_text(json.dumps(metadata, indent=2))
+        return prefix
 
     def close(self):
+        self._reader_stop.set()
+        if self._reader is not None:
+            self._reader.join(timeout=5)
+            pending, self._request = self._request, None
+            if pending is not None:
+                self._request_error = RuntimeError('Camera closed during capture')
+                self._request_done.set()
         if self.started:
             self.started = False
             self.pipeline.stop()
