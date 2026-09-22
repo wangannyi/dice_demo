@@ -23,3 +23,5 @@ spacemitk3-dice_demo/
 .zcode/
 .code/
 vendor-site-deps/
+.vscode/
+.v2c/

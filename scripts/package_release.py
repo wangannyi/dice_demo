@@ -20,7 +20,7 @@ def build(destination, *, site_active=False):
         for path in (ROOT/tree).rglob('*'):
             rel=path.relative_to(ROOT)
             if any(part in SKIP for part in rel.parts) or path.is_symlink() or not path.is_file():continue
-            if path.suffix == '.md' and path.name not in ('README.md', 'README_DEBUG.md') and tree != 'docs':
+            if path.suffix == '.md' and path.name not in ('README.md',) and tree != 'docs':
                 continue  # Development journals reference local-only captures.
             if path.suffix in ('.py','.sh','.json','.md','.onnx','.urdf','.xacro','.txt','.yaml') or path.name == 'LICENSE':
                 selected.add(rel)

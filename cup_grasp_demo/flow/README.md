@@ -8,6 +8,6 @@
 | 运动 | shake、shake_execution、joint_delivery、joint_profile、joint_stream、shake_tracking、shake_readback、batched_limits、contact_geometry、grasp_execution、green_hand_execution、fast_feedback |
 | 规划 | green_cup_planning、grasp、direct_grasp、parameters、feedback_execution、feedback_sequence |
 | 工具 | debug.py（green-detect + pipeline 入口）、run_debug.sh、core、hardware、session_storage、planar_scene（桌面登记） |
-| 数据 | green_open_cup/、joint_test_config.json、planar_shake.json、fixtures/ |
+| 数据 | green_open_cup/、joint_test_config.json、fixtures/ |
 
 静态动作在 configs/actions/；动态抓取参数在 configs/green_cup.json。

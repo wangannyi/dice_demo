@@ -22,7 +22,7 @@ STATES = ('home', 'pregrasp', 'contact', 'grip')
 
 def options(cfg):
     if 'side_grasp' not in cfg:
-        raise ValueError('此会话未选择抓杯配置；用 index_joint_center/config.json 重新 capture')
+        raise ValueError('此会话未选择抓杯配置；用 configs/green_cup.json 重新 capture')
     opts = dict(cfg['side_grasp'])
     opts.setdefault('strategy', 'side_approach')
     if opts['strategy'] not in ('side_approach', 'direct_close'):
