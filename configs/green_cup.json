@@ -2,7 +2,7 @@
   "schema": 1,
   "serial": "346222071954",
   "channel": "can0",
-  "home": "cup_grasp_demo/flow/home_reference.json",
+  "home": "configs/actions/home.json",
   "home_open_hand": true,
   "calibration": "nero_calibration/datasets/handeye_20260920_203405/dimensions_measured_86p5x108/result.json",
   "orientation_reference": "cup_grasp_demo/flow/green_open_cup/grasp_reference.json",
@@ -156,7 +156,7 @@
     ],
     "finger_duration_s": 1.0,
     "finger_settle_s": 0.0,
-    "joint_test_config": "configs/joint_shake.json",
+    "joint_test_config": "configs/actions/joint_shake.json",
     "held_cup_margin_mm": 5,
     "place_tolerance_mm": 3,
     "perception": {

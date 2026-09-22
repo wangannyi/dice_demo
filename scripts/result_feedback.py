@@ -125,7 +125,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', nargs='?', help='配置中的动作名或别名')
     parser.add_argument('--list', action='store_true', help='list configured actions without hardware')
-    parser.add_argument('--gestures', type=Path, default=ROOT / 'configs/result_feedback.json')
+    parser.add_argument('--gestures', type=Path, default=ROOT / 'configs/actions/result_feedback.json')
     parser.add_argument('--config', type=Path, default=DEFAULT_SYSTEM)
     parser.add_argument('--session', type=Path, default=ROOT / 'cup_grasp_demo/datasets/result_feedback')
     parser.add_argument('--execute', action='store_true', help='execute immediately without another prompt')

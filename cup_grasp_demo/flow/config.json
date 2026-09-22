@@ -2,7 +2,7 @@
   "schema": 1,
   "serial": "346222071954",
   "channel": "can0",
-  "home": "cup_grasp_demo/flow/home_reference.json",
+  "home": "configs/actions/home.json",
   "calibration": "nero_calibration/datasets/handeye_20260917_153833/dimensions_measured_86p5x108/result.json",
   "orientation_reference": "cup_grasp_demo/datasets/silver_cup_review_20260917_01/grasp_reference.json",
   "tcp_candidate": "cup_grasp_demo/side_grasp/TCP_MODEL_CANDIDATE.json",

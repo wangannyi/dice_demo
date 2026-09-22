@@ -28,11 +28,11 @@ class DeliveryTests(unittest.TestCase):
 
     def test_shake_configuration_is_shared(self):
         cfg = json.loads((ROOT/'configs/green_cup.json').read_text())
-        self.assertEqual(cfg['green_cup']['joint_test_config'], 'configs/joint_shake.json')
+        self.assertEqual(cfg['green_cup']['joint_test_config'], 'configs/actions/joint_shake.json')
         self.assertTrue((ROOT/cfg['green_cup']['joint_test_config']).is_file())
 
     def test_shake_configurations_are_valid_independent_recipes(self):
-        release = json.loads((ROOT/'configs/joint_shake.json').read_text())
+        release = json.loads((ROOT/'configs/actions/joint_shake.json').read_text())
         current = json.loads((ROOT/'cup_grasp_demo/flow/joint_test_config.json').read_text())
         from cup_grasp_demo.flow.joint_profile import options
         # Operators may tune the development and release recipes independently.

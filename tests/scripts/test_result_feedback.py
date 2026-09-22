@@ -12,7 +12,7 @@ from scripts import result_feedback as feedback
 
 class FeedbackTests(unittest.TestCase):
     def setUp(self):
-        self.config = json.loads((feedback.ROOT / 'configs/result_feedback.json').read_text())
+        self.config = json.loads((feedback.ROOT / 'configs/actions/result_feedback.json').read_text())
 
     def test_user_recipes_and_robot_perspective(self):
         win = feedback.recipe_for(self.config, 'win')
