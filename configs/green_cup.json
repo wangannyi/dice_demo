@@ -264,7 +264,7 @@
     "read_hand_feedback": false,
     "place_arrival_tolerance_mm": 5.0,
     "direct_return_home": true,
-    "fast_finger_duration_s": 0.5,
+    "fast_finger_duration_s": 0.25,
     "fast_phase_speed_percent": {
       "approach": 60,
       "return_home": 60
@@ -277,6 +277,10 @@
     "fast_overlap_grip_preparation": true,
     "fast_uncompressed_capture": true,
     "fast_analytic_rim_jacobian": true,
-    "fast_batched_ik_rotations": true
+    "fast_batched_ik_rotations": true,
+    "fast_dogbox_ik": true,
+    "fast_motion_profile": "trapezoid",
+    "fast_minimize_lift_travel": true,
+    "fast_parallel_startup": true
   }
 }

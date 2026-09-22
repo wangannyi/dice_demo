@@ -234,6 +234,10 @@ bash run_feedback.sh tie --execute   # 执行；draw 为同义别名
 
 动作中省略 `hand_sequence` 则保持原来的单一手势行为。仍可使用 `arm_then_hand` / `hand_then_arm`；顺序模式可能增加反馈读取开销。
 
+## FAST 启动耗时
+
+FAST 启动性能通过 `green_cup.fast_parallel_startup` 开关对比。设为 `false` 恢复按阶段初始化；设为 `true` 让只读资源初始化与模块加载并行。比较 `green_pipeline_state.json` 的 `startup_to_capture_s` 时，应同时保留命令总耗时，避免只比较阶段数字。相机预热帧数、手指动作时间和识别质量阈值不随此开关变化。
+
 ## 摇晃指令下发频率
 
 `configs/joint_shake.json` 的 `command_rate_hz=200` 表示每 5 ms 更新一次七轴 `move_js()` 目标，不是每秒摇晃 200 次。开发入口的 `calibration_debug/joint_test_config.json` 使用同一参数。支持 20–200 Hz；省略或设为 `null` 保留原来等待新反馈后发送的循环。

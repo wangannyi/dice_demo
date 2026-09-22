@@ -390,7 +390,7 @@ class ExecutionTest(unittest.TestCase):
             return dict(
                 q_rad=current[0],
                 enabled=[True] * 7,
-                status=dict(arm_status=0, ctrl_mode=1, motion_status=1),
+                status=dict(arm_status=0, ctrl_mode=1, motion_status=int(robot.move_js.call_count > 0)),
                 fk_flange_pose_m_rad=[
                     *t[:3, 3],
                     *Rotation.from_matrix(t[:3, :3]).as_euler("xyz"),

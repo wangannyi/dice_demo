@@ -15,6 +15,10 @@ import uuid
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+if __name__ == '__main__':
+    from cup_grasp_demo.calibration_debug.green_startup import launch
+    launch(sys.argv[1:])
+
 import cv2  # noqa: E402
 import numpy as np  # noqa: E402
 

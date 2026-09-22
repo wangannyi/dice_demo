@@ -11,11 +11,43 @@ from cup_grasp_demo.calibration_debug.joint_delivery import (
     delivery_options,
     fresh_js_hold,
     take_js_control,
+    trapezoid_profile,
+    trapezoid_position,
 )
 from cup_grasp_demo.calibration_debug.shake_execution import ShakeGuard
 
 
 class DeliveryTest(unittest.TestCase):
+    def test_trapezoid_profile_respects_all_axis_budgets(self):
+        import numpy as np
+        rng = np.random.default_rng(42)
+        for _ in range(30):
+            target = rng.uniform(-1, 1, 7)
+            velocity = rng.uniform(.1, 2, 7)
+            acceleration = rng.uniform(.5, 5, 7)
+            duration, ramp, peak = trapezoid_profile([0]*7, target, velocity, acceleration)
+            ts = np.linspace(0, duration, 2001)
+            us = np.array([trapezoid_position(t, duration, ramp, peak) for t in ts])
+            self.assertAlmostEqual(us[0], 0)
+            self.assertAlmostEqual(us[-1], 1)
+            self.assertTrue(np.all(np.diff(us) >= -1e-12))
+            self.assertTrue(np.all(abs(target) * peak <= velocity + 1e-12))
+            self.assertTrue(np.all(abs(target) * peak / ramp <= acceleration + 1e-12))
+            q = us[:, None] * target
+            v = np.diff(q, axis=0)/(ts[1]-ts[0])
+            a = np.diff(v, axis=0)/(ts[1]-ts[0])
+            self.assertTrue(np.all(abs(v) <= velocity + 1e-8))
+            self.assertTrue(np.all(abs(a) <= acceleration + 1e-7))
+
+    def test_trapezoid_stream_retains_step_guard_and_endpoint(self):
+        self.proxy.options['profile'] = 'trapezoid'
+        self.proxy.set_speed_percent(60)
+        self.proxy.move_js([.4, -.2, 0, 0, 0, 0, 0])
+        self.assertEqual(self.q, [.4, -.2, 0, 0, 0, 0, 0])
+        self.assertEqual(self.events[-1]['profile'], 'trapezoid')
+        for (_, a), (_, b) in zip(self.sent, self.sent[1:]):
+            self.assertLessEqual(max(abs(x-y) for x, y in zip(a, b)), math.radians(1))
+
     def setUp(self):
         self.clock = 100.0
         self.auto = True

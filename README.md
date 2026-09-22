@@ -7,6 +7,7 @@ HOME → CAPTURE → PLAN → APPROACH → GRIP → LIFT → SHAKE → LOWER →
 归位     定位      规划     靠近       闭手    抬杯     摇晃      放下    张手       归位
 ```
 
+- [K3 系统依赖与 Python 环境实测清单](docs/ENVIRONMENT.md)
 - [分步调试与单项测试](docs/DEBUG.md)
 - [首次标定、示教点与相机移动后的校准](docs/CALIBRATION.md)
 - [上层应用接入接口](docs/INTEGRATION.md)
@@ -40,6 +41,8 @@ python3 scripts/package_release.py --output "dist/release_$(date +%Y%m%d_%H%M%S)
 ## 2. 安装运行环境
 
 ### 2.1 软件依赖
+
+当前 K3 的系统版本、Python 包版本、加载路径及厂商运行库见[环境依赖清单](docs/ENVIRONMENT.md)（2026-09-22 核对）。
 
 需要 Linux SocketCAN、Python、NumPy、SciPy、带 ArUco 的 OpenCV、RealSense Python SDK、ONNX Runtime、python-can 和与 NERO 固件匹配的 pyAgxArm。ROS/MoveIt 和 MediaPipe 不是当前流程的运行依赖。
 
@@ -144,7 +147,11 @@ FAST 复用 SDK/CAN、相机和模型，复用可用的预计算轨迹；只在�
 | `green_cup.open_targets_0_100` | `[0,0,0,0,0,0]` | 张手目标 |
 | `green_cup.grip_targets_0_100` | `[0,100,40,40,40,100]` | 闭手目标 |
 | `green_cup.finger_duration_s` | 1 | 常规手指动作时间，秒 |
-| `green_cup.fast_finger_duration_s` | 0.5 | FAST 手指动作时间，秒 |
+| `green_cup.fast_finger_duration_s` | 0.25 | FAST 手指指令动作时间，秒；不代表实测抓牢 |
+| `green_cup.fast_minimize_lift_travel` | true | FAST 抬杯重新分配七轴位移，保持 TCP 终点和朝向；优化失败回退原解，仍检查持杯路径 |
+| `green_cup.fast_motion_profile` | trapezoid | FAST 普通关节运动使用限速、限加速度的梯形速度曲线；设为 quintic 恢复原曲线。SHAKE 不受此项影响 |
+| `green_cup.fast_dogbox_ik` | true | FAST 使用 dogbox 求解抓取 IK；仍验证位置、朝向与路径，无合格解时回退原求解器 |
+| `green_cup.fast_parallel_startup` | `true` | FAST 执行时，SDK 连接、相机预热及模型加载与 CLI 模块加载并行；初始化不发送运动或手指指令 |
 | `green_cup.perception.height_mode` | `fixed` | `fixed` 已知杯高；`measured` 双目测高 |
 | `green_cup.perception.fixed_height_mm` | 65 | 固定模式杯高，mm |
 | `green_cup.perception.inference_provider` | `spacemit` | K3 AI 后端；`cpu` 使用普通 CPU 后端 |
@@ -158,6 +165,8 @@ FAST 复用 SDK/CAN、相机和模型，复用可用的预计算轨迹；只在�
 杯沿质量参数位于 `green_cup.perception.stereo_rim`：`min_edge_support=0.85` 要求每路图像至少 85% 的采样杯沿点距离观测边缘小于 `edge_distance_px=2.0` 像素。平均边缘误差上限仍为 1.0 px，单路平均上限仍为 1.2 px；该比例不是 YOLO 置信度。
 
 六路手指顺序为：拇指尖、拇指根、食指、中指、无名指、小指。指令完成不等于已测量确认抓牢。TCP 偏移属于法兰坐标系，不能直接按图像左右方向修改。
+
+FAST 的 HOME/CAPTURE 阶段耗时不包含 CLI 模块加载。`green_pipeline_state.json` 同时记录 `parallel_startup_elapsed_s`（启动到进入状态机）与 `startup_to_capture_s`（启动到定位完成），用后者比较整体启动性能。已在 HOME 时可将定位与张手重叠；不在 HOME 时仍先完成归位再采集正式图像。STEP/AUTO 和不带 `--execute` 的预览不提前打开设备。
 
 `configs/joint_shake.json`：
 
