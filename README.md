@@ -214,20 +214,35 @@ AI 推理通过 `SpaceMITExecutionProvider` 创建 CPU 8、9 上的计算线程�
 `green_pipeline_state.json` 记录状态、每阶段耗时、路径复用和错误；`green_grasp_plan.json` 记录目标及规划耗时；`green_approach_timings.json` 拆分运动和后续准备；`runs/` 保存每次执行的 `request.json`、`actual.json` 和日志。固定 RUN 复用最新结果，但历史 runs 不自动清空。
 
 ```text
-configs/                    交付使用的主配置、摇晃配置
-scripts/                    环境检查、源码打包、桌面参数登记
-cup_grasp_demo/              识别、规划、状态机和调试入口
-nero_revo2_control/          机械臂及灵巧手控制、运动学（含 URDF）
-nero_calibration/           手眼标定、逐帧示教轨迹、自动重采、参考板恢复
-rgb_hand_tracking/          仅保留被复用的 SDK 反馈与控制审计底层模块
-                            （visual_servo_probe / passive_pose_bridge / finger_feedback_probe）
-agx_arm_ros/.../agx_arm_urdf/ NERO+右 Revo2 几何模型（手部几何运行时读取），不要求 ROS
-docs/                       调试和标定指南
+run.sh / run_feedback.sh      一键入口：绿杯抓取流程 / 胜负反馈手势
+configs/
+  green_cup.json              绿杯主配置：动态抓取（视觉联动）参数
+  actions/                    静态动作库：home.json、joint_shake.json、result_feedback.json
+  installation/               相机安装档案
+cup_grasp_demo/
+  flow/                       绿杯主流程（阶段机/常驻控制/相机运行时/感知/摇晃运动/CLI）
+  planning.py hand_geometry.py side_grasp/   抓取规划与手指几何
+  models/                     YOLO 检测模型
+nero_revo2_control/
+  kinematics.py               七轴 FK/IK（models/nero_description.urdf）
+  nero_revo2_demo.py          CAN/SDK 执行层
+  bridges/                    SDK 审计与桥接底层（visual_servo_probe 等）
+  models/hand_geometry/       NERO+右 Revo2 几何（xacro/urdf/STL）
+nero_calibration/            手眼标定、逐帧示教轨迹、自动重采、参考板恢复
+dice_cup_localization/       相机采集、几何、YOLO 解码
+scripts/                     环境检查、源码打包、相机参数、数字控制台
+tests/                       全部测试（镜像源码结构）
+docs/                        调试、标定、接入、环境文档
 ```
 
-2026-09-22 瘦身：移除与绿杯流程无关的 rgb_hand_tracking 历史视觉实验源码、agx_arm_urdf 中 Piper 系四型臂与左手/视觉网格、cup_grasp_demo 顶层旧银杯流程（pipeline/execute/top_*/grasp 等及其测试）、dice_cup_localization 的 recognize/red_workspace/localize 旧入口、kernel_usbcan 构建工件。
+### 动作的两类组织
 
-`rgb_hand_tracking` 中保留历史视觉实验源码是为了兼容被复用的底层模块；当前绿色杯 pipeline 不运行 MediaPipe。软件测试不能替代新安装后的实物接触、抓牢和运动通路验收。
+- **静态动作**（纯机械臂运动，改 JSON 即改动作）：集中在 `configs/actions/`——`home.json`（HOME 七轴角度）、`joint_shake.json`（摇晃配方）、`result_feedback.json`（胜负反馈手势，直接在文件里增删动作）。
+- **动态动作**（视觉联动抓取）：参数在 `configs/green_cup.json`（TCP 偏移、抬杯高度、手指目标、阶段速度），流程逻辑在 `cup_grasp_demo/flow/`，杯位由相机识别实时给出。
+
+2026-09-22 瘦身与重组：移除 rgb_hand_tracking 历史视觉实验源码（三个被复用的桥接模块保留，并入 `nero_revo2_control/bridges/`）、agx_arm_urdf 的 Piper 系四型臂与左手/视觉网格（几何并入 `nero_revo2_control/models/hand_geometry/`）、cup_grasp_demo 顶层旧银杯流程、dice_cup_localization 旧入口、kernel_usbcan 构建工件；`calibration_debug/` 更名 `flow/`；静态动作库集中 `configs/actions/`。
+
+当前绿色杯 pipeline 不运行 MediaPipe。软件测试不能替代新安装后的实物接触、抓牢和运动通路验收。
 
 ## 6. 比大小后的反馈动作
 
