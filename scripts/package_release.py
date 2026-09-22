@@ -46,7 +46,7 @@ def build(destination, *, site_active=False):
     # The default handoff requires calibration. An explicit snapshot may retain
     # the current K3 installation paths and gate for byte-for-byte comparison.
     if not site_active:
-        for relative in ('configs/green_cup.json','cup_grasp_demo/calibration_debug/green_open_cup/stereo_config.json'):
+        for relative in ('configs/green_cup.json','cup_grasp_demo/flow/green_open_cup/stereo_config.json'):
             p=stage/relative;d=json.loads(p.read_text());d['calibration']='configs/installation/camera.json';d['green_cup']['installation_requires_calibration']=True;p.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n')
     # Normalize whitespace in generated vendor XML only; geometry is unchanged.
     for path in stage.rglob('*'):

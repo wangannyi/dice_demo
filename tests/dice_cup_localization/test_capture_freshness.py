@@ -57,7 +57,7 @@ class FreshnessTests(unittest.TestCase):
         import tempfile
         from pathlib import Path
         from types import SimpleNamespace
-        from cup_grasp_demo.calibration_debug.green_pipeline import Workflow
+        from cup_grasp_demo.flow.green_pipeline import Workflow
         with tempfile.TemporaryDirectory() as d:
             w=object.__new__(Workflow);w.root=Path(d);w.args=SimpleNamespace(mode='fast');w._vision=Mock();w.g={}
             w._capture_once=Mock(side_effect=[ValueError('table_plane_not_supported'), 'ok'])

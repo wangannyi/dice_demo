@@ -6,7 +6,7 @@
 
 ```bash
 source scripts/env.sh
-DBG="$DICE_ROOT/cup_grasp_demo/calibration_debug/run_debug.sh"
+DBG="$DICE_ROOT/cup_grasp_demo/flow/run_debug.sh"
 CFG="$DICE_ROOT/configs/green_cup.json"
 RUN="$DICE_ROOT/cup_grasp_demo/datasets/green_current"
 mkdir -p "$RUN"
@@ -70,7 +70,7 @@ TCP 图中的点来自关节反馈、模型和标定变换，不能当成相机�
 ## 4. 单独关节摇晃
 
 ```bash
-JT="$DICE_ROOT/cup_grasp_demo/calibration_debug/run_joint_test.sh"
+JT="$DICE_ROOT/cup_grasp_demo/flow/run_joint_test.sh"
 JCFG="$DICE_ROOT/configs/joint_shake.json"
 "$JT" plan --config "$JCFG" --system-config "$CFG" --session "$RUN" &&
 "$JT" run --plan "$RUN/joint_plan.json" --execute
@@ -85,8 +85,8 @@ JCFG="$DICE_ROOT/configs/joint_shake.json"
 独立桌面采集不识别杯子、不移动机械臂。机械臂、桌面或相机变动后重采：
 
 ```bash
-JS="$DICE_ROOT/cup_grasp_demo/calibration_debug/run_planar_shake.sh"
-JSCFG="$DICE_ROOT/cup_grasp_demo/calibration_debug/planar_shake.json"
+JS="$DICE_ROOT/cup_grasp_demo/flow/run_planar_shake.sh"
+JSCFG="$DICE_ROOT/cup_grasp_demo/flow/planar_shake.json"
 "$JS" table-capture --config "$CFG" --session "$RUN"
 "$JS" plan --config "$CFG" --trial-config "$JSCFG" \
   --session "$RUN" --table-scene "$RUN/planar_table_scene.json"
@@ -98,7 +98,7 @@ JSCFG="$DICE_ROOT/cup_grasp_demo/calibration_debug/planar_shake.json"
 "$JS" run --plan "$RUN/planar_js_plan.json" --load empty --execute
 ```
 
-此入口与 GREEN PIPELINE 的关节摇晃不同。不要用 `--load empty` 描述实际持杯状态。历史法兰/TCP 对点工具见[原调试工具说明](../cup_grasp_demo/calibration_debug/README_DEBUG.md)，新绿杯流程以本文和顶层配置为准。
+此入口与 GREEN PIPELINE 的关节摇晃不同。不要用 `--load empty` 描述实际持杯状态。历史法兰/TCP 对点工具见[原调试工具说明](../cup_grasp_demo/flow/README_DEBUG.md)，新绿杯流程以本文和顶层配置为准。
 
 ## 6. 耗时和故障定位
 
@@ -167,7 +167,7 @@ bash run_feedback.sh thumbs-up --execute  # 机械臂输了
 | `gestures.<名称>.joints_deg` | J1–J7 的绝对角度，单位度 |
 | `gestures.<名称>.hand_0_100` | 拇指尖、拇指根、食指、中指、无名指、小指六路目标 |
 
-`--gestures <文件>` 可指定手势配置；`--config <文件>` 可指定系统配置，默认使用 `cup_grasp_demo/calibration_debug/green_open_cup/stereo_config.json`。`--session <目录>` 指定记录目录，默认 `cup_grasp_demo/datasets/result_feedback`。每次执行保留请求、反馈与收据；程序退出码为 0 表示指令流程完成，2 表示失败，130 表示用户中断。手指完成按指令时间计，收据不代表已实测手指姿态。
+`--gestures <文件>` 可指定手势配置；`--config <文件>` 可指定系统配置，默认使用 `cup_grasp_demo/flow/green_open_cup/stereo_config.json`。`--session <目录>` 指定记录目录，默认 `cup_grasp_demo/datasets/result_feedback`。每次执行保留请求、反馈与收据；程序退出码为 0 表示指令流程完成，2 表示失败，130 表示用户中断。手指完成按指令时间计，收据不代表已实测手指姿态。
 
 ### 增删动作、单动作速度与执行时延
 
@@ -247,7 +247,7 @@ FAST 启动性能通过 `green_cup.fast_parallel_startup` 开关对比。设为 
 
 ## 摇晃指令下发频率
 
-`configs/joint_shake.json` 的 `command_rate_hz=200` 表示每 5 ms 更新一次七轴 `move_js()` 目标，不是每秒摇晃 200 次。开发入口的 `calibration_debug/joint_test_config.json` 使用同一参数。支持 20–200 Hz；省略或设为 `null` 保留原来等待新反馈后发送的循环。
+`configs/joint_shake.json` 的 `command_rate_hz=200` 表示每 5 ms 更新一次七轴 `move_js()` 目标，不是每秒摇晃 200 次。开发入口的 `flow/joint_test_config.json` 使用同一参数。支持 20–200 Hz；省略或设为 `null` 保留原来等待新反馈后发送的循环。
 
 200 Hz 模式使用独立只读反馈线程，发送线程按单调时钟调度；反馈过期、故障及运动约束检查仍有效。迟到时跳过错过的时隙，不连续补发积压目标。Python/Linux 调度与 CAN 发送仍可能有抖动，不能把配置值当作实测频率。
 

@@ -123,7 +123,7 @@ class SimulateBackend:
 
     def __init__(self):
         sys.path.insert(0, str(ROOT))
-        from cup_grasp_demo.calibration_debug.green_control import ControlSession
+        from cup_grasp_demo.flow.green_control import ControlSession
 
         class FakeFlow:
             receipts = {}

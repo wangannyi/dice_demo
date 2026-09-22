@@ -203,7 +203,7 @@ FAST 的 HOME/CAPTURE 阶段耗时不包含 CLI 模块加载。`green_pipeline_s
 | `phase_delay_deg` | 省略或 `null` | 按 `joints` 顺序设置各轴相位滞后，0～360°；90° 表示晚四分之一周期开始 |
 | `controller_speed_percent` | 100 | 摇晃执行速度百分比 |
 
-当前 `stereo_config.json` 开发入口使用 `cup_grasp_demo/calibration_debug/joint_test_config.json`：`joints=[1,4,5,6,7]`、`amplitude_deg=[4,4,-4,4,4]`、`phase_delay_deg=null`、`cycles=6`。负号使 J5 反向运动。顶层 `configs/joint_shake.json` 是主流程配方，当前幅度为各轴 2.5°；两套配方按用途分别调整。关闭相位延迟推荐使用 `null`，增减关节时不必修改该字段；使用列表时必须与 `joints` 一一对应。当前五轴若设为 `[0,0,0,0,90]`，J7 相对 J6 滞后四分之一周期；每轴均从中心静止启动，完成自身周期后回中心，整体时长增加最大相位延迟。pipeline 在 HOME 之前校验摇晃参数，配置错误时不会先移动再报错。修改后重新生成计划，不执行旧计划。
+当前 `stereo_config.json` 开发入口使用 `cup_grasp_demo/flow/joint_test_config.json`：`joints=[1,4,5,6,7]`、`amplitude_deg=[4,4,-4,4,4]`、`phase_delay_deg=null`、`cycles=6`。负号使 J5 反向运动。顶层 `configs/joint_shake.json` 是主流程配方，当前幅度为各轴 2.5°；两套配方按用途分别调整。关闭相位延迟推荐使用 `null`，增减关节时不必修改该字段；使用列表时必须与 `joints` 一一对应。当前五轴若设为 `[0,0,0,0,90]`，J7 相对 J6 滞后四分之一周期；每轴均从中心静止启动，完成自身周期后回中心，整体时长增加最大相位延迟。pipeline 在 HOME 之前校验摇晃参数，配置错误时不会先移动再报错。修改后重新生成计划，不执行旧计划。
 
 速度预算不是实际到达速度；最终轨迹仍受关节行程及控制器限值约束。配置里的控制器加速度目标不代表每次 pipeline 都写入硬件参数。
 
@@ -246,7 +246,7 @@ bash run_feedback.sh tie --execute        # 平局：手指往返 3 次
 
 ## 摇晃指令下发频率
 
-`configs/joint_shake.json` 的 `command_rate_hz=200` 表示每 5 ms 更新一次七轴 `move_js()` 目标，不是每秒摇晃 200 次。开发入口的 `calibration_debug/joint_test_config.json` 使用同一参数。支持 20–200 Hz；省略或设为 `null` 保留原来等待新反馈后发送的循环。
+`configs/joint_shake.json` 的 `command_rate_hz=200` 表示每 5 ms 更新一次七轴 `move_js()` 目标，不是每秒摇晃 200 次。开发入口的 `flow/joint_test_config.json` 使用同一参数。支持 20–200 Hz；省略或设为 `null` 保留原来等待新反馈后发送的循环。
 
 200 Hz 模式使用独立只读反馈线程，发送线程按单调时钟调度；反馈过期、故障及运动约束检查仍有效。迟到时跳过错过的时隙，不连续补发积压目标。Python/Linux 调度与 CAN 发送仍可能有抖动，不能把配置值当作实测频率。
 

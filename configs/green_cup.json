@@ -2,11 +2,11 @@
   "schema": 1,
   "serial": "346222071954",
   "channel": "can0",
-  "home": "cup_grasp_demo/calibration_debug/home_reference.json",
+  "home": "cup_grasp_demo/flow/home_reference.json",
   "home_open_hand": true,
   "calibration": "nero_calibration/datasets/handeye_20260920_203405/dimensions_measured_86p5x108/result.json",
-  "orientation_reference": "cup_grasp_demo/calibration_debug/green_open_cup/grasp_reference.json",
-  "tcp_candidate": "cup_grasp_demo/calibration_debug/green_open_cup/tcp_candidate.json",
+  "orientation_reference": "cup_grasp_demo/flow/green_open_cup/grasp_reference.json",
+  "tcp_candidate": "cup_grasp_demo/flow/green_open_cup/tcp_candidate.json",
   "grasp_config": "cup_grasp_demo/side_grasp/CURRENT_GRASP.json",
   "allow_provisional_calibration": true,
   "plane_tolerance_mm": 6.0,
@@ -120,7 +120,7 @@
   "fast_reuse_table": true,
   "pipeline_strategy": "green_open_cup",
   "green_cup": {
-    "reference": "cup_grasp_demo/calibration_debug/green_open_cup/grasp_reference.json",
+    "reference": "cup_grasp_demo/flow/green_open_cup/grasp_reference.json",
     "contact_offset_base_mm": [
       0,
       0,
@@ -226,7 +226,7 @@
         13
       ]
     },
-    "home_table_scene": "cup_grasp_demo/calibration_debug/green_open_cup/home_table_scene.json",
+    "home_table_scene": "cup_grasp_demo/flow/green_open_cup/home_table_scene.json",
     "table_plane_source": "calibrated",
     "camera": {
       "depth_resolution": [

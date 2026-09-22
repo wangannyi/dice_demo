@@ -46,7 +46,7 @@ def recipe_for(config, action):
         raise ValueError('joints_deg requires seven finite angles in degrees')
     if len(hand) != 6 or any(type(x) is not int or not 0 <= x <= 100 for x in hand):
         raise ValueError('hand_0_100 requires six integers in 0..100')
-    from cup_grasp_demo.calibration_debug.feedback_sequence import sequence_values
+    from cup_grasp_demo.flow.feedback_sequence import sequence_values
     sequence = deepcopy(recipe.get('hand_sequence'))
     sequence_values(sequence, hand, max_wait if hand_mode == 'max' else duration)
     return dict(hand_sequence=sequence, gesture=name, joints_deg=list(joints), hand_0_100=list(hand),
@@ -57,7 +57,7 @@ def recipe_for(config, action):
 
 def execute_recipe(recipe, cfg, scene, directory, client, planner):
     """One SDK connection; arm failure prevents the hand command."""
-    from cup_grasp_demo.calibration_debug.core import write_json
+    from cup_grasp_demo.flow.core import write_json
     cfg = deepcopy(cfg)
     cfg['speed_percent'] = recipe['speed_percent']
     cfg['green_cup'].update(finger_duration_s=(recipe['finger_max_wait_s'] if recipe['finger_speed_mode'] == 'max' else recipe['finger_duration_s']),
@@ -91,7 +91,7 @@ def execute_recipe(recipe, cfg, scene, directory, client, planner):
     mode = recipe['execution']['mode']
     delay = recipe['execution']['delay_s']
     def send_hand():
-        from cup_grasp_demo.calibration_debug.feedback_sequence import sequence_values
+        from cup_grasp_demo.flow.feedback_sequence import sequence_values
         targets, interval = sequence_values(recipe.get('hand_sequence'), recipe['hand_0_100'], cfg['green_cup']['finger_duration_s'])
         for index, target in enumerate(targets):
             cfg['green_cup']['grip_targets_0_100'] = list(target)
@@ -142,11 +142,11 @@ def main(argv=None):
     if not args.execute:
         print('仅预览，未连接 CAN、相机或发送指令。加 --execute 执行。')
         return 0
-    from cup_grasp_demo.calibration_debug.core import load_config, read_json, digest
-    from cup_grasp_demo.calibration_debug.debug import new_run
-    from cup_grasp_demo.calibration_debug.green_runtime import SDKClient
-    from cup_grasp_demo.calibration_debug.green_cup_planning import arm_plan
-    from cup_grasp_demo.calibration_debug.session_storage import session_lock
+    from cup_grasp_demo.flow.core import load_config, read_json, digest
+    from cup_grasp_demo.flow.debug import new_run
+    from cup_grasp_demo.flow.green_runtime import SDKClient
+    from cup_grasp_demo.flow.green_cup_planning import arm_plan
+    from cup_grasp_demo.flow.session_storage import session_lock
     cfg = load_config(args.config)
     table = read_json(ROOT / cfg['green_cup']['home_table_scene'])
     if table['calibration_sha256'] != digest(cfg['calibration']):

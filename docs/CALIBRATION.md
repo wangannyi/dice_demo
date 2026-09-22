@@ -154,7 +154,7 @@ p.write_text(json.dumps(c,ensure_ascii=False,indent=2)+'\n')
 PY
 RUN="$DICE_ROOT/cup_grasp_demo/datasets/green_current"
 mkdir -p "$RUN"
-"$DICE_ROOT/cup_grasp_demo/calibration_debug/run_planar_shake.sh" table-capture \
+"$DICE_ROOT/cup_grasp_demo/flow/run_planar_shake.sh" table-capture \
   --config "$CFG" --session "$RUN" &&
 "$CALIB_PYTHON" scripts/register_home_table.py \
   --config "$CFG" --table-scene "$RUN/planar_table_scene.json"
@@ -165,7 +165,7 @@ mkdir -p "$RUN"
 `register_home_table.py` 保存基座坐标系中的桌面点和法向，并将其绑定到当前相机标定。绿色杯配置的 `green_cup.table_plane_source=calibrated` 会在后续每次 CAPTURE 复用这张桌面平面；杯子可移动，但不再当场重新拟合红布深度。只有相机坐标变换来自当前标定，才可以将杯口和保存的桌面组合用于抓取。桌面或基座移动后需重新采集桌面；相机移动并恢复外参后，也要按本节更新标定文件与桌面绑定。
 
 ```bash
-"$DICE_ROOT/cup_grasp_demo/calibration_debug/run_debug.sh" green-detect \
+"$DICE_ROOT/cup_grasp_demo/flow/run_debug.sh" green-detect \
   --config "$CFG" --session "$RUN" --show
 ./run.sh step --until ready --show --execute
 ```

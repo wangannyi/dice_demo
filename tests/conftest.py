@@ -1,6 +1,6 @@
 """Make every tests/ subdirectory importable by bare module name.
 
-Test modules import each other across subdirectories (e.g. calibration_debug
+Test modules import each other across subdirectories (e.g. flow
 tests reuse fixtures from nero_revo2_control tests).  Inserting all test
 subdirectories up front keeps those imports deterministic instead of relying
 on pytest's per-directory sys.path insertion order.

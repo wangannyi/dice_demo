@@ -16,8 +16,8 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 GREEN_FILES = (
     'configs/green_cup.json',
-    'cup_grasp_demo/calibration_debug/green_open_cup/stereo_config.json',
-    'cup_grasp_demo/calibration_debug/green_open_cup/config.json',
+    'cup_grasp_demo/flow/green_open_cup/stereo_config.json',
+    'cup_grasp_demo/flow/green_open_cup/config.json',
 )
 BOARD_FILES = (
     'nero_calibration/config/board_hand_redcloth.json',
