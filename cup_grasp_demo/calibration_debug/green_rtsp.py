@@ -43,9 +43,13 @@ class RtspStreamer:
             raise ValueError("RTSP stream fps must be a positive integer")
         self._url = f"rtsp://{host}:{port}{path}"
         self._width, self._height = width, height
-        self._blocksize = width * height * 3
-        self._caps = (f"video/x-raw,format=BGR,width={width},"
-                      f"height={height},framerate={fps}/1")
+        self._fps = fps
+        # Frames are converted to NV12 in-process (see _to_nv12) and framed
+        # by rawvideoparse (no pixel conversion).  GStreamer's videoconvert
+        # silently emits zero pixels for BGR->NV12 when fed from fdsrc on
+        # this board's riscv64 ORC build, and feeding NV12 straight past
+        # fdsrc caps fails with a basesrc flow error (2026-09-22, verified).
+        self._blocksize = width * height * 3 // 2
         self._backoff = restart_backoff_s
         self._proc = None
         self._stdin = None
@@ -79,16 +83,33 @@ class RtspStreamer:
         return [
             "gst-launch-1.0", "-q",
             "fdsrc", "fd=0", f"blocksize={self._blocksize}", "do-timestamp=true", "!",
-            self._caps, "!",
+            # rawvideoparse only frames the NV12 byte stream; no conversion.
+            "rawvideoparse", "format=nv12", f"width={w}", f"height={h}",
+            f"framerate={self._fps}/1", "!",
             "queue", "max-size-buffers=2", "leaky=downstream", "!",
-            "videoconvert", "n-threads=2", "!",
-            "video/x-raw,format=NV12", "!",
             # "code-hight" is the vendor's actual property spelling.
             "spacemith264enc", f"coding-width={w}", f"code-hight={h}", "!",
             "h264parse", "config-interval=-1", "!",
             "video/x-h264,stream-format=byte-stream,alignment=au", "!",
             "rtspclientsink", f"location={self._url}", "protocols=tcp", "latency=0",
         ]
+
+    @staticmethod
+    def _to_nv12(frame):
+        """BGR ndarray -> NV12 bytes (Y plane followed by interleaved UV)."""
+        import cv2
+        import numpy as np
+        h, w = frame.shape[:2]
+        yuv = cv2.cvtColor(frame, cv2.COLOR_BGR2YUV_I420)
+        y = yuv[:h].reshape(-1)
+        chroma = yuv[h:]
+        half = chroma.shape[0] // 2
+        u = chroma[:half].reshape(-1)
+        v = chroma[half:].reshape(-1)
+        uv = np.empty(u.size + v.size, dtype=np.uint8)
+        uv[0::2] = u
+        uv[1::2] = v
+        return y.tobytes() + uv.tobytes()
 
     def _writer_loop(self):
         while not self._stopped.is_set():
@@ -104,7 +125,8 @@ class RtspStreamer:
                 self.dropped += 1
                 continue
             try:
-                self._stdin.write(frame.tobytes() if not isinstance(frame, bytes) else frame)
+                payload = frame if isinstance(frame, bytes) else self._to_nv12(frame)
+                self._stdin.write(payload)
                 self._stdin.flush()
                 self.sent += 1
             except (BrokenPipeError, OSError) as exc:

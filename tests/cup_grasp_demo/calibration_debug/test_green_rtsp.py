@@ -47,8 +47,11 @@ class RtspStreamerTests(unittest.TestCase):
         streamer = self.make()
         command = streamer.command()
         self.assertEqual(command[0], 'gst-launch-1.0')
-        self.assertIn('blocksize=230400', command)  # 320*240*3
-        self.assertIn('video/x-raw,format=BGR,width=320,height=240,framerate=6/1', command)
+        self.assertIn('blocksize=115200', command)  # 320*240*3//2 (NV12)
+        parser = command.index('rawvideoparse')
+        self.assertEqual(command[parser + 1:parser + 5],
+                         ['format=nv12', 'width=320', 'height=240', 'framerate=6/1'])
+        self.assertNotIn('videoconvert', command)  # conversion happens in-process
         encoder = command.index('spacemith264enc')
         self.assertEqual(command[encoder + 1], 'coding-width=320')
         self.assertEqual(command[encoder + 2], 'code-hight=240')  # vendor spelling
@@ -58,6 +61,22 @@ class RtspStreamerTests(unittest.TestCase):
         self.assertEqual(command[sink + 1], 'location=rtsp://127.0.0.1:8554/dice/seg')
         self.assertEqual(command[sink + 2], 'protocols=tcp')
         self.assertEqual(command[sink + 3], 'latency=0')
+
+    def test_to_nv12_layout_and_neutral_chroma(self):
+        import numpy as np
+        gray = np.full((240, 320, 3), 128, np.uint8)
+        payload = RtspStreamer._to_nv12(gray)
+        self.assertEqual(len(payload), 320 * 240 * 3 // 2)
+        y = np.frombuffer(payload[:320 * 240], np.uint8)
+        uv = np.frombuffer(payload[320 * 240:], np.uint8)
+        self.assertTrue(float(uv.min()) == 128.0 and float(uv.max()) == 128.0)
+        self.assertTrue(110 <= float(y.mean()) <= 135)  # limited-range luma of gray 128
+        red = np.zeros((240, 320, 3), np.uint8)
+        red[..., 2] = 200  # BGR red
+        yuv = RtspStreamer._to_nv12(red)
+        chroma = np.frombuffer(yuv[320 * 240:], np.uint8)
+        u, v = chroma[0::2], chroma[1::2]
+        self.assertGreater(float(v.mean()), float(u.mean()))  # red lifts V over U
 
     def test_submit_keeps_only_newest_frame(self):
         # Build with a mocked Thread so the writer never runs; the slot
@@ -90,8 +109,8 @@ class RtspStreamerTests(unittest.TestCase):
             self.assertEqual(popen.call_count, 1)
             self.assertEqual(popen.call_args.kwargs['stdout'], subprocess_devnull())
             written = fake_stdin.write.call_args[0][0]
-            self.assertEqual(len(written), 320 * 240 * 3)
-            self.assertEqual(bytes([7]) * 3, bytes(written[:3]))
+            self.assertEqual(len(written), 320 * 240 * 3 // 2)  # NV12 payload
+            self.assertTrue(any(written))  # not all-zero pixels
             streamer.close()
             fake_proc.terminate.assert_called()
         self.assertFalse(streamer._thread.is_alive())
