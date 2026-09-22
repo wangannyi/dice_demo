@@ -42,41 +42,64 @@ python3 scripts/package_release.py --output "dist/release_$(date +%Y%m%d_%H%M%S)
 
 ## 2. 安装运行环境
 
-### 2.1 软件依赖
+### 2.1 新板子快速部署（推荐路径）
 
-当前 K3 的系统版本、Python 包版本、加载路径及厂商运行库见[环境依赖清单](docs/ENVIRONMENT.md)（2026-09-22 核对）。
-
-需要 Linux SocketCAN、Python、NumPy、SciPy、带 ArUco 的 OpenCV、RealSense Python SDK、ONNX Runtime、python-can 和与 NERO 固件匹配的 pyAgxArm。ROS/MoveIt 和 MediaPipe 不是当前流程的运行依赖。
-
-K3 为 RISC-V。优先使用板卡提供的兼容库或已经验证的环境；不能复制 PC 的 x86 虚拟环境，也不能保证 PyPI 为 RISC-V 提供所有轮子。`requirements-vision.txt`、`requirements-sdk.txt` 是依赖清单，不是跨架构安装成功的承诺。
-
-已有 K3 环境默认使用：
-
-| 变量 | 默认位置 | 用途 |
-| --- | --- | --- |
-| `DICE_VISION_PYTHON` | 探测 `$HOME/.venv-grasp` → `$HOME/agilex-api-test/venv` → `/usr/bin/python3`（本板用系统 python） | 相机、识别、几何、规划 |
-| `DICE_SDK_PYTHON` | 同上回退链 | CAN 和灵巧手执行器 |
-| `NERO_SDK_DIR` | 探测 `$HOME/agilex-api-test/pyAgxArm` → `vendor-site/pyAgxArm`（本板用后者） | 已验证 SDK 源码根目录 |
-| `CALIB_PYTHON` | 与视觉解释器相同 | 标定 |
-
-新环境先安装本架构可用的依赖。具备对应轮子或源码构建环境时：
+本仓库已把 RISC-V 上最难安装的依赖（RealSense SDK、NERO SDK）集成到 `vendor-site/` 和 `nero_calibration/.deps/` 目录内。新 K3 板只需装 5 个系统包 + 拷贝本目录即可运行：
 
 ```bash
-python3 -m venv --system-site-packages .venv-vision
-python3 -m venv --system-site-packages .venv-sdk
-.venv-vision/bin/python -m pip install -r requirements-vision.txt
-.venv-sdk/bin/python -m pip install -r requirements-sdk.txt
-# 将已验证的 pyAgxArm 源码放到指定目录；目录内应有 pyAgxArm/ 包。
-export NERO_SDK_DIR=/实际路径/pyAgxArm
-export DICE_VISION_PYTHON="$PWD/.venv-vision/bin/python"
-export DICE_SDK_PYTHON="$PWD/.venv-sdk/bin/python"
+# ── 第 1 步：装系统包（Bianbu 源 + K3 厂商源） ──
+sudo apt update
+sudo apt install python3-numpy python3-scipy python3-opencv \
+                 spacemit-onnxruntime python3-spacemit-ort
+
+# ── 第 2 步：拷贝本仓库到新板 ──
+# 方式 A：从打包脚本获取完整包（含 vendor-site/.deps，在开发机上执行）
+python3 scripts/package_release.py --output ./dist
+# 把 dist/dice_demo-source.tar.gz 拷到新板后解压
+
+# 方式 B：git 拉取后手动拷 vendor-site/ 和 nero_calibration/.deps/
+# （这两个目录被 gitignore，不随 git 走）
+# rsync -av --relative vendor-site nero_calibration/.deps 新板:~/dice_demo/
+
+# ── 第 3 步：验证环境 ──
+cd dice_demo
 source scripts/env.sh
-./scripts/check_environment.sh
+bash scripts/check_environment.sh
+# 输出 "Config, model paths and geometry imports OK" 即环境就绪
+
+# ── 第 4 步：起 CAN + 运行 ──
+sudo ip link set can0 up type can bitrate 1000000   # 每次重启板子后需重设
+python3 scripts/control_console.py --simulate        # 无硬件演练
+python3 scripts/control_console.py                  # 真机常驻模式
 ```
 
-检查命令只导入依赖并验证配置和网格，不打开相机或 CAN。SDK 与视觉环境可以共用解释器，但必须先验证所有依赖。`green_cup.perception.ort_package_dir` 指向 ONNX Runtime 的备用安装目录；当前 K3 为 `/usr/lib/python3.14/dist-packages`，其他环境应按安装位置调整。需要 X11 预览时，在 PC 使用 `ssh -X 用户@K3地址`，K3 安装 `xauth` 并确认 `DISPLAY` 已设置。
+### 2.2 依赖清单（三层结构）
 
-### 2.2 硬件准备
+| 层 | 包 | 来源 | 新板需要装？ |
+|---|---|---|---|
+| 系统 apt | numpy 2.3.5、scipy 1.16.3、cv2 4.10（含 aruco） | `python3-{numpy,scipy,opencv}` | **是**（第 1 步） |
+| 系统 apt（K3 厂商源） | onnxruntime 1.24.2+spacemit、spacemit_ort 2.0.6 | `spacemit-onnxruntime` / `python3-spacemit-ort` | **是**（第 1 步） |
+| 仓库 vendor-site/（27MB） | pyrealsense2 2.57.7（D435i 驱动）、pyAgxArm（NERO SDK 源码）、packaging、wrapt | 仓库自带 | 否（随包/git+rsync） |
+| 仓库 .deps/（3MB） | python-can 4.6.1、typing_extensions | 仓库自带 | 否（同上） |
+
+详细版本、加载路径及厂商运行库说明见[环境依赖清单](docs/ENVIRONMENT.md)。
+
+K3 为 RISC-V 架构：不能复制 PC 的 x86 虚拟环境，PyPI 也没有 riscv64 轮子。`requirements-vision.txt`、`requirements-sdk.txt` 是上游依赖声明，不是安装指引——**新板走上面的 4 步流程即可，不需要 pip install**。
+
+### 2.3 环境变量说明
+
+`scripts/env.sh` 自动探测解释器和 SDK 路径，探测链如下（本板全部走终点 `/usr/bin/python3` + 仓库内 vendor-site）：
+
+| 变量 | 探测链 | 用途 |
+| --- | --- | --- |
+| `DICE_VISION_PYTHON` | `$HOME/.venv-grasp` → `$HOME/agilex-api-test/venv` → `/usr/bin/python3` | 相机、识别、几何、规划 |
+| `DICE_SDK_PYTHON` | 同上 | CAN 和灵巧手执行器 |
+| `NERO_SDK_DIR` | `$HOME/agilex-api-test/pyAgxArm` → `vendor-site/pyAgxArm` | NERO SDK 源码 |
+| `CALIB_PYTHON` | 跟随视觉解释器 | 标定 |
+
+`green_cup.perception.ort_package_dir` 指向 ONNX Runtime 安装目录；当前 K3 为 `/usr/lib/python3.14/dist-packages`。需要 X11 预览时，在 PC 使用 `ssh -X 用户@K3地址`，K3 安装 `xauth` 并确认 `DISPLAY` 已设置。
+
+### 2.4 硬件准备
 
 1. 固定机械臂基座、相机和桌面板，连接灵巧手。
 2. 执行 `lsusb` 和 `lsusb -t`，确认 D435i 已枚举且链路为 `480M`（USB 2.0）或 `5000M`（USB 3.0）。抓杯检测及红布标定板默认均为 1280×720、6 FPS，适用于已验证的 USB 2.0 采集；需要 1280×720、15 FPS 的彩色/深度/双目组合时切换 USB 3.0 配置。

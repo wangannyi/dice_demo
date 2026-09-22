@@ -1,6 +1,8 @@
 # K3 运行环境与依赖清单
 
-核对日期：2026-09-22（主 K3 部署实测，路径 `~/projects/dice-game/dice_demo`）。本板不使用虚拟环境：`scripts/env.sh` 探测 `$HOME/.venv-grasp`/`$HOME/agilex-api-test` 均不存在时自动回退系统 `/usr/bin/python3` + 仓库自带依赖（`vendor-site/`、`nero_calibration/.deps/`）。版本代表当前安装状态，不代表所有板卡必须使用这些版本。安装入口见[顶层 README](../README.md#2-安装运行环境)。
+核对日期：2026-09-23（主 K3 部署实测，路径 `~/projects/dice-game/dice_demo`）。
+
+> **新板部署？** 直接看 [README §2.1 新板子快速部署](../README.md#21-新板子快速部署推荐路径)——4 步搞定（5 个 apt 包 + 拷贝目录 + 验证 + 起 CAN）。本文是已部署环境的详细参考。本板不使用虚拟环境：`scripts/env.sh` 探测 `$HOME/.venv-grasp`/`$HOME/agilex-api-test` 均不存在时自动回退系统 `/usr/bin/python3` + 仓库自带依赖（`vendor-site/`、`nero_calibration/.deps/`）。版本代表当前安装状态，不代表所有板卡必须使用这些版本。安装入口见[顶层 README](../README.md#2-安装运行环境)。
 
 ## 1. 系统与硬件运行条件
 
