@@ -27,7 +27,7 @@ class SDKClient:
         self.log_path = (directory / 'sdk_worker.log').resolve()
         self.log = self.log_path.open('x')
         self.process = subprocess.Popen([
-            os.environ.get('DICE_SDK_PYTHON', '/home/test2/agilex-api-test/venv/bin/python'),
+            os.environ.get('DICE_SDK_PYTHON', '/usr/bin/python3'),
             str(Path(__file__).with_name('green_sdk_worker.py')), '--channel', cfg['channel'],
             '--evidence-output', str((directory / 'sdk_startup.json').resolve())],
             cwd=ROOT, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self.log,

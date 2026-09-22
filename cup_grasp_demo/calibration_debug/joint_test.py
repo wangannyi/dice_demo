@@ -31,7 +31,7 @@ from cup_grasp_demo.calibration_debug.shake import Kinematics
 from cup_grasp_demo.calibration_debug.shake_study import compare
 
 HERE = Path(__file__).resolve().parent
-SDK_PYTHON = "/home/test2/agilex-api-test/venv/bin/python"
+SDK_PYTHON = "/usr/bin/python3"
 
 
 def readback(args, cfg):

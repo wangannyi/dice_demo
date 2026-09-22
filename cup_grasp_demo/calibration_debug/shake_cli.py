@@ -77,7 +77,7 @@ def plan(args, *, prepared=None):
         run = common.new_run(args.session, "shake_readback")
         feedback_path = run / "controller_limits.json"
         python = os.environ.get(
-            "DICE_SDK_PYTHON", "/home/test2/agilex-api-test/venv/bin/python"
+            "DICE_SDK_PYTHON", "/usr/bin/python3"
         )
         command = [
             python,
@@ -241,7 +241,7 @@ def execute(args, *, confirm=None, return_receipt=False, prepared=None):
         )
         write_json(run / "request.json", request)
         python = os.environ.get(
-            "DICE_SDK_PYTHON", "/home/test2/agilex-api-test/venv/bin/python"
+            "DICE_SDK_PYTHON", "/usr/bin/python3"
         )
         with (run / "actual.log").open("x") as log:
             child = subprocess.Popen(

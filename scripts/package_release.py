@@ -26,8 +26,6 @@ def build(destination, *, site_active=False):
                 selected.add(rel)
     for name in ('README.md','run.sh','run_feedback.sh','.gitignore','requirements-vision.txt','requirements-sdk.txt','THIRD_PARTY.md'):
         selected.add(Path(name))
-    for name in ('README.md','build.sh','source_commit.json','source.sha256'):
-        selected.add(Path('kernel_usbcan_20260921')/name)
     mesh=Path('agx_arm_ros/src/agx_arm_description/agx_arm_urdf')
     for path in (ROOT/mesh).rglob('*'):
         rel=path.relative_to(ROOT)

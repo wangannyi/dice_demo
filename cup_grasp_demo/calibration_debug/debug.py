@@ -49,7 +49,7 @@ def new_run(session, name):
 
 
 def bridge(command, output, cfg, request=None):
-    python = os.environ.get('DICE_SDK_PYTHON', '/home/test2/agilex-api-test/venv/bin/python')
+    python = os.environ.get('DICE_SDK_PYTHON', '/usr/bin/python3')
     argv = [python, str(HERE / 'hardware.py'), command, '--channel', cfg['channel'],
             '--output', str(output)]
     if request:

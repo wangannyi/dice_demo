@@ -768,7 +768,7 @@ class Workflow:
             self.close_sdk()
         run = common.new_run(self.root, "green_joint_shake")
         sdk = os.environ.get(
-            "DICE_SDK_PYTHON", "/home/test2/agilex-api-test/venv/bin/python"
+            "DICE_SDK_PYTHON", "/usr/bin/python3"
         )
         prepared = getattr(self, '_shake_future', None) if attempt == 0 else None
         if prepared is not None:

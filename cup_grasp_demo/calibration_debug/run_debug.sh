@@ -25,5 +25,5 @@ if [[ ${1:-} == pipeline ]]; then
     fi
   fi
 fi
-exec "${DICE_VISION_PYTHON:-/home/test2/.venv-grasp/bin/python}" \
+exec "${DICE_VISION_PYTHON:-/usr/bin/python3}" \
   "$DEBUG_ROOT/cup_grasp_demo/calibration_debug/debug.py" "$@"

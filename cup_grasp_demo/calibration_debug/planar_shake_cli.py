@@ -77,7 +77,7 @@ def _plan_command(args, timer, *, prepared=None):
         feedback_path = args.feedback_json or run / "limits.json"
         if not offline:
             with (run / "readback.log").open("x") as log:
-                subprocess.run([os.environ.get("DICE_SDK_PYTHON", "/home/test2/agilex-api-test/venv/bin/python"),
+                subprocess.run([os.environ.get("DICE_SDK_PYTHON", "/usr/bin/python3"),
                                 str(HERE / "shake_readback.py"), "--channel", cfg["channel"],
                                 "--output", str(feedback_path)], cwd=ROOT, stdout=log, stderr=log, check=True)
         trial = configured_trial(cfg, args.trial_config)
@@ -187,7 +187,7 @@ def _run_command(args, timer, *, return_receipt=False, prepared=None):
         write_json(run / "request.json", request)
     with timer.phase('SDK_PROCESS 执行器总耗时（含下列子阶段）'):
         with (run / "actual.log").open("x") as log:
-            child = subprocess.Popen([os.environ.get("DICE_SDK_PYTHON", "/home/test2/agilex-api-test/venv/bin/python"),
+            child = subprocess.Popen([os.environ.get("DICE_SDK_PYTHON", "/usr/bin/python3"),
                 str(HERE / "planar_shake_execution.py"), "--request", str(run / "request.json"),
                 "--sha256", digest(run / "request.json"), "--output", str(run / "actual.json")],
                 cwd=ROOT, stdout=log, stderr=log)
