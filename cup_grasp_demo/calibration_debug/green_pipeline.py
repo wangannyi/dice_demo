@@ -73,6 +73,8 @@ def validate(cfg):
         raise ValueError("direct_return_home must be boolean")
     if type(g.get("persistent_runtime", True)) is not bool:
         raise ValueError("persistent_runtime must be boolean")
+    if g.get('table_plane_source', 'live_depth') not in ('live_depth', 'calibrated'):
+        raise ValueError('table_plane_source must be live_depth or calibrated')
     if type(g.get("recovery_attempts", 1)) is not int or not 0 <= g.get("recovery_attempts", 1) <= 2:
         raise ValueError("recovery_attempts must be 0..2")
     release_tolerance = g.get("place_arrival_tolerance_mm", g["place_tolerance_mm"])
@@ -150,6 +152,8 @@ def validate(cfg):
             raise ValueError(key)
     if p.get("geometry_method", "depth_band") not in ("depth_band", "image_rim_depth", "stereo_rim"):
         raise ValueError("Unknown green cup geometry_method")
+    if g.get('table_plane_source') == 'calibrated' and p.get('geometry_method') != 'stereo_rim':
+        raise ValueError('calibrated table plane currently requires stereo_rim')
     from cup_grasp_demo.calibration_debug.green_image_rim import options
 
     options(p)
@@ -217,7 +221,7 @@ class Workflow:
         self._startup = claim(args.config, args.session) if args.mode == 'fast' else None
 
     def bridge(self, command, output, cfg, request=None, *, on_dispatched=None):
-        if self.args.mode != 'fast' or not getattr(self, 'g', {}).get('persistent_runtime', hasattr(self, '_sdk')):
+        if self.args.mode not in ('fast', 'step') or not getattr(self, 'g', {}).get('persistent_runtime', hasattr(self, '_sdk')):
             return common.bridge(command, output, cfg, request)
         from cup_grasp_demo.calibration_debug.green_runtime import SDKClient
         if self._sdk is None:
@@ -250,10 +254,32 @@ class Workflow:
                 self._vision = None
 
     def prepare_vision(self):
-        if self.args.mode == 'fast' and self.g.get('persistent_runtime', True) and self._vision is None:
+        if self.args.mode in ('fast', 'step') and self.g.get('persistent_runtime', True) and self._vision is None:
             from cup_grasp_demo.calibration_debug.green_runtime import VisionResources
             self._vision = (self._startup.acquire('vision') if getattr(self, '_startup', None) is not None
                             else VisionResources(self.cfg, self.root / 'unused_capture_path'))
+
+    def prepare_step_runtime(self):
+        """Connect once before the first STEP prompt; subsequent frames remain fresh."""
+        if self.args.mode != 'step' or not self.g.get('persistent_runtime', True):
+            return
+        self.prepare_vision()
+        try:
+            from cup_grasp_demo.calibration_debug.green_runtime import SDKClient
+            self._sdk = SDKClient(self.cfg, common.new_run(self.root, 'green_sdk_session'))
+            self._vision.camera_future.result(timeout=15)
+            self._vision.model_future.result(timeout=30)
+        except BaseException:
+            self.close()
+            raise
+
+    def capture_with_feedback(self, output):
+        if self.args.mode != 'step' or getattr(self, '_vision', None) is None:
+            return common.capture_with_feedback(output, self.cfg)
+        return common.capture_with_feedback(
+            output, self.cfg, bridge_fn=self.bridge,
+            capture_fn=lambda path, _cfg: self._vision.capture(
+                path, self.g['perception'].get('frame_count', 5)))
 
     @staticmethod
     def file_stamp(path):
@@ -385,9 +411,13 @@ class Workflow:
         record = read_json(ROOT / self.g["home_table_scene"])
         if record["calibration_sha256"] != digest(self.cfg["calibration"]):
             raise ValueError("标定已改变，请重新保存 HOME 桌面参数")
-        self.scene = record["scene"]
+        self.table_scene = record["scene"]
+        self.scene = self.table_scene
 
     def capture(self):
+        if (self.g.get('table_plane_source', 'live_depth') == 'calibrated'
+                and not hasattr(self, 'table_scene')):
+            self.table()
         (self.root / 'green_capture_retry.json').unlink(missing_ok=True)
         for attempt in range(2):
             try:
@@ -420,7 +450,7 @@ class Workflow:
         try:
             capture_snapshot = None
             if self.args.mode == "step":
-                capture_snapshot = common.capture_with_feedback(run / "rgbd", self.cfg)
+                capture_snapshot = self.capture_with_feedback(run / "rgbd")
             elif getattr(self, '_vision', None) is not None:
                 self._vision.capture(run / 'rgbd', self.g['perception'].get('frame_count', 5))
             elif self.g['perception'].get('frame_count') == 1:
@@ -448,10 +478,14 @@ class Workflow:
         diagnostic = {}
         try:
             if self.g["perception"].get("geometry_method") == "stereo_rim":
-                from cup_grasp_demo.calibration_debug.green_stereo_rim import detect_stereo
+                from cup_grasp_demo.calibration_debug.green_stereo_rim import detect_stereo, table_from_base_scene
+                fixed_table = None
+                if self.g.get('table_plane_source', 'live_depth') == 'calibrated':
+                    fixed_table = table_from_base_scene(self.table_scene, camera)
                 geo, mask, contour = detect_stereo(
                     run, depth, image, meta, self.g["perception"],
-                    self.cfg["plane_tolerance_mm"], instances, diagnostic)
+                    self.cfg["plane_tolerance_mm"], instances, diagnostic,
+                    fixed_table=fixed_table)
             else:
                 geo, mask, contour = detect(
                     depth, image, meta, self.g["perception"],
@@ -801,7 +835,7 @@ class Workflow:
         return p, table
 
     def shake(self, attempt=0):
-        persistent = self.args.mode == 'fast' and self.g.get('persistent_runtime', True)
+        persistent = self.args.mode in ('fast', 'step') and self.g.get('persistent_runtime', True)
         if not persistent:
             self.close_sdk()
         run = common.new_run(self.root, "green_joint_shake")
@@ -901,7 +935,7 @@ class Workflow:
         ):
             return
         run = common.new_run(self.root, "green_tcp_" + phase.lower())
-        feedback = common.capture_with_feedback(run / "rgbd", self.cfg)
+        feedback = self.capture_with_feedback(run / "rgbd")
         meta, _, image, _ = load_batch(run)
         camera, _ = common.camera_transform(meta, self.cfg)
         closed = phase in ("GRIP", "LIFT", "SHAKE", "LOWER")
@@ -923,7 +957,8 @@ class Workflow:
 
     def perform(self, phase):
         if phase == "HOME":
-            self.prepare_vision()
+            if self.args.mode == 'fast':
+                self.prepare_vision()
             self.table()
             home = read_json(self.cfg["home"])
             self.home = np.radians(home["joints_deg"]).tolist()
@@ -1056,6 +1091,8 @@ def run(args):
             state['parallel_startup_elapsed_s'] = time.perf_counter() - startup.started
         path = args.session / "green_pipeline_state.json"
         try:
+            if args.mode == 'step':
+                flow.prepare_step_runtime()
             for phase in PHASES:
                 print("GREEN PIPELINE " + phase, flush=True)
                 if (

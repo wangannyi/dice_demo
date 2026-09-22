@@ -18,7 +18,7 @@ bash run.sh fast --until place --execute
 
 | 参数/环境变量 | 约定 |
 | --- | --- |
-| 第一个参数 | `step` 人工分步；`auto` 连续执行保留常规诊断；`fast` 连续执行精简诊断 |
+| 第一个参数 | `step` 人工分步；`control` 上层指令调度；`auto` 连续执行保留常规诊断；`fast` 连续执行精简诊断 |
 | `--execute` | 真机执行；缺省仅打印流程，不验证整条硬件通路 |
 | `--until ready` | 到抓取位置后停止 |
 | `--until grip` | 闭手后停止 |
@@ -29,6 +29,86 @@ bash run.sh fast --until place --execute
 | `DICE_RUN` | 会话目录；自动服务建议每次任务使用新目录，避免读取旧状态 |
 
 完整顺序：HOME → CAPTURE → PLAN → APPROACH → GRIP → LIFT → SHAKE → LOWER → OPEN → RETURN_HOME。STEP 输入 `q` 是暂停退出；当前不支持跨进程 `--resume`。不可将重新启动理解为继续上一阶段：重启会从 HOME 张手开始。
+
+STEP 的首次提示前会建立 SDK/CAN 连接、预热相机和加载模型；按 Enter 之间同一进程持续持有这些资源，每次 CAPTURE/TCP 预览仍采集新帧。FAST 也在同一次任务内复用资源。人工分步向 STEP 进程发送 Enter；程序化调度使用下面的 `control` JSON 接口。桌面平面来自标定阶段保存的 `home_table_scene`，运行时只定位本次杯口。
+
+### 常驻阶段控制（供上层集成）
+
+上层需要在阶段之间等待外部事件时使用 `control`。启动后程序**先连接 SDK/CAN、预热相机并加载模型，不发送运动指令**；收到首条 `ready` 事件后再派发命令。整个进程在阶段之间阻塞等待标准输入，不会重新初始化设备。执行阶段仍会按该阶段的逻辑读取新反馈、采集新图像及检查配置，不能把“常驻”理解成动作瞬时完成。
+
+```bash
+DICE_CONFIG="$PWD/configs/green_cup.json" \
+DICE_RUN="$PWD/cup_grasp_demo/datasets/app_control_001" \
+bash run.sh control --execute
+```
+
+标准输入、标准输出均为**每行一个 JSON 对象**；阶段诊断输出写到标准错误。每条命令可带唯一 `id`，事件原样回传该 `id`。同一进程内重复 `id` 会被拒绝，避免误重发造成重复动作。命令与事件示例：
+
+| 发送给 stdin | 含义 |
+| --- | --- |
+| `{"id":"1","command":"status"}` | 读取当前状态与下一阶段；不访问硬件 |
+| `{"id":"2","command":"advance"}` | 只执行下一阶段，完成后继续常驻等待 |
+| `{"id":"3","command":"advance","until":"GRIP"}` | 顺序执行到 GRIP 并停下；不会跳过中间阶段 |
+| `{"id":"4","command":"advance","until":"RETURN_HOME"}` | 完成剩余放杯和归位阶段 |
+| `{"id":"5","command":"refresh_perception"}` | CAPTURE 后、APPROACH 前退回 CAPTURE，重新识别和规划；杯位可能变化或计划过期时使用 |
+| `{"id":"6","command":"new_cycle"}` | 仅在 RETURN_HOME 完成后重置状态，保留 SDK/相机连接进入下一轮 |
+| `{"id":"7","command":"close"}` | 释放 SDK/相机并退出；未完成流程记为 `PAUSED` |
+
+启动时返回 `ready`，每阶段返回 `phase_started`、`phase_completed`，目标阶段结束后返回 `command_completed`。`status` 事件含 `status`、`next_phase`、`completed_phases`；错误命令返回 `rejected`，阶段执行失败返回 `failed` 且进程退出。到 `RETURN_HOME` 后状态为 `COMPLETED`，进程仍等待 `new_cycle` 或 `close`。上层必须持续读取 stdout，按 `id` 和事件判断完成；**不要靠固定睡眠或耗时文本推断动作完成**。阶段执行时追加的命令会排队，按顺序处理；运行中中止仍使用 SIGINT，并核实硬件状态。
+
+```python
+import json
+import os
+from pathlib import Path
+import subprocess
+
+root = Path('/home/test2/dice_demo')
+session = root / 'cup_grasp_demo/datasets/app_control_001'
+session.mkdir(parents=True, exist_ok=True)
+env = dict(os.environ, DICE_CONFIG=str(root / 'configs/green_cup.json'),
+           DICE_RUN=str(session))
+with (session / 'controller.log').open('w') as log:
+    proc = subprocess.Popen(['bash', str(root / 'run.sh'), 'control', '--execute'],
+                            cwd=root, env=env, stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE, stderr=log,
+                            text=True, bufsize=1)
+
+    def receive_until(name, request_id=None):
+        while True:
+            line = proc.stdout.readline()
+            if not line:
+                raise RuntimeError(f'控制进程已退出，日志：{session / "controller.log"}')
+            event = json.loads(line)
+            if event['event'] in ('failed', 'rejected'):
+                raise RuntimeError(event)
+            if event['event'] == name and (request_id is None or event.get('id') == request_id):
+                return event
+
+    def send(command):
+        proc.stdin.write(json.dumps(command) + '\n')
+        proc.stdin.flush()
+
+    try:
+        receive_until('ready')
+        send({'id': 'grip-1', 'command': 'advance', 'until': 'GRIP'})
+        receive_until('command_completed', 'grip-1')
+        # 上层此时可等待语音、游戏规则或人工指令；CAN 和相机仍保持连接。
+        send({'id': 'finish-1', 'command': 'advance', 'until': 'RETURN_HOME'})
+        receive_until('command_completed', 'finish-1')
+        send({'id': 'close-1', 'command': 'close'})
+        receive_until('closed', 'close-1')
+    finally:
+        # 异常时关闭 stdin；正在执行的阶段结束后，进程会收到 EOF 并释放连接。
+        try:
+            proc.stdin.close()
+        except BrokenPipeError:
+            pass
+        return_code = proc.wait()
+    if return_code != 0:
+        raise RuntimeError(f'控制进程失败，日志：{session / "controller.log"}')
+```
+
+每个 `advance` 都从 `next_phase` 开始顺序运行。若长时间停在 CAPTURE/PLAN 与 APPROACH 之间，杯位可能变化，先发送 `refresh_perception` 再推进到 PLAN/APPROACH。完成 GRIP 后程序不会自行张手或归位；上层应根据当前持杯状态选择后续阶段，不要在异常路径盲目重启 HOME。`control` 仅支持绿杯配置，`--until` 保持默认 `place`；阶段停靠点由 JSON 命令指定。
 
 ## 3. 胜负反馈接口
 
@@ -56,7 +136,7 @@ stdout 是人类可读日志，**不要解析耗时行判断成功**。Pipeline 
 
 | 字段 | 含义 |
 | --- | --- |
-| `status` | `RUNNING`、`PAUSED`、`COMPLETED` 或 `FAILED` |
+| `status` | `RUNNING`、`WAITING`（常驻等待命令）、`PAUSED`、`COMPLETED` 或 `FAILED` |
 | `active_phase` | 当前/最后进入的阶段，不表示该阶段完成 |
 | `events` | 已完成阶段，元素包含 `phase` 和 `status: completed` |
 | `phase_timings_s` | 各阶段总耗时，秒 |

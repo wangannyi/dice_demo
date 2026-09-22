@@ -19,6 +19,12 @@ GEOMETRY_KEYS = ('type', 'dictionary', 'squares_x', 'squares_y',
 DIRECTION = 'T_base_camera maps camera optical coordinates into arm base'
 
 
+def same_camera_geometry(first, second):
+    """FPS changes acquisition timing, not the spatial camera calibration."""
+    return ({key: value for key, value in first.items() if key != 'fps'} ==
+            {key: value for key, value in second.items() if key != 'fps'})
+
+
 def load_source(path):
     raw = Path(path).read_bytes()
     return json.loads(raw), {'path': str(Path(path).resolve()),
@@ -74,7 +80,7 @@ def check_observation(observation):
 def register(calibration, observation, allow_provisional=False):
     require_quality(calibration, allow_provisional)
     cb, quality = check_observation(observation)
-    if calibration['camera'] != observation['camera']:
+    if not same_camera_geometry(calibration['camera'], observation['camera']):
         raise ValueError('Camera identity/intrinsics differ from hand-eye calibration')
     recorded_version = calibration.get('board_measurement', {}).get('opencv_version')
     if recorded_version and recorded_version != observation['opencv_version']:
@@ -104,7 +110,7 @@ def restore(registration, observation, allow_provisional=False):
         raise ValueError('Reference identity/geometry changed; register again')
     if registration['opencv_version'] != observation['opencv_version']:
         raise ValueError('OpenCV board coordinate conventions must match')
-    if registration['camera_at_registration'] != observation['camera']:
+    if not same_camera_geometry(registration['camera_at_registration'], observation['camera']):
         raise ValueError('Camera identity/intrinsics changed; recalibrate before reuse')
     bc = matrix(registration['T_base_board']) @ inverse(cb)
     result = copy.deepcopy(calibration)

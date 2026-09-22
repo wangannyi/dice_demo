@@ -12,7 +12,7 @@
 | CPU | 16 个逻辑核，SpacemiT A100/X100 | 当前 YOLO 配置指定 CPU 8、9，2 个推理线程 |
 | 系统解释器 | `/usr/bin/python3.14`，Python 3.14.4 | 两个虚拟环境的基础解释器 |
 | CAN | Linux SocketCAN；`gs_usb`；`can0`，1,000,000 bit/s | NERO 和 Revo2 通信 |
-| 相机 | Intel RealSense D435i，USB 链路实测 `5000M` | 彩色、深度及标定采集 |
+| 相机 | Intel RealSense D435i；已在 `480M` USB 2.0 下完成 1280×720、6 FPS 采集和只读定位测试 | 当前抓杯与红布标定板默认使用该档位；切到 USB 3.0 可配置 1280×720、15 FPS |
 | 预览 | X11，经 SSH 转发到 PC | STEP/标定窗口；FAST 不要求显示窗口 |
 
 `python3` 的 Debian 元包版本为 `3.14.3-0ubuntu2`，实际解释器报告 `3.14.4`；判断 Python 扩展 ABI 时以解释器版本为准。
@@ -142,6 +142,8 @@ uname -m
 lsusb -t
 ip -details link show can0
 ```
+
+相机参数由仓库根目录的 `python scripts/set_camera_profile.py usb2|usb3` 统一切换；`--fps` 与 `--color-resolution`、`--depth-resolution` 可指定受支持的档位。`lsusb` 必须能列出 D435i，才能进行实拍验证；只通过环境检查或离线测试不能证明相机当前在线。完整命令及重新标定条件见[顶层 README](../README.md#相机配置)。
 
 `check_environment.sh` 验证核心包导入、ArUco、配置路径、检测模型和几何模型；不打开相机或 CAN。本次已通过。该脚本没有创建 SpaceMIT 推理会话，不能单独证明加速后端推理成功。
 

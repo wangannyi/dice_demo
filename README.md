@@ -79,14 +79,14 @@ source scripts/env.sh
 ### 2.2 硬件准备
 
 1. 固定机械臂基座、相机和桌面板，连接灵巧手。
-2. 执行 `lsusb -t`，确认 D435i 使用 `5000M` USB 3 链路。
+2. 执行 `lsusb` 和 `lsusb -t`，确认 D435i 已枚举且链路为 `480M`（USB 2.0）或 `5000M`（USB 3.0）。抓杯检测及红布标定板默认均为 1280×720、6 FPS，适用于已验证的 USB 2.0 采集；需要 1280×720、15 FPS 的彩色/深度/双目组合时切换 USB 3.0 配置。
 3. 执行 `ip -details link show can0`，确认 CAN 为 UP、1 Mbps。尚未启动时执行：
 
 ```bash
 sudo ip link set can0 up type can bitrate 1000000
 ```
 
-已 UP 时不要重复设置 bitrate；`Device or resource busy` 不等于 CAN 已故障。确认急停解除、机械臂七轴使能、WEB 灵巧手页面使能及 CAN 推送开启。程序支持从 WEB 切入 CAN，但不代替 WEB 灵巧手使能设置。运行期间关闭占用相机的 ffplay，不使用第二个机械臂控制程序。
+已 UP 时不要重复设置 bitrate；`Device or resource busy` 不等于 CAN 已故障。执行 Pipeline 的 `--execute` 入口会检查 `can0`：已 UP 时直接继续；USB-CAN 重插后若为 DOWN，会尝试恢复到 1 Mbps，终端可能要求输入 sudo 密码。非交互运行且无 sudo 权限时会立即打印上面的手工命令并退出。该检查只恢复 Linux 接口，不代替控制器 CAN 推送或灵巧手使能。确认急停解除、机械臂七轴使能、WEB 灵巧手页面使能及 CAN 推送开启。程序支持从 WEB 切入 CAN。运行期间关闭占用相机的 ffplay，不使用第二个机械臂控制程序。
 
 新安装先完成[标定](docs/CALIBRATION.md)。默认发行包将 `installation_requires_calibration` 设为 `true`，避免将当前 K3 标定当作新现场的有效标定。
 
@@ -101,6 +101,9 @@ sudo ip link set can0 up type can bitrate 1000000
 # 分步运行；每阶段 Enter 继续、q 停止
 ./run.sh step --show --execute
 
+# 上层应用常驻调度；按 JSON 指令推进到指定阶段
+./run.sh control --execute
+
 # 自动连续运行，保留非 FAST 的执行与诊断路径
 ./run.sh auto --execute
 
@@ -111,6 +114,7 @@ sudo ip link set can0 up type can bitrate 1000000
 | 模式 | 阶段确认 | 诊断 | 运动设置 |
 | --- | --- | --- | --- |
 | `step` | 每步 Enter | `--show` 可显示图像和 TCP | `speed_percent` |
+| `control` | 上层 JSON 指令推进，阶段间常驻等待 | JSON 事件与状态文件；详细日志在 stderr | 与 STEP 相同的阶段运动配置 |
 | `auto` | 连续执行 | 保留常规图像及记录；不弹 STEP 窗口 | `speed_percent` |
 | `fast` | 连续执行 | 精简图像；保存状态、计划、收据和错误 | FAST 专用参数 |
 
@@ -132,7 +136,9 @@ DICE_RUN="$PWD/cup_grasp_demo/datasets/green_current" \
 
 配置以文件实际值为准，修改后重新启动流程。普通到位精度使用 `record` 记录策略；通信故障、无有效目标、关节越界及碰撞等错误仍可能停止流程。失败状态和已完成阶段写入会话文件，见[接入接口](docs/INTEGRATION.md)。阶段耗时包括连接、规划、动作和反馈，不是单纯的电机运动时间。
 
-FAST 复用 SDK/CAN、相机和模型，复用可用的预计算轨迹；只在定位阶段识别杯子，减少诊断图片和固定等待。STEP 保留分段确认及可视化。两种模式均不能把指令发送成功解释成已抓牢。
+FAST 复用 SDK/CAN、相机和模型，复用可用的预计算轨迹；只在定位阶段识别杯子，减少诊断图片和固定等待。STEP 在首次提示前连接 SDK、启动相机并预热、加载模型，随后在同一次命令内保持连接，逐阶段确认和预览使用新采图。`control` 为上层程序提供 JSON 指令：可运行到指定阶段停住，保持进程与设备连接，等下一条指令再继续；完整协议见[接入接口](docs/INTEGRATION.md#常驻阶段控制供上层集成)。各模式均不能把指令发送成功解释成已抓牢。
+
+绿色杯流程使用标定阶段保存的桌面平面；CAPTURE 只识别本次杯口，不再逐帧拟合桌面。首次标定及相机重新校准后的桌面登记命令见[标定文档](docs/CALIBRATION.md#6-应用标定并更新桌面)。桌面或基座改变后必须重做桌面登记。
 
 | 参数 | 交付值 | 含义 |
 | --- | --- | --- |
@@ -154,30 +160,46 @@ FAST 复用 SDK/CAN、相机和模型，复用可用的预计算轨迹；只在�
 | `green_cup.fast_motion_profile` | trapezoid | FAST 普通关节运动使用限速、限加速度的梯形速度曲线；设为 quintic 恢复原曲线。SHAKE 不受此项影响 |
 | `green_cup.fast_dogbox_ik` | true | FAST 使用 dogbox 求解抓取 IK；仍验证位置、朝向与路径，无合格解时回退原求解器 |
 | `green_cup.fast_parallel_startup` | `true` | FAST 执行时，SDK 连接、相机预热及模型加载与 CLI 模块加载并行；初始化不发送运动或手指指令 |
+| `green_cup.persistent_runtime` | `true` | STEP、CONTROL 和 FAST 在同一进程内保持 SDK 与相机连接；上层集成时同一时刻只能有一个任务占用设备 |
+| `green_cup.table_plane_source` | `calibrated` | 从 `home_table_scene` 读取标定阶段保存的基座桌面平面；`live_depth` 恢复每次 CAPTURE 拟合桌面 |
 | `green_cup.perception.height_mode` | `fixed` | `fixed` 已知杯高；`measured` 双目测高 |
 | `green_cup.perception.fixed_height_mm` | 65 | 固定模式杯高，mm |
 | `green_cup.perception.inference_provider` | `spacemit` | K3 AI 后端；`cpu` 使用普通 CPU 后端 |
 | `green_cup.perception.inference_threads` | 2 | AI 后端计算线程数；CPU 后端时为 CPU 推理线程数 |
 | `green_cup.perception.inference_cpu_ids` | `[8,9]` | 两个 A100 AI 核；CPU 后端设为 `[]` |
-| `green_cup.fast_camera_warmup_frames` | 5 | FAST 相机启动预热帧数；STEP 保持 20 帧 |
+| `green_cup.fast_camera_warmup_frames` | 5 | STEP/FAST 常驻相机启动时的预热帧数 |
 | `green_cup.fast_camera_fresh_discard_frames` | 0 | FAST 正式采集前额外丢帧数；仍清理旧队列并要求 RGB/深度帧号推进 |
-| `green_cup.camera` | RGB/深度 1280×720、15 FPS | RGB 裁剪 `[220,0,960,720]`；程序同步修正内参 |
+| `green_cup.camera` | RGB/深度 1280×720、6 FPS | RGB 裁剪 `[220,0,960,720]`；程序同步修正内参。USB 2.0 下已完成采集与绿杯定位验证；完整运动流程尚需实测 |
 | `green_cup.joint_test_config` | `configs/joint_shake.json` | 摇晃配置 |
+
+### 相机配置
+
+抓杯检测与手眼、固定板标定分别读取自己的配置文件；以下命令会同步修改三份绿杯配置及两份红布标定板配置。在 PC 或 K3 的项目根目录执行：
+
+```bash
+python scripts/set_camera_profile.py usb2  # 默认：RGB/深度/双目 1280×720、6 FPS
+python scripts/set_camera_profile.py usb3  # RGB/深度/双目 1280×720、15 FPS
+python scripts/set_camera_profile.py usb2 --dry-run  # 只预览，不写文件
+```
+
+可用 `--fps`、`--color-resolution WIDTHxHEIGHT`、`--depth-resolution WIDTHxHEIGHT`、`--crop X,Y,W,H` 指定采集参数。已实测的 USB 2.0 四路同步采集组合为 1280×720@6；配置工具也允许彩色/深度同为 640×480@6/15，切换后仍须在目标接口上实拍确认。USB 3.0 默认 1280×720@15。切换帧率但保持同一相机、分辨率和裁剪时，固定板注册/恢复可复用空间内参。首次示教数据不会被改写；自动重复标定如需改用 6 FPS，在 `auto_collect.py run` 命令增加 `--fps 6`，见[标定文档](docs/CALIBRATION.md#34-自动重复采样)。
+
+变更彩色分辨率或裁剪时，还必须传入按**新画面**确定的 `--hand-roi X1,Y1,X2,Y2` 和 `--reference-roi X1,Y1,X2,Y2`。脚本会将 `installation_requires_calibration` 设为 `true`；此时必须重新标定，不能直接运行抓杯 Pipeline。深度分辨率变化也需要重新验证杯位和深度对齐。设置后先用 `lsusb -t` 核实实际 USB 链路，再用不驱动机械臂的 `green-detect` 验证采集与定位；PC、K3 的配置文件需同步。
 
 杯沿质量参数位于 `green_cup.perception.stereo_rim`：`min_edge_support=0.85` 要求每路图像至少 85% 的采样杯沿点距离观测边缘小于 `edge_distance_px=2.0` 像素。平均边缘误差上限仍为 1.0 px，单路平均上限仍为 1.2 px；该比例不是 YOLO 置信度。
 
 六路手指顺序为：拇指尖、拇指根、食指、中指、无名指、小指。指令完成不等于已测量确认抓牢。TCP 偏移属于法兰坐标系，不能直接按图像左右方向修改。
 
-FAST 的 HOME/CAPTURE 阶段耗时不包含 CLI 模块加载。`green_pipeline_state.json` 同时记录 `parallel_startup_elapsed_s`（启动到进入状态机）与 `startup_to_capture_s`（启动到定位完成），用后者比较整体启动性能。已在 HOME 时可将定位与张手重叠；不在 HOME 时仍先完成归位再采集正式图像。STEP/AUTO 和不带 `--execute` 的预览不提前打开设备。
+FAST 的 HOME/CAPTURE 阶段耗时不包含 CLI 模块加载。`green_pipeline_state.json` 同时记录 `parallel_startup_elapsed_s`（启动到进入状态机）与 `startup_to_capture_s`（启动到定位完成），用后者比较整体启动性能。已在 HOME 时可将定位与张手重叠；不在 HOME 时仍先完成归位再采集正式图像。STEP 在第一条阶段提示前完成相机预热和 SDK 连接；AUTO 和不带 `--execute` 的预览不提前打开设备。
 
 `configs/joint_shake.json`：
 
 | 参数 | 交付值 | 含义 |
 | --- | --- | --- |
 | `joints` | `[1,4,5,6,7]` | 同时摇晃的关节编号 |
-| `amplitude_deg` | `[2.5,2.5,2.5,2.5,2.5]` | 当前 K3 主流程各关节单侧幅度；负号表示反向 |
+| `amplitude_deg` | `[5,5,5,5,5]` | 当前 K3 主流程各关节单侧幅度；负号表示反向 |
 | `velocity_deg_s` | `[170,170,170,200,200]` | 各关节速度预算，°/s |
-| `acceleration_deg_s2` | 各 277.8845 | 各关节加速度预算，°/s² |
+| `acceleration_deg_s2` | 各 286.4788975654116 | 各关节加速度预算，°/s²，等于 5 rad/s² |
 | `cycles` | 6 | 完整往返周期，另有渐入和回中心 |
 | `phase_delay_deg` | 省略或 `null` | 按 `joints` 顺序设置各轴相位滞后，0～360°；90° 表示晚四分之一周期开始 |
 | `controller_speed_percent` | 100 | 摇晃执行速度百分比 |

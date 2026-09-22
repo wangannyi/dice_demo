@@ -130,12 +130,14 @@ def target_overlay(image_path, output, session, point, snapshot, hand_state='unk
     write_json(Path(output).with_suffix('.json'), report)
 
 
-def capture_with_feedback(output, cfg):
+def capture_with_feedback(output, cfg, *, bridge_fn=None, capture_fn=None):
     """Bracket the camera batch with read-only joint feedback; require a stopped arm."""
-    before = bridge('snapshot', output.with_name(output.name + '_before.json'), cfg)
+    bridge_fn = bridge if bridge_fn is None else bridge_fn
+    capture_fn = capture_rgbd if capture_fn is None else capture_fn
+    before = bridge_fn('snapshot', output.with_name(output.name + '_before.json'), cfg)
     ready(before)
-    capture_rgbd(output, cfg)
-    after = bridge('snapshot', output.with_name(output.name + '_after.json'), cfg)
+    capture_fn(output, cfg)
+    after = bridge_fn('snapshot', output.with_name(output.name + '_after.json'), cfg)
     ready(after)
     q0, q1 = np.asarray(before['joints_rad']), np.asarray(after['joints_rad'])
     if (q0.shape != (7,) or q1.shape != (7,) or not np.isfinite([q0, q1]).all()
@@ -546,7 +548,7 @@ def main(argv=None):
     p = commands.add_parser('pipeline', help='银杯抓取与摇晃；step 分步、auto 连续、fast 静默连续')
     p.add_argument('--config', type=Path, default=HERE / 'index_joint_center/config.json')
     p.add_argument('--session', type=Path, required=True)
-    p.add_argument('--mode', choices=('step', 'auto', 'fast'), default='step')
+    p.add_argument('--mode', choices=('step', 'auto', 'fast', 'control'), default='step')
     p.add_argument('--until', choices=('ready', 'grip', 'shake-plan', 'shake', 'place'),
                    help='默认 step/auto 到 grip，fast 到 shake')
     p.add_argument('--execute', action='store_true', help='允许执行；省略时只显示流程，不访问硬件')
@@ -627,10 +629,15 @@ def main(argv=None):
         return dispatch(args, green_detect_only)
     if args.command == 'pipeline':
         if load_config(args.config).get('pipeline_strategy') == 'green_open_cup':
-            from cup_grasp_demo.calibration_debug.green_pipeline import run
             if args.until is None:
                 args.until = 'place'
+            if args.mode == 'control':
+                from cup_grasp_demo.calibration_debug.green_control import run
+                return run(args)
+            from cup_grasp_demo.calibration_debug.green_pipeline import run
             return run(args)
+        if args.mode == 'control':
+            raise ValueError('control 模式仅支持 green_open_cup 配置')
         if args.until == 'place':
             raise ValueError('place 当前用于 green_open_cup 配置')
         if args.until is None:

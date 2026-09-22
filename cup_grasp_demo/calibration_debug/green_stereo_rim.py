@@ -79,6 +79,40 @@ def height_options(opts):
     return mode, height / 1000
 
 
+def table_from_base_scene(scene, T_base_camera):
+    """Express the calibration-stage table plane in this camera's coordinates."""
+    point = np.asarray(scene['cup_support_base_m'], dtype=float)
+    normal = np.asarray(scene['cup_normal_base'], dtype=float)
+    transform = np.asarray(T_base_camera, dtype=float)
+    if (point.shape != (3,) or normal.shape != (3,) or transform.shape != (4, 4)
+            or not np.isfinite(point).all() or not np.isfinite(normal).all()
+            or not np.isfinite(transform).all()
+            or abs(np.linalg.norm(normal)-1) > .01
+            or not np.allclose(transform[:3, :3].T @ transform[:3, :3], np.eye(3), atol=1e-3)):
+        raise ValueError('Invalid calibrated table plane or camera transform')
+    rotation = transform[:3, :3]
+    camera_point = rotation.T @ (point-transform[:3, 3])
+    camera_normal = rotation.T @ (normal/np.linalg.norm(normal))
+    if camera_point[2] <= 0 or camera_normal @ camera_point >= 0:
+        raise ValueError('Calibrated table plane does not face the camera')
+    return dict(point=camera_point, normal=camera_normal,
+                fit=scene.get('table_fit', {}), source='calibrated')
+
+
+def resolve_table(depth, red, meta, plane_tolerance_mm, fixed_table=None):
+    if fixed_table is None:
+        table, normal, fraction, rms = _plane(
+            deproject(depth, red, meta['intrinsics'], meta['depth_scale_m']),
+            Config(plane_tolerance_m=plane_tolerance_mm/1000))
+        return table, normal, fraction, rms, 'live_depth'
+    table = np.asarray(fixed_table['point'], dtype=float)
+    normal = np.asarray(fixed_table['normal'], dtype=float)
+    fit = fixed_table.get('fit', {})
+    rms_mm = fit.get('rms_mm')
+    return (table, normal, fit.get('inlier_fraction'),
+            None if rms_mm is None else rms_mm/1000, 'calibrated')
+
+
 def make_view(image, record):
     k = record['intrinsics']
     if any(abs(float(x)) > 1e-8 for x in k['dist_coeffs']):
@@ -302,14 +336,15 @@ def fit_fixed_sequence(views_by_frame, table, normal, seeds, radius_range,
     return fitted, indices[0]
 
 
-def detect_stereo(run, depth, image, meta, opts, plane_tolerance_mm, instances, diagnostics):
+def detect_stereo(run, depth, image, meta, opts, plane_tolerance_mm, instances, diagnostics,
+                  *, fixed_table=None):
     quality = quality_options(opts.get('stereo_rim'))
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     red = (((hsv[:, :, 0] < 15) | (hsv[:, :, 0] > 165)) &
            (hsv[:, :, 1] > 70) & (hsv[:, :, 2] > 50))
-    table, normal, fraction, rms = _plane(
-        deproject(depth, red, meta['intrinsics'], meta['depth_scale_m']),
-        Config(plane_tolerance_m=plane_tolerance_mm/1000))
+    table, normal, fraction, rms, table_source = resolve_table(
+        depth, red, meta, plane_tolerance_mm, fixed_table)
+    diagnostics['table_plane_source'] = table_source
     contours, _ = cv2.findContours(red.astype('uint8'), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     workspace = np.zeros(red.shape, np.uint8)
     cv2.drawContours(workspace, [max(contours, key=cv2.contourArea)], -1, 1, cv2.FILLED)
@@ -431,7 +466,9 @@ def detect_stereo(run, depth, image, meta, opts, plane_tolerance_mm, instances, 
         center_uv=list(ellipse[0]), diameters_px=list(ellipse[1]), angle_deg=ellipse[2]))]
     geometry = dict(height_m=height, radius_m=radius, rim_center_camera_m=center.tolist(),
                     table_point_camera_m=table.tolist(), table_normal_camera=normal.tolist(),
-                    table_fit={'inlier_fraction':fraction, 'rms_mm':rms*1000},
+                    table_fit={'inlier_fraction':fraction,
+                               'rms_mm':None if rms is None else rms*1000,
+                               'source':table_source},
                     rim_basis_camera=fitted[0]['basis'], geometry_method='stereo_rim', height_mode=mode,
                     height_source='configured' if mode == 'fixed' else 'stereo_measured',
                     section_height_fraction=1.0, upright_rim_parallel_table_assumption=True,

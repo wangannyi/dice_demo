@@ -56,11 +56,21 @@ class LifecycleTest(unittest.TestCase):
             w.close_sdk();factory.return_value.close.assert_called_once()
             self.assertIsNone(w._sdk)
 
-    def test_step_uses_existing_bridge(self):
+    def test_step_reuses_sdk_and_camera_during_prompts(self):
         w=object.__new__(flow.Workflow);w.args=SimpleNamespace(mode='step')
-        with patch.object(flow.common,'bridge',return_value={'success':True}) as old:
-            self.assertTrue(w.bridge('snapshot',Path('/tmp/a'),{})['success'])
-            old.assert_called_once()
+        w.g={'persistent_runtime':True,'perception':{'frame_count':5}}
+        w.cfg={};w.root=Path('/tmp');w._sdk=None
+        w._vision=Mock()
+        with patch.object(runtime,'SDKClient') as factory, patch.object(flow.common,'new_run',return_value=Path('/tmp')):
+            w.bridge('snapshot',Path('/tmp/a'),{})
+            w.bridge('snapshot',Path('/tmp/b'),{})
+            factory.assert_called_once()
+            self.assertEqual(factory.return_value.call.call_count,2)
+        with patch.object(flow.common,'capture_with_feedback',return_value={'joints_rad':[0]*7}) as capture:
+            w.capture_with_feedback(Path('/tmp/rgbd'))
+            self.assertEqual(capture.call_args.kwargs['bridge_fn'],w.bridge)
+            capture.call_args.kwargs['capture_fn'](Path('/tmp/new'),{})
+        w._vision.capture.assert_called_once_with(Path('/tmp/new'),5)
 
     def test_failed_rpc_closes_and_surfaces_receipt_error(self):
         with tempfile.TemporaryDirectory() as d:

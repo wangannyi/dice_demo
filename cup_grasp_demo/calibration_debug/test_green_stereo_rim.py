@@ -6,6 +6,24 @@ from cup_grasp_demo.calibration_debug.green_stereo_rim import make_view, project
 
 
 class StereoRimTest(unittest.TestCase):
+    def test_calibrated_table_skips_runtime_depth_plane_fit(self):
+        from unittest.mock import patch
+        from cup_grasp_demo.calibration_debug.green_stereo_rim import table_from_base_scene, resolve_table
+        transform = np.diag([1, -1, -1, 1]).astype(float)
+        transform[:3, 3] = [0, 0, .7]
+        scene = dict(cup_support_base_m=[.1, .2, 0], cup_normal_base=[0, 0, 1],
+                     table_fit=dict(inlier_fraction=.84, rms_mm=2.3))
+        fixed = table_from_base_scene(scene, transform)
+        np.testing.assert_allclose(fixed['point'], [.1, -.2, .7])
+        np.testing.assert_allclose(fixed['normal'], [0, 0, -1])
+        with patch('cup_grasp_demo.calibration_debug.green_stereo_rim._plane',
+                   side_effect=AssertionError('runtime table fit forbidden')):
+            point, normal, fraction, rms, source = resolve_table(
+                None, None, None, 6, fixed)
+        np.testing.assert_allclose(point, fixed['point'])
+        np.testing.assert_allclose(normal, fixed['normal'])
+        self.assertEqual((fraction, rms, source), (.84, .0023, 'calibrated'))
+
     def setUp(self):
         self.table = np.array([0., 0., .665])
         self.normal = np.array([0., 0., -1.])

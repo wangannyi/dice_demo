@@ -18,9 +18,9 @@ source scripts/env.sh
 cd nero_calibration
 ```
 
-需要预览时从 PC 使用 `ssh -Y test2@<K3地址>` 登录。确保 `DISPLAY` 有值，关闭占用相机的 ffplay；不要在标定过程中改变图像参数。
+需要预览时从 PC 使用 `ssh -Y user@<K3地址>` 登录。确保 `DISPLAY` 有值，关闭占用相机的 ffplay；不要在标定过程中改变图像参数。
 
-统一采集配置为 1280×720、15 FPS，裁剪 `crop=960:720:220:0`。程序按裁剪更新内参；不要再用 ffmpeg 二次裁剪采样图。手背板配置为 `config/board_hand_redcloth.json`，桌面板为 `config/board_reference_redcloth.json`。
+手背板配置为 `config/board_hand_redcloth.json`，桌面板为 `config/board_reference_redcloth.json`。两者默认按 USB 2.0 使用 1280×720、6 FPS，并裁剪为 `crop=960:720:220:0`；程序按裁剪修正内参，不要再对采样图像进行 ffmpeg 二次裁剪。仓库根目录的 `python scripts/set_camera_profile.py usb2|usb3` 同步更新两块板与抓杯前检测的配置，USB 3.0 档位默认 1280×720、15 FPS。`--fps`、分辨率、裁剪和 ROI 用法见[顶层 README](../README.md#相机配置)；变更分辨率或裁剪后必须重新框定板并标定。
 
 当前板为 4×5 ChArUco。手背板实测总宽 86.5 mm、总高 108 mm；其尺寸修正命令见下文。固定板必须按自身尺寸配置，不要自动套用另一块板的测量值。两块板使用相同标记 ID 时，采手背板需遮挡桌面板，采桌面板需移开或遮挡手背板。全画幅不是限制运动范围的 ROI；如果设置识别 ROI，应只用于区分板子。
 
@@ -82,6 +82,8 @@ CALIBRATION="$CAL_RUN/dimensions_measured/result.json"
 
 首次人工求解完成后，在相同相机内参、裁剪、板安装和机械臂基座条件下运行。若只是相机位置改变，先按照第 5 节通过固定桌面板恢复相机外参，将恢复结果作为这里的 `CALIBRATION`。相机或板尺寸、TCP 改变则不能直接复用旧示教路径。
 
+自动重采默认沿用首次示教数据集记录的相机帧率，旧数据集不会被配置切换脚本改写。USB 2.0 下可在 `run` 增加 `--fps 6`，只切换采样帧率并保留原分辨率、裁剪和板可见区域。若更换分辨率或裁剪，必须重新建立示教数据集和板可见区域，不能复用旧路径。
+
 ```bash
 AUTO_PLAN="$CAL_RUN/auto_plan.json"
 "$CALIB_PYTHON" auto_collect.py plan \
@@ -90,7 +92,7 @@ AUTO_PLAN="$CAL_RUN/auto_plan.json"
 AUTO_RUN="datasets/handeye_auto_$(date +%Y%m%d_%H%M%S)"
 "$CALIB_PYTHON" auto_collect.py run \
   --plan "$AUTO_PLAN" --output "$AUTO_RUN" \
-  --channel can0 --speed-percent 10 --execute
+  --channel can0 --speed-percent 10 --fps 6 --execute
 "$CALIB_PYTHON" calibrate.py solve \
   --dataset "$AUTO_RUN" --output "$AUTO_RUN/result.json"
 ```
@@ -118,7 +120,7 @@ REGISTRATION="$REF_RUN/registration.json"
 
 ## 5. 相机移动后的自动校准
 
-条件：板与基座相对位置没变，板尺寸、ID、相机身份及图像配置一致。将 `$REGISTRATION` 设置为首次注册文件的实际路径。
+条件：板与基座相对位置没变，板尺寸、ID、相机身份及图像分辨率、裁剪和内参一致；帧率可在受支持的档位间切换。将 `$REGISTRATION` 设置为首次注册文件的实际路径。
 
 ```bash
 RESTORE_RUN="datasets/reference_restore_$(date +%Y%m%d_%H%M%S)"
@@ -159,6 +161,8 @@ mkdir -p "$RUN"
 ```
 
 上面两步都成功后，将 `configs/green_cup.json` 中的 `green_cup.installation_requires_calibration` 改为 `false`，然后先执行只读检测和 STEP：
+
+`register_home_table.py` 保存基座坐标系中的桌面点和法向，并将其绑定到当前相机标定。绿色杯配置的 `green_cup.table_plane_source=calibrated` 会在后续每次 CAPTURE 复用这张桌面平面；杯子可移动，但不再当场重新拟合红布深度。只有相机坐标变换来自当前标定，才可以将杯口和保存的桌面组合用于抓取。桌面或基座移动后需重新采集桌面；相机移动并恢复外参后，也要按本节更新标定文件与桌面绑定。
 
 ```bash
 "$DICE_ROOT/cup_grasp_demo/calibration_debug/run_debug.sh" green-detect \

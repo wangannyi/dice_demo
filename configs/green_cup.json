@@ -227,12 +227,13 @@
       ]
     },
     "home_table_scene": "cup_grasp_demo/calibration_debug/green_open_cup/home_table_scene.json",
+    "table_plane_source": "calibrated",
     "camera": {
       "depth_resolution": [
         1280,
         720
       ],
-      "fps": 15,
+      "fps": 6,
       "color_resolution": [
         1280,
         720

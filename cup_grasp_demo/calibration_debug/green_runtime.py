@@ -22,15 +22,18 @@ def read_json(path):
 class SDKClient:
     def __init__(self, cfg, directory):
         self.cfg = cfg
-        self.log = (directory / 'sdk_worker.log').open('x')
+        self.log_path = (directory / 'sdk_worker.log').resolve()
+        self.log = self.log_path.open('x')
         self.process = subprocess.Popen([
             os.environ.get('DICE_SDK_PYTHON', '/home/test2/agilex-api-test/venv/bin/python'),
-            str(Path(__file__).with_name('green_sdk_worker.py')), '--channel', cfg['channel']],
+            str(Path(__file__).with_name('green_sdk_worker.py')), '--channel', cfg['channel'],
+            '--evidence-output', str((directory / 'sdk_startup.json').resolve())],
             cwd=ROOT, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self.log,
             text=True, bufsize=1)
         try:
-            if self.receive(15).get('ready') is not True:
-                raise RuntimeError('SDK worker did not become ready')
+            answer = self.receive(15)
+            if answer.get('ready') is not True:
+                raise RuntimeError(f"SDK worker 启动失败：{answer.get('error', '未就绪')}；日志：{self.log_path}")
         except BaseException:
             self.close()
             raise
@@ -41,7 +44,16 @@ class SDKClient:
             raise TimeoutError('Persistent SDK response timed out')
         line = self.process.stdout.readline()
         if not line:
-            raise RuntimeError('SDK worker exited; see sdk_worker.log')
+            detail = ''
+            try:
+                with self.log_path.open('rb') as log:
+                    log.seek(0, 2)
+                    log.seek(max(0, log.tell()-4096))
+                    lines = log.read().decode(errors='replace').strip().splitlines()
+                    detail = ': '+lines[-1][:800] if lines else ''
+            except OSError:
+                pass
+            raise RuntimeError(f'SDK worker exited{detail}；日志：{self.log_path}')
         return json.loads(line)
 
     def call(self, command, output, request=None, *, on_dispatched=None):

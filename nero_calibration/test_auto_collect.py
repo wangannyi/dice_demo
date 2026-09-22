@@ -162,6 +162,33 @@ class AutoCollectionTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'changed after planning'):
                 run_plan(plan_path, root/'another', 'can0', 10)
 
+    def test_replay_fps_override_keeps_teaching_geometry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source, calibration = self.make_taught_session(root)
+            taught = json.loads((source/'manifest.json').read_text())
+            taught['camera']['fps'] = 15
+            taught['board']['image_profile'] = {'color_resolution': [640, 480], 'fps': 15}
+            (source/'manifest.json').write_text(json.dumps(taught))
+            solved = json.loads(calibration.read_text())
+            solved['camera']['fps'] = 15
+            calibration.write_text(json.dumps(solved))
+            window = json.loads((source/'board_window.json').read_text())
+            window['camera']['fps'] = 15
+            window['board'] = taught['board']
+            (source/'board_window.json').write_text(json.dumps(window))
+            with patch('auto_collect.load_model', return_value=FakeModel()):
+                make_plan(source, calibration, root/'plan.json', margin_px=5.)
+            camera = Mock()
+            camera.info = dict(self.camera, fps=6)
+            with patch('auto_collect.RealSenseCamera', return_value=camera) as open_camera, \
+                 patch('auto_collect.NeroFeedback', side_effect=RuntimeError('mock stop')):
+                with self.assertRaisesRegex(RuntimeError, 'mock stop'):
+                    run_plan(root/'plan.json', root/'automatic', 'can0', 10, fps=6)
+            self.assertEqual(open_camera.call_args.kwargs['image_profile']['fps'], 6)
+            camera.close.assert_called_once()
+            self.assertEqual(json.loads((source/'manifest.json').read_text())['camera']['fps'], 15)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -60,6 +60,21 @@ class ReferenceTests(unittest.TestCase):
         obs = self.observation(self.bc)
         self.assertTrue(restore(register(self.calibration, obs), obs)['quality_passed'])
 
+    def test_fps_change_preserves_registration_but_intrinsic_change_does_not(self):
+        self.calibration['camera']['fps'] = 15
+        self.calibration['camera']['camera_matrix'] = [[900, 0, 420], [0, 900, 360], [0, 0, 1]]
+        obs = self.observation(self.bc)
+        obs['camera'] = copy.deepcopy(self.calibration['camera'])
+        obs['camera']['fps'] = 6
+        reg = register(self.calibration, obs, True)
+        moved = self.observation(self.bc)
+        moved['camera'] = copy.deepcopy(obs['camera'])
+        moved['camera']['fps'] = 15
+        self.assertEqual(restore(reg, moved, True)['camera']['fps'], 15)
+        moved['camera']['camera_matrix'][0][0] = 901
+        with self.assertRaisesRegex(ValueError, 'intrinsics'):
+            restore(reg, moved, True)
+
     def test_reject_mismatched_camera_board_or_version(self):
         obs = self.observation(self.bc)
         reg = register(self.calibration, obs, True)

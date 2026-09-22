@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Teach a camera window, preview a joint replay, and collect hand-eye samples."""
 import argparse
+import copy
 import hashlib
 import json
 import math
@@ -247,7 +248,7 @@ def move_and_watch(arm, camera, detector, manifest, calibration, box, margin_px,
         raise
 
 
-def run_plan(plan_path, output, channel, speed_percent):
+def run_plan(plan_path, output, channel, speed_percent, fps=None):
     plan = json.loads(plan_path.read_text())
     if plan.get('kind') != 'handeye_auto_collection':
         raise ValueError('Not a hand-eye automatic collection plan')
@@ -256,6 +257,13 @@ def run_plan(plan_path, output, channel, speed_percent):
     source = Path(plan['source_dataset'])
     calibration_path = Path(plan['calibration'])
     manifest, _, calibration, box, _ = inputs(source, calibration_path)
+    if fps is not None:
+        if fps not in (6, 15, 30):
+            raise ValueError('Automatic calibration FPS must be 6, 15 or 30')
+        manifest = copy.deepcopy(manifest)
+        if 'fps' in manifest['camera']:
+            manifest['camera']['fps'] = fps
+        manifest['board'].setdefault('image_profile', {})['fps'] = fps
     if output.exists():
         raise ValueError('Automatic output directory already exists')
     camera = arm = None
@@ -342,6 +350,8 @@ def main(argv=None):
     q.add_argument('--output', type=Path, required=True)
     q.add_argument('--channel', default='can0')
     q.add_argument('--speed-percent', type=int, default=10)
+    q.add_argument('--fps', type=int, choices=(6, 15, 30),
+                   help='Override only the teaching frame rate; keep resolution and crop')
     q.add_argument('--execute', action='store_true', required=True)
     args = p.parse_args(argv)
     if args.command == 'draw-window':
@@ -354,7 +364,7 @@ def main(argv=None):
     else:
         if not 1 <= args.speed_percent <= 20:
             raise ValueError('Automatic calibration speed must be 1..20%')
-        run_plan(args.plan, args.output, args.channel, args.speed_percent)
+        run_plan(args.plan, args.output, args.channel, args.speed_percent, args.fps)
     return 0
 
 

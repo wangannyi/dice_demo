@@ -23,6 +23,8 @@ mkdir -p "$RUN"
 
 每阶段按 Enter 继续，输入 `q` 退出。预览窗口显示时间有限，不需要一直等窗口关闭。`--show` 用于 STEP；FAST 不生成这些非必要图像。
 
+STEP 在第一条提示前连接 CAN SDK、预热相机并加载 YOLO；等待 Enter 时这些资源保持打开，阶段采图仍要求新帧。`q` 或流程结束会释放资源，重新执行命令会重新初始化。WEB 手动控制、另一个相机程序和另一个 Pipeline 不能与该 STEP 会话并行。
+
 | 阶段 | 操作与观察 |
 | --- | --- |
 | HOME | 张手、归位；检查实际张开姿态 |
@@ -45,13 +47,18 @@ mkdir -p "$RUN"
 
 这两条是分别从 HOME 开始的新流程，不是从上次暂停处续跑。完整流程用 `--until place`，其中包含最后返回 HOME。发生错误时先读实际状态和日志，不能假设程序退出就已经放杯。
 
+### 启动或文件校验失败
+
+- SDK 启动失败时，终端显示具体原因与 `sdk_worker.log` 完整路径；同目录 `sdk_startup.json` 保存连接前后的控制进程、CAN 接收器及冲突信息。出现候选控制进程时，按 PID/命令核对并结束冲突任务后重试；板端回归测试也可能被列为候选，应与实机运行错开。
+- `运行期间配置/程序发生变化` 表示本轮使用的文件已被改动。停止并行发布，待文件更新完成后重新启动 Pipeline，不修改旧计划或绕过文件校验。
+
 ## 3. 单独检测杯子
 
 ```bash
 "$DBG" green-detect --config "$CFG" --session "$RUN" --show
 ```
 
-此命令只采集、识别和计算，不移动机械臂。重点查看：
+此命令只采集、识别和计算，不移动机械臂。默认 USB 2.0 档位为彩色/深度 1280×720、6 FPS；USB 3.0 档位默认 15 FPS。从仓库根目录执行 `python scripts/set_camera_profile.py usb2|usb3` 可同步修改绿杯及两块红布标定板配置。先用 `lsusb` 确认相机已枚举、`lsusb -t` 核实实际链路，再执行本命令验证新档位。切换配置后重新采集杯位，勿复用旧会话定位结果。重点查看：
 
 - `green_detection.png`：成功检测叠加图。
 - `green_rim_debug.png`：杯沿诊断图。
@@ -99,9 +106,9 @@ JSCFG="$DICE_ROOT/cup_grasp_demo/calibration_debug/planar_shake.json"
 
 | 现象 | 优先检查 |
 | --- | --- |
-| CAN 无反馈 | `ip -details link show can0`、控制器 CAN 模式和推送、是否存在另一个执行器 |
+| CAN 无反馈 | 先看 `ip -details link show can0`：若为 DOWN，执行 `sudo ip link set can0 up type can bitrate 1000000`；然后确认控制器 CAN 模式和推送、是否存在另一个执行器。Pipeline 的 `--execute` 入口会在 DOWN 时先尝试恢复接口；无 sudo 权限则直接提示手工命令并退出 |
 | 手无动作 | WEB 的灵巧手使能、手部型号与当前反馈；机械臂使能不等于手部使能 |
-| `table_plane_not_supported` | 新标定是否应用、桌面数据是否重采、有效深度和工作区 |
+| 桌面标定不匹配 | 检查 `home_table_scene` 与当前标定哈希；在标定阶段重新采集并登记桌面。当前绿杯 CAPTURE 不逐帧拟合桌面 |
 | 杯沿失败 | 诊断图、杯口无遮挡、固定/测量高度模式、相机分辨率与内参一致性 |
 | TCP 不在期望部位 | TCP 基础变换、法兰偏移、手指张开状态与参考姿态 |
 | 规划失败 | 目标位置、关节范围、姿态参考、当前配置；不要执行旧计划代替 |
