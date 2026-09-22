@@ -241,9 +241,6 @@ class CaptureSession:
         ext = dp.get_extrinsics_to(cp)
         prefix = output / f'frame_{index:03d}'
         image = crop_image(np.asanyarray(color.get_data()), self.crop)
-        png_options = [cv2.IMWRITE_PNG_COMPRESSION, 0] if getattr(args, 'fast_storage', False) else []
-        if not cv2.imwrite(str(prefix)+'.png', image, png_options):
-            raise RuntimeError('Failed to save color')
         arrays = dict(depth=crop_image(np.asanyarray(depth.get_data()), self.crop),
                       native_depth=np.asanyarray(raw_depth.get_data()).copy())
         stereo = {}
@@ -260,6 +257,8 @@ class CaptureSession:
                                     to_color_translation=list(ir_ext.translation))
                 stereo[side+'_frame_number'] = frame.get_frame_number()
                 stereo[side+'_timestamp_ms'] = frame.get_timestamp()
+        # BGR color is carried in the NPZ (consumed by load_batch); no PNG file.
+        arrays['color'] = image
         saver = np.savez if getattr(args, 'fast_storage', False) else np.savez_compressed
         saver(str(prefix)+'.npz', **arrays)
         metadata = {'capture_profile': {'color_resolution': [ci['width'], ci['height']],

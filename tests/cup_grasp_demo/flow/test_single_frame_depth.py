@@ -17,8 +17,8 @@ class SingleFrameDepthTests(unittest.TestCase):
         for i, depth in enumerate(depths):
             prefix=folder/f'frame_{i:03d}'
             prefix.with_suffix('.json').write_text(json.dumps(meta))
-            np.savez(prefix.with_suffix('.npz'),depth=depth)
-            cv2.imwrite(str(prefix.with_suffix('.png')),np.zeros((*depth.shape,3),np.uint8))
+            np.savez(prefix.with_suffix('.npz'),depth=depth,
+                     color=np.zeros((*depth.shape,3),np.uint8))
 
     def test_single_frame_matches_nanmedian_without_computing_it(self):
         depth=np.array([[0,123,65535],[np.nan,np.inf,-np.inf]],dtype=float)

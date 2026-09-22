@@ -114,7 +114,7 @@ def load_batch(dataset, *, min_frames=3):
         with warnings.catch_warnings():
             warnings.simplefilter('ignore', RuntimeWarning)
             depth = np.nan_to_num(np.nanmedian(stack, axis=0))
-    image = cv2.imread(str(frames[0].with_suffix('.png')))
+    image = np.load(frames[0].with_suffix('.npz'))['color']
     if image is None or image.shape[:2] != depth.shape:
         raise ValueError('Missing or mismatched RGB image')
     return first, depth, image, frames

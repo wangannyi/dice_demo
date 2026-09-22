@@ -168,8 +168,8 @@ class StreamingReaderTests(unittest.TestCase):
             files=sorted(p.name for p in out.glob('frame_*'))
             meta=json.loads((out/'frame_001.json').read_text())
         self.assertTrue(result.get('ok'),result)
-        self.assertEqual(files,['frame_000.json','frame_000.npz','frame_000.png',
-                                'frame_001.json','frame_001.npz','frame_001.png'])
+        self.assertEqual(files,['frame_000.json','frame_000.npz',
+                                'frame_001.json','frame_001.npz'])
         self.assertEqual(meta['serial'],'t')
         self.assertEqual(meta['capture_timing']['fresh_discard_frames'],0)
         self.assertEqual(announced.getvalue(),'')  # reader thread must never print
@@ -191,10 +191,9 @@ class StreamingReaderTests(unittest.TestCase):
             with patch('sys.stdout',announced):
                 camera.capture(out,1,fresh=False)
             camera.close()
-            png_ok=(out/'frame_000.png').is_file()
-            npz_ok=(out/'frame_000.npz').is_file()
             meta=json.loads((out/'frame_000.json').read_text())
             announced_text=announced.getvalue()
-        self.assertTrue(png_ok and npz_ok)
+            npz_ok=(out/'frame_000.npz').is_file()
+        self.assertTrue(npz_ok)
         self.assertIn('frame_000',announced_text)
         self.assertEqual(meta['serial'],'t')
