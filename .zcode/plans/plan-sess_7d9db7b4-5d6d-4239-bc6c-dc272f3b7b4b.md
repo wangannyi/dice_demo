@@ -1,39 +1,63 @@
-# dice_demo 目录结构重组计划 v2（hwj_dev 分支，6 步 6 提交）
+# 视觉分层重构计划（最终版）：先清孤儿 → vision/ 五层 + camera.json + 策略模块化
 
-已确认决策：务实+改名深度；rgb 三桥接模块并入 nero_revo2_control/bridges/；nero_calibration 与 dice_cup_localization 冻结不动；calibration_debug → flow/；**静态动作 JSON 全部集中 configs/actions/**（joint_shake + result_feedback + home），机制零变化只归置路径。
+## Phase 0：清理视觉孤儿（1 提交）
 
-## Step 1：死文件与死引用清理
-- 删孤儿 `cup_grasp_demo/control_handoff.py`、过时 `cup_grasp_demo/run_k3.sh`、`nero_revo2_control/offline_plan.py`+其测试、`nero_revo2_control/results/`
-- 修 `scripts/package_release.py` 移除已删 kernel_usbcan 白名单（当前打包必炸）
-- 10 处 `/home/test2/...` 硬编码默认解释器改 `/usr/bin/python3`（改前 grep tests 确认无断言依赖旧值）
+删（全部经引用扫描确认为零代码引用）：
+- `cup_grasp_demo/config/` 整目录（5 个上游遗留 JSON：green_pipeline.json、green_top_retracted_thumb.json、3×pipeline_restart_*.json）
+- `side_grasp/`：prepare_hand.py + 其测试、STATUS.json、TCP_MODEL_CANDIDATE.json、superseded_candidates.json
+- `dice_cup_localization/`：config/（red_mat_640x480.json，只被上面孤儿引用）、README.md、requirements.txt
 
-## Step 2：几何资产归一，agx_arm_ros/ 消失
-- `agx_arm_urdf/{nero,revo2,LICENSE}` → `nero_revo2_control/models/hand_geometry/`（与 nero_description.urdf 归一处）
-- 改 hand_geometry.py DESCRIPTION、debug.py 三处哈希路径、package_release.py mesh 树、check_source.py 跳过表、README/测试提及
+保留（import 闭包 + 引用扫描确认存活）：dice_cup_localization 的 3 个 py、side_grasp/preview_index.py + CURRENT_GRASP.json（green_cup.json 的 grasp_config 指向它）、cup_grasp_demo 顶层的 hand_geometry.py/planning.py/models//datasets/
 
-## Step 3：桥接模块归位，rgb_hand_tracking/ 消灭 sys.path 裸导入
-- 三模块 → `nero_revo2_control/bridges/`（文件名不变 + 空 __init__.py），互导改包名
-- 引用方全改正规包导入并删 sys.path 注入：green_sdk_worker（含裸 import nero_revo2_demo 一并包化）、hardware、shake_execution、shake_readback、side_grasp/prepare_hand；shake_cli/planar_shake_cli 哈希路径改 bridges/
-- 修测试顺序依赖隐患：test_green_arm_completion/test_green_speed 裸 import 改包导入；test_green_worker_retry 的 mock 键同步
-- tests/rgb_hand_tracking/ 3 测试 → tests/nero_revo2_control/bridges/
+## Phase A：建 vision/ 骨架 + 文件迁移（1 提交）
 
-## Step 4：calibration_debug/ → cup_grasp_demo/flow/（机械替换大头）
-- git mv 源目录与 tests 镜像目录
-- 两模式全局替换：`cup_grasp_demo.calibration_debug`→`cup_grasp_demo.flow`、`cup_grasp_demo/calibration_debug`→`cup_grasp_demo/flow`（覆盖 .py/.sh/.json/.md；232 处 import + green_cup.json 8 路径字段 + 打包/检查脚本 + docs）
-- 完成判据：grep calibration_debug 归零
+存档先行（git commit --allow-empty），然后：
+- `dice_cup_localization/capture_rgbd.py` → `vision/capture/realsense_session.py`
+- `side_grasp/preview_index.py` 的 load_batch/section → `vision/capture/frame_io.py`
+- `green_yolo.py` 的 session/runtime_settings → `vision/inference/session.py`
+- `green_yolo.py` 的 cap_outputs/infer 逻辑 → `vision/inference/detector.py`
+- `dice_cup_localization/yolo_seg.py` → `vision/inference/yolo_seg.py`
+- `green_stereo_rim.py` → `vision/geometry/circle_rim.py`
+- `green_cup_geometry.py` → `vision/geometry/cup_height.py`
+- `dice_cup_localization/geometry.py` 的 _plane/deproject/_circle/Config → `vision/geometry/table_plane.py`
+- `dice_cup_localization/` 目录清空后删除
+- 全局 import 路径替换（约 15 个消费方）
 
-## Step 5：静态动作库归置 configs/actions/
-- `git mv`：configs/joint_shake.json、configs/result_feedback.json → configs/actions/；flow/home_reference.json → configs/actions/home.json（顺手统一命名）
-- 引用更新：green_cup.json（joint_test_config、home 字段）、flow 内两份开发 config.json、scripts/result_feedback.py 默认手势路径、tests 断言（test_delivery/test_result_feedback）、README §4/§6 路径
-- 明确不变：动作 JSON 的增删机制原样（result_feedback.json 里加动作即生效；摇晃配方、HOME 角度改文件即改动作）；green_cup.json 只留动态抓取（视觉联动）参数
+## Phase B：相机配置独立 vision/camera.json（1 提交）
 
-## Step 6：结构自述与收尾
-- README §5 新目录树 + 每顶层目录一行职责 + "动作两类"说明（静态=configs/actions/ 的 JSON；动态=green_cup.json 参数+流程代码）
-- flow/ 内加简短 README（阶段机/常驻/感知/运动/工具分组）
-- package_release.py 全面校对、MANIFEST 重生成、.gitignore 复核
+```json
+{
+  "serial": "346222071954",
+  "color_resolution": [1280, 720],
+  "depth_resolution": [1280, 720],
+  "fps": 6,
+  "crop_xywh": [220, 0, 960, 720],
+  "warmup_frames": 5,
+  "fresh_discard_frames": 0
+}
+```
+- `green_capture.py`/`green_runtime.py` 改读 camera.json（不再读 green_cup.json 的 camera 段）
+- green_cup.json 删 green_cup.camera 段 + fast_camera_warmup_frames/fast_camera_fresh_discard_frames
+- `set_camera_profile.py` 改写 camera.json（不再同步三份配置）
+- camera.json 加 calibration_file 字段指向 configs/calibration/handeye_result.json，加载时校验 sha256（换相机配置须重新标定的安全绑定）
 
-## 验证关卡（每步定向验证，末尾全量四连）
-1. 每步：py_compile + 受影响文件定向 pytest
-2. Step 2/3/4 后：六入口 import 闭包复跑
-3. 最终：全量 pytest 与基线集合对比（25F/133E 零新增）+ check_environment + `./run.sh fast` 干跑 + `control_console --simulate` 冒烟 + 打包脚本 /tmp 冒烟
-4. 回退保障：每步单一提交可独立 revert；nero_calibration/dice_cup_localization 冻结，标定数据路径零变更
+## Phase C：策略配置模块化 + 模型适配器（1 提交）
+
+- `vision/strategy/green_cup.json`：从 green_cup.json 抽出全部抓取字段（contact_offset_base_mm/tcp_offset_flange_mm/wrist_reference_deg/lift_mm/grip/open_targets/finger_duration_s/held_cup_margin_mm 等）
+- `vision/strategy/loader.py`：返回 GraspStrategy 命名元组
+- green_pipeline.py 改用 strategy.loader
+- `vision/inference/model_adapter.py`：从 ORT metadata 解析 names 字段自动适配类别数/输出 shape（现有 cap/ground 双类模型的行为不变，新模型自动识别）
+
+## Phase D：测试迁移 + 文档 + 全量验证（1 提交）
+
+- 测试文件迁移到 tests/vision/ 镜像结构
+- `vision/README.md` 四步接入指南（换模型→写几何拟合器→写策略 JSON→零改阶段机）+ camera.json 字段说明
+- 全量验证四连：pytest 集合对比零新增 + check_environment + fast 干跑 + simulate 冒烟
+
+## 验证关卡（每 Phase）
+
+- 每步定向 pytest + py_compile
+- import 闭包六入口全通
+- 最终全量与基线（8F/29E）集合对比零新增
+
+## 提交：Phase 0/A/B/C/D 各 1 提交，每 Phase 前存档（hwj_dev）
