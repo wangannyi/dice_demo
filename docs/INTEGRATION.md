@@ -18,19 +18,18 @@ bash run.sh fast --until place --execute
 
 | 参数/环境变量 | 约定 |
 | --- | --- |
-| 第一个参数 | `step` 人工分步；`control` 上层指令调度；`auto` 连续执行保留常规诊断；`fast` 连续执行精简诊断 |
+| 第一个参数 | `fast` 连续执行精简诊断；`control` 常驻模式，上层 JSON 指令逐阶段推进（step/auto 已移除，2026-09-22） |
 | `--execute` | 真机执行；缺省仅打印流程，不验证整条硬件通路 |
 | `--until ready` | 到抓取位置后停止 |
 | `--until grip` | 闭手后停止 |
 | `--until shake` | 摇晃后停止，可能仍持杯 |
 | `--until place` | 放杯、张手并返回 HOME；顶层入口默认值 |
-| `--show` | STEP 中查看图像及 TCP，不建议自动服务使用 |
 | `DICE_CONFIG` | 系统配置绝对路径；默认 `configs/green_cup.json` |
 | `DICE_RUN` | 会话目录；自动服务建议每次任务使用新目录，避免读取旧状态 |
 
-完整顺序：HOME → CAPTURE → PLAN → APPROACH → GRIP → LIFT → SHAKE → LOWER → OPEN → RETURN_HOME。STEP 输入 `q` 是暂停退出；当前不支持跨进程 `--resume`。不可将重新启动理解为继续上一阶段：重启会从 HOME 张手开始。
+完整顺序：HOME → CAPTURE → PLAN → APPROACH → GRIP → LIFT → SHAKE → LOWER → OPEN → RETURN_HOME。`control` 收到 `close` 或 stdin EOF 时暂停退出；当前不支持跨进程 `--resume`。不可将重新启动理解为继续上一阶段：重启会从 HOME 张手开始。
 
-STEP 的首次提示前会建立 SDK/CAN 连接、预热相机和加载模型；按 Enter 之间同一进程持续持有这些资源，每次 CAPTURE/TCP 预览仍采集新帧。FAST 也在同一次任务内复用资源。人工分步向 STEP 进程发送 Enter；程序化调度使用下面的 `control` JSON 接口。桌面平面来自标定阶段保存的 `home_table_scene`，运行时只定位本次杯口。
+CONTROL 启动时建立 SDK/CAN 连接、预热相机和加载模型；等待下一条指令期间同一进程持续持有这些资源，每次 CAPTURE 仍采集新帧。FAST 在同一次任务内同样复用资源。程序化调度使用下面的 `control` JSON 接口。桌面平面来自标定阶段保存的 `home_table_scene`，运行时只定位本次杯口。
 
 ### 常驻阶段控制（供上层集成）
 
@@ -128,9 +127,9 @@ bash run_feedback.sh draw --config configs/green_cup.json --session /tmp/dice_fe
 | 机械臂输 | `lose` | `thumbs-up` | 举臂并点赞 |
 | 平局 | `draw` | `tie` | 到指定姿态，手指两种姿态往返 3 次 |
 
-`--gestures` 指定动作配置，默认 `configs/result_feedback.json`；`--list` 列出动作。不带 `--execute` 仅预览。执行后保持动作姿态，**不自动回 HOME**，也不订阅比赛事件。默认臂速度 50%，臂手同时启动，手使用最大速度指令。
+`--gestures` 指定动作配置，默认 `configs/actions/result_feedback.json`；`--list` 列出动作。不带 `--execute` 仅预览。执行后保持动作姿态，**不自动回 HOME**，也不订阅比赛事件。默认臂速度 50%，臂手同时启动，手使用最大速度指令。
 
-手指六路顺序：拇指尖、拇指根、食指、中指、无名指、小指。七轴角度单位为度。新增、删除动作和调整执行时延见[调试文档](DEBUG.md#9-比大小后的反馈手势)。动作内字段覆盖全局默认值；修改全局速度时注意已有动作也可能配置了覆盖值。
+手指六路顺序：拇指尖、拇指根、食指、中指、无名指、小指。七轴角度单位为度。新增、删除动作和调整执行时延见[调试文档](DEBUG.md#8-比大小后的反馈手势)。动作内字段覆盖全局默认值；修改全局速度时注意已有动作也可能配置了覆盖值。
 
 ## 4. 状态、返回值和收据
 
@@ -145,7 +144,7 @@ stdout 是人类可读日志，**不要解析耗时行判断成功**。Pipeline 
 | `error` | 失败原因；失败时读取 |
 | `receipts` / `recovery_events` | 底层执行记录和恢复记录；具体结构以实际 JSON 为准 |
 
-进程返回值：`0` 正常结束（也包括预览或 STEP 主动暂停）；`2` 配置/执行等已处理错误；`130` 主动中断。其他非零值也按失败处理。配置或依赖初始化失败可能发生在状态文件创建前，不能沿用上一次状态。
+进程返回值：`0` 正常结束（也包括预览或 control 主动 close/EOF 退出）；`2` 配置/执行等已处理错误；`130` 主动中断。其他非零值也按失败处理。配置或依赖初始化失败可能发生在状态文件创建前，不能沿用上一次状态。
 
 完整执行成功需同时满足：进程返回 `0`，本次状态为 `COMPLETED`，且 `events` 含 `RETURN_HOME/completed`。这表示程序完成动作，不代表已经通过视觉或力觉确认持杯，也不代表骰子点数已改变。
 

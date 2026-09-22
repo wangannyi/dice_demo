@@ -16,13 +16,21 @@ mkdir -p "$RUN"
 
 ## 2. 逐阶段执行
 
+step/auto 模式已移除（2026-09-22 瘦身）。分阶段调试用常驻 control 模式（推荐）：
+
 ```bash
-./run.sh step --show --execute
+python3 scripts/control_console.py
+# 控制台内：2 单阶段推进；3 连续执行到 GRIP（闭手）；4 连续执行到 SHAKE；g/5 完整流程
 ```
 
-每阶段按 Enter 继续，输入 `q` 退出。预览窗口显示时间有限，不需要一直等窗口关闭。`--show` 用于 STEP；FAST 不生成这些非必要图像。
+或用 fast 一次执行到指定阶段停住：
 
-STEP 在第一条提示前连接 CAN SDK、预热相机并加载 YOLO；等待 Enter 时这些资源保持打开，阶段采图仍要求新帧。`q` 或流程结束会释放资源，重新执行命令会重新初始化。WEB 手动控制、另一个相机程序和另一个 Pipeline 不能与该 STEP 会话并行。
+```bash
+./run.sh fast --until ready --execute
+./run.sh fast --until grip --execute
+```
+
+CONTROL 在启动时连接 CAN SDK、预热相机并加载 YOLO；等待下一条指令期间这些资源保持打开，每次 CAPTURE 采图仍要求新帧。`close`、Ctrl-C 或流程失败会释放资源。WEB 手动控制、另一个相机程序和另一个 Pipeline 不能与该会话并行。
 
 | 阶段 | 操作与观察 |
 | --- | --- |
@@ -40,11 +48,11 @@ STEP 在第一条提示前连接 CAN SDK、预热相机并加载 YOLO；等待 E
 只运行到抓取位置或闭手：
 
 ```bash
-./run.sh step --until ready --show --execute
-./run.sh step --until grip --show --execute
+./run.sh fast --until ready --execute
+./run.sh fast --until grip --execute
 ```
 
-这两条是分别从 HOME 开始的新流程，不是从上次暂停处续跑。完整流程用 `--until place`，其中包含最后返回 HOME。发生错误时先读实际状态和日志，不能假设程序退出就已经放杯。
+这两条是分别从 HOME 开始的新流程，不是从上次停住处续跑。完整流程用 `--until place`，其中包含最后返回 HOME。发生错误时先读实际状态和日志，不能假设程序退出就已经放杯。
 
 ### 启动或文件校验失败
 
@@ -61,7 +69,6 @@ STEP 在第一条提示前连接 CAN SDK、预热相机并加载 YOLO；等待 E
 
 - `green_detection.png`：成功检测叠加图。
 - `green_rim_debug.png`：杯沿诊断图。
-- `green_tcp_current.png`：STEP 阶段的 TCP 投影。
 - `runs/` 下的 `actual.log`、`actual.json`：执行器日志和结果。
 
 TCP 图中的点来自关节反馈、模型和标定变换，不能当成相机直接测出的物理接触点。调整 `green_cup.tcp_offset_flange_mm` 时，三个数沿法兰坐标轴，不是图像左右上下方向。
@@ -76,7 +83,7 @@ python3 scripts/table_capture.py --config "$CFG" --session "$RUN"
 
 ## 5. 耗时和故障定位
 
-`[耗时]` 是阶段总耗时，可能包含连接、采集、计算、发送与运动。STEP 的图像采集和显示也计入阶段；比较性能时使用相同配置的 FAST。
+`[耗时]` 是阶段总耗时，可能包含连接、采集、计算、发送与运动；比较性能时使用相同配置的 FAST，并优先看 `green_pipeline_state.json` 的 `startup_to_capture_s`。
 
 | 现象 | 优先检查 |
 | --- | --- |
@@ -110,7 +117,7 @@ JSON 区分模型加载、首次推理和后续纯推理时间；同名 NPZ 保�
 
 ## 7. 相机取帧耗时
 
-FAST 默认预热 5 组 RGB、深度、左右红外均已更新的有效帧（重复帧不计数），正式采集前额外丢帧为 0。配置项为 `green_cup.fast_camera_warmup_frames` 和 `green_cup.fast_camera_fresh_discard_frames`。相机启动预热不是保存采样帧数；固定高度 FAST 仍只保存 1 帧。STEP 和通用采集默认保留 20 帧预热。
+FAST 默认预热 5 组 RGB、深度、左右红外均已更新的有效帧（重复帧不计数），正式采集前额外丢帧为 0。配置项为 `green_cup.fast_camera_warmup_frames` 和 `green_cup.fast_camera_fresh_discard_frames`。相机启动预热不是保存采样帧数；固定高度 FAST 仍只保存 1 帧。独立采集命令默认保留 20 帧预热。
 
 每次采集的 `rgbd/frame_000.json` 中，`capture_timing` 记录流启动、预热、新鲜帧等待及采集处理耗时。清理旧队列后直接使用下一组 RGB/深度均已更新的帧，不再固定跨过两帧。5 帧不代表所有光照下曝光都已稳定；若新场地初始画面偏暗，可增加预热帧数。
 
@@ -132,7 +139,7 @@ bash run_feedback.sh thumbs-up --execute  # 机械臂输了
 
 也可使用 `win` / `lose`，胜负均以机械臂为视角。此脚本未自动订阅比大小结果；上层程序在最终结果确定、杯子放回后调用一次即可。
 
-配置：`configs/result_feedback.json`。
+配置：`configs/actions/result_feedback.json`。
 
 | 参数 | 含义 |
 | --- | --- |
@@ -141,11 +148,11 @@ bash run_feedback.sh thumbs-up --execute  # 机械臂输了
 | `gestures.<名称>.joints_deg` | J1–J7 的绝对角度，单位度 |
 | `gestures.<名称>.hand_0_100` | 拇指尖、拇指根、食指、中指、无名指、小指六路目标 |
 
-`--gestures <文件>` 可指定手势配置；`--config <文件>` 可指定系统配置，默认使用 `cup_grasp_demo/flow/green_open_cup/stereo_config.json`。`--session <目录>` 指定记录目录，默认 `cup_grasp_demo/datasets/result_feedback`。每次执行保留请求、反馈与收据；程序退出码为 0 表示指令流程完成，2 表示失败，130 表示用户中断。手指完成按指令时间计，收据不代表已实测手指姿态。
+`--gestures <文件>` 可指定手势配置；`--config <文件>` 可指定系统配置，默认使用 `configs/green_cup.json`。`--session <目录>` 指定记录目录，默认 `cup_grasp_demo/datasets/result_feedback`。每次执行保留请求、反馈与收据；程序退出码为 0 表示指令流程完成，2 表示失败，130 表示用户中断。手指完成按指令时间计，收据不代表已实测手指姿态。
 
 ### 增删动作、单动作速度与执行时延
 
-动作名称直接读取 `configs/result_feedback.json` 的 `gestures`，无须修改 Python。复制一个动作并改名即可新增，删除对应键即可删除。动作名使用英文字母、数字、下划线或连字符；`aliases` 定义别名，删除动作时也应删除或更新指向它的别名。
+动作名称直接读取 `configs/actions/result_feedback.json` 的 `gestures`，无须修改 Python。复制一个动作并改名即可新增，删除对应键即可删除。动作名使用英文字母、数字、下划线或连字符；`aliases` 定义别名，删除动作时也应删除或更新指向它的别名。
 
 每个动作可覆盖顶层的 `speed_percent`、`finger_duration_s` 和 `execution`。未填写的参数继承顶层默认值。两个内置动作已显式填写速度与时序，调整它们时请修改各自动作中的参数。
 

@@ -44,7 +44,7 @@ python3 scripts/package_release.py --output "dist/release_$(date +%Y%m%d_%H%M%S)
 
 ### 2.1 新板子快速部署（推荐路径）
 
-本仓库已把 RISC-V 上最难安装的依赖（RealSense SDK、NERO SDK）集成到 `vendor-site/` 和 `nero_calibration/.deps/` 目录内。新 K3 板只需装 5 个系统包 + 拷贝本目录即可运行：
+本仓库已把 RISC-V 上最难安装的依赖（RealSense SDK、NERO SDK）集成到 `vendor-site/` 和 `vendor-site-deps/` 目录内。新 K3 板只需装 5 个系统包 + 拷贝本目录即可运行：
 
 ```bash
 # ── 第 1 步：装系统包（Bianbu 源 + K3 厂商源） ──
@@ -53,13 +53,13 @@ sudo apt install python3-numpy python3-scipy python3-opencv \
                  spacemit-onnxruntime python3-spacemit-ort
 
 # ── 第 2 步：拷贝本仓库到新板 ──
-# 方式 A：从打包脚本获取完整包（含 vendor-site/.deps，在开发机上执行）
+# 方式 A：从打包脚本获取完整包（含 vendor-site/vendor-site-deps，在开发机上执行）
 python3 scripts/package_release.py --output ./dist
 # 把 dist/dice_demo-source.tar.gz 拷到新板后解压
 
-# 方式 B：git 拉取后手动拷 vendor-site/ 和 nero_calibration/.deps/
+# 方式 B：git 拉取后手动拷 vendor-site/ 和 vendor-site-deps/
 # （这两个目录被 gitignore，不随 git 走）
-# rsync -av --relative vendor-site nero_calibration/.deps 新板:~/dice_demo/
+# rsync -av --relative vendor-site vendor-site-deps 新板:~/dice_demo/
 
 # ── 第 3 步：验证环境 ──
 cd dice_demo
@@ -153,7 +153,7 @@ DICE_RUN="$PWD/cup_grasp_demo/datasets/green_current" \
 
 配置以文件实际值为准，修改后重新启动流程。普通到位精度使用 `record` 记录策略；通信故障、无有效目标、关节越界及碰撞等错误仍可能停止流程。失败状态和已完成阶段写入会话文件，见[接入接口](docs/INTEGRATION.md)。阶段耗时包括连接、规划、动作和反馈，不是单纯的电机运动时间。
 
-FAST 复用 SDK/CAN、相机和模型，复用可用的预计算轨迹；只在定位阶段识别杯子，减少诊断图片和固定等待。STEP 在首次提示前连接 SDK、启动相机并预热、加载模型，随后在同一次命令内保持连接，逐阶段确认和预览使用新采图。`control` 为上层程序提供 JSON 指令：可运行到指定阶段停住，保持进程与设备连接，等下一条指令再继续；完整协议见[接入接口](docs/INTEGRATION.md#常驻阶段控制供上层集成)。各模式均不能把指令发送成功解释成已抓牢。
+FAST 复用 SDK/CAN、相机和模型，复用可用的预计算轨迹；只在定位阶段识别杯子，减少诊断图片和固定等待。`control` 为上层程序提供 JSON 指令：常驻进程在启动时连接 SDK、预热相机和加载模型，可运行到指定阶段停住，保持进程与设备连接，等下一条指令再继续；完整协议见[接入接口](docs/INTEGRATION.md#常驻阶段控制供上层集成)。各模式均不能把指令发送成功解释成已抓牢。
 
 绿色杯流程使用标定阶段保存的桌面平面；CAPTURE 只识别本次杯口，不再逐帧拟合桌面。首次标定及相机重新校准后的桌面登记命令见[标定文档](docs/CALIBRATION.md#6-应用标定并更新桌面)。桌面或基座改变后必须重做桌面登记。
 
@@ -162,7 +162,7 @@ FAST 复用 SDK/CAN、相机和模型，复用可用的预计算轨迹；只在�
 | `serial` / `channel` | `346222071954` / `can0` | 相机与 CAN |
 | `calibration` | 参考标定文件路径 | 彩色相机到基座变换；新安装须更换 |
 | `home` | HOME JSON 路径 | 七轴 HOME 角度，度 |
-| `speed_percent` | 20 | STEP/AUTO 普通运动百分比 |
+| `speed_percent` | 20 | 普通运动百分比兜底；FAST/CONTROL 运行时被 `green_cup.fast_speed_percent` 覆盖 |
 | `green_cup.fast_speed_percent` | 30 | FAST 普通运动百分比 |
 | `green_cup.fast_phase_speed_percent` | approach、return_home 均 60 | 两段单独速度百分比 |
 | `green_cup.contact_offset_base_mm` | `[0,0,30]` | 杯口圆心在基座坐标系中的 TCP 目标偏移，mm |
@@ -177,14 +177,14 @@ FAST 复用 SDK/CAN、相机和模型，复用可用的预计算轨迹；只在�
 | `green_cup.fast_motion_profile` | trapezoid | FAST 普通关节运动使用限速、限加速度的梯形速度曲线；设为 quintic 恢复原曲线。SHAKE 不受此项影响 |
 | `green_cup.fast_dogbox_ik` | true | FAST 使用 dogbox 求解抓取 IK；仍验证位置、朝向与路径，无合格解时回退原求解器 |
 | `green_cup.fast_parallel_startup` | `true` | FAST 执行时，SDK 连接、相机预热及模型加载与 CLI 模块加载并行；初始化不发送运动或手指指令 |
-| `green_cup.persistent_runtime` | `true` | STEP、CONTROL 和 FAST 在同一进程内保持 SDK 与相机连接；上层集成时同一时刻只能有一个任务占用设备 |
+| `green_cup.persistent_runtime` | `true` | CONTROL 和 FAST 在同一进程内保持 SDK 与相机连接；上层集成时同一时刻只能有一个任务占用设备 |
 | `green_cup.table_plane_source` | `calibrated` | 从 `home_table_scene` 读取标定阶段保存的基座桌面平面；`live_depth` 恢复每次 CAPTURE 拟合桌面 |
 | `green_cup.perception.height_mode` | `fixed` | `fixed` 已知杯高；`measured` 双目测高 |
 | `green_cup.perception.fixed_height_mm` | 65 | 固定模式杯高，mm |
 | `green_cup.perception.inference_provider` | `spacemit` | K3 AI 后端；`cpu` 使用普通 CPU 后端 |
 | `green_cup.perception.inference_threads` | 2 | AI 后端计算线程数；CPU 后端时为 CPU 推理线程数 |
 | `green_cup.perception.inference_cpu_ids` | `[8,9]` | 两个 A100 AI 核；CPU 后端设为 `[]` |
-| `green_cup.fast_camera_warmup_frames` | 5 | STEP/FAST 常驻相机启动时的预热帧数 |
+| `green_cup.fast_camera_warmup_frames` | 5 | FAST/CONTROL 常驻相机启动时的预热帧数 |
 | `green_cup.fast_camera_fresh_discard_frames` | 0 | FAST 正式采集前额外丢帧数；仍清理旧队列并要求 RGB/深度帧号推进 |
 | `green_cup.camera` | RGB/深度 1280×720、6 FPS | RGB 裁剪 `[220,0,960,720]`；程序同步修正内参。USB 2.0 下已完成采集与绿杯定位验证；完整运动流程尚需实测 |
 | `green_cup.joint_test_config` | `configs/actions/joint_shake.json` | 摇晃配置 |
@@ -212,7 +212,7 @@ python scripts/set_camera_profile.py usb2 --dry-run  # 只预览，不写文件
 
 六路手指顺序为：拇指尖、拇指根、食指、中指、无名指、小指。指令完成不等于已测量确认抓牢。TCP 偏移属于法兰坐标系，不能直接按图像左右方向修改。
 
-FAST 的 HOME/CAPTURE 阶段耗时不包含 CLI 模块加载。`green_pipeline_state.json` 同时记录 `parallel_startup_elapsed_s`（启动到进入状态机）与 `startup_to_capture_s`（启动到定位完成），用后者比较整体启动性能。已在 HOME 时可将定位与张手重叠；不在 HOME 时仍先完成归位再采集正式图像。STEP 在第一条阶段提示前完成相机预热和 SDK 连接；AUTO 和不带 `--execute` 的预览不提前打开设备。
+FAST 的 HOME/CAPTURE 阶段耗时不包含 CLI 模块加载。`green_pipeline_state.json` 同时记录 `parallel_startup_elapsed_s`（启动到进入状态机）与 `startup_to_capture_s`（启动到定位完成），用后者比较整体启动性能。已在 HOME 时可将定位与张手重叠；不在 HOME 时仍先完成归位再采集正式图像。CONTROL 在开始服务前完成相机预热和 SDK 连接；不带 `--execute` 的预览不提前打开设备。
 
 `configs/actions/joint_shake.json`：
 
@@ -251,11 +251,12 @@ nero_revo2_control/
   nero_revo2_demo.py          CAN/SDK 执行层
   bridges/                    SDK 审计与桥接底层（visual_servo_probe 等）
   models/hand_geometry/       NERO+右 Revo2 几何（xacro/urdf/STL）
-nero_calibration/            手眼标定、逐帧示教轨迹、自动重采、参考板恢复
-dice_cup_localization/       相机采集、几何、YOLO 解码
-scripts/                     环境检查、源码打包、相机参数、数字控制台
-tests/                       全部测试（镜像源码结构）
-docs/                        调试、标定、接入、环境文档
+vision/                       视觉子系统五层：capture 采集 / inference 推理 /
+                              geometry 几何 / strategy 策略（camera.json 单一配置源）
+scripts/                      环境检查、源码打包、相机参数、数字控制台
+tests/                        全部测试（镜像源码结构）
+docs/                         调试、标定、接入、环境文档
+../biaoding/                  手眼标定、逐帧示教轨迹、自动重采、参考板恢复（独立仓库）
 ```
 
 ### 动作的两类组织
@@ -278,7 +279,7 @@ bash run_feedback.sh thumbs-up --execute  # 机械臂输
 bash run_feedback.sh tie --execute        # 平局：手指往返 3 次
 ```
 
-去掉 `--execute` 仅预览。`bash run_feedback.sh --list` 查看动作列表。可在 `configs/result_feedback.json` 增删动作，分别设置机械臂速度、手指动作时间、先后/同时执行与启动时延；[参数与调试说明](docs/DEBUG.md#9-比大小后的反馈手势)。此独立脚本由上层程序在比大小后调用，不自动订阅比赛结果。
+去掉 `--execute` 仅预览。`bash run_feedback.sh --list` 查看动作列表。可在 `configs/actions/result_feedback.json` 增删动作，分别设置机械臂速度、手指动作时间、先后/同时执行与启动时延；[参数与调试说明](docs/DEBUG.md#8-比大小后的反馈手势)。此独立脚本由上层程序在比大小后调用，不自动订阅比赛结果。
 
 反馈手势的灵巧手已默认使用 `finger_speed_mode: "max"`（目标位置＋时间 0）；机械臂为 50%。`finger_max_wait_s: 0.65` 是指令后的观察时间，不是限速参数。
 

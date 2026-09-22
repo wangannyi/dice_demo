@@ -15,7 +15,7 @@
 ```bash
 cd ~/projects/dice-game/dice_demo
 source scripts/env.sh
-cd nero_calibration
+cd ../biaoding
 ```
 
 需要预览时从 PC 使用 `ssh -Y user@<K3地址>` 登录。确保 `DISPLAY` 有值，关闭占用相机的 ffplay；不要在标定过程中改变图像参数。
@@ -138,7 +138,7 @@ CALIBRATION="$RESTORE_RUN/restored_calibration.json"
 
 ## 6. 应用标定并更新桌面
 
-停止 Pipeline 后，把结果路径写入顶层配置，再采集该标定下的桌面。以下命令接续上文，在 `nero_calibration` 目录执行：
+停止 Pipeline 后，把结果路径写入顶层配置，再采集该标定下的桌面。以下命令接续上文，在 `../biaoding` 目录执行：
 
 ```bash
 CALIBRATION_ABS="$(realpath "$CALIBRATION")"

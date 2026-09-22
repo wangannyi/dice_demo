@@ -2,7 +2,7 @@
 
 核对日期：2026-09-23（主 K3 部署实测，路径 `~/projects/dice-game/dice_demo`）。
 
-> **新板部署？** 直接看 [README §2.1 新板子快速部署](../README.md#21-新板子快速部署推荐路径)——4 步搞定（5 个 apt 包 + 拷贝目录 + 验证 + 起 CAN）。本文是已部署环境的详细参考。本板不使用虚拟环境：`scripts/env.sh` 探测 `$HOME/.venv-grasp`/`$HOME/agilex-api-test` 均不存在时自动回退系统 `/usr/bin/python3` + 仓库自带依赖（`vendor-site/`、`nero_calibration/.deps/`）。版本代表当前安装状态，不代表所有板卡必须使用这些版本。安装入口见[顶层 README](../README.md#2-安装运行环境)。
+> **新板部署？** 直接看 [README §2.1 新板子快速部署](../README.md#21-新板子快速部署推荐路径)——4 步搞定（5 个 apt 包 + 拷贝目录 + 验证 + 起 CAN）。本文是已部署环境的详细参考。本板不使用虚拟环境：`scripts/env.sh` 探测 `$HOME/.venv-grasp`/`$HOME/agilex-api-test` 均不存在时自动回退系统 `/usr/bin/python3` + 仓库自带依赖（`vendor-site/`、`vendor-site-deps/`）。版本代表当前安装状态，不代表所有板卡必须使用这些版本。安装入口见[顶层 README](../README.md#2-安装运行环境)。
 
 ## 1. 系统与硬件运行条件
 
@@ -56,7 +56,7 @@
 | 系统 apt（/usr/lib/python3/dist-packages） | numpy 2.3.5、scipy 1.16.3、cv2 4.10（含 aruco） | `python3-numpy` / `python3-scipy` / `python3-opencv` |
 | 系统 apt（/usr/lib/python3.14/dist-packages） | onnxruntime 1.24.2+spacemit.a1、spacemit_ort 2.0.6 | `spacemit-onnxruntime` / `python3-spacemit-ort`（K3 厂商源） |
 | 仓库 vendor-site/（27MB，gitignored） | pyrealsense2 2.57.7、pyAgxArm（NERO SDK 源码）、packaging、wrapt | 已集成到当前目录，无需外部安装 |
-| 仓库 nero_calibration/.deps/（3MB，gitignored） | python-can 4.6.1、typing_extensions | 已集成到当前目录 |
+| 仓库 vendor-site-deps/（3MB，gitignored） | python-can 4.6.1、typing_extensions | 已集成到当前目录 |
 
 ### 视觉环境的主要 Python 依赖
 
@@ -68,8 +68,8 @@
 | pyrealsense2 | `2.57.7` | 仓库 `vendor-site/`；D435i 采集 |
 | ONNX Runtime | `1.24.2+spacemit.a1` | `/usr/lib/python3.14/dist-packages/onnxruntime`；厂商构建 |
 | spacemit-ort | `2.0.6` | `/usr/lib/python3.14/dist-packages/spacemit_ort`；注册 SpaceMIT 推理后端 |
-| python-can | `4.6.1` | 通过 `PYTHONPATH` 优先使用 `nero_calibration/.deps/can`；标定反馈读取 |
-| typing_extensions | `4.16.0` | `nero_calibration/.deps`；SDK 兼容依赖 |
+| python-can | `4.6.1` | 通过 `PYTHONPATH` 优先使用 `vendor-site-deps/can`；标定反馈读取 |
+| typing_extensions | `4.16.0` | `vendor-site-deps`；SDK 兼容依赖 |
 | pyAgxArm | 包版本 `1.0.0` | 仓库 `vendor-site/pyAgxArm`；标定和 SDK API |
 
 `pyrealsense2` 不提供本次可读的模块 `__version__`，上表版本来自发行包元数据。其原生扩展为 `cpython-314-riscv64-linux-gnu.so`；`pyrealsense2.libs` 内携带 librealsense2、libusb、libudev，不能只复制一个 Python 文件或一个 `.so`。
@@ -115,7 +115,7 @@
 
 ### 项目补充依赖目录
 
-`nero_calibration/.deps` 经 `PYTHONPATH` 注入，位于虚拟环境 `site-packages` 之前。当前有效的 `can` 和 `typing_extensions` 就来自这里。安装了同名包后，仍应检查模块 `__file__`，确认程序实际加载哪个副本。
+`vendor-site-deps` 经 `PYTHONPATH` 注入，位于虚拟环境 `site-packages` 之前。当前有效的 `can` 和 `typing_extensions` 就来自这里。安装了同名包后，仍应检查模块 `__file__`，确认程序实际加载哪个副本。
 
 ### 不是当前抓杯 pipeline 的必需项
 
@@ -129,12 +129,12 @@ ROS 2 / MoveIt、MediaPipe、TensorFlow、PyTorch、Ultralytics Python 运行库
 | `DICE_SDK_PYTHON` | 同上 |
 | `NERO_SDK_DIR` | `vendor-site/pyAgxArm` |
 | `CALIB_PYTHON` | 默认跟随视觉解释器 |
-| `PYTHONPATH` | 加入项目根目录、SDK 源码、`nero_calibration/.deps` |
+| `PYTHONPATH` | 加入项目根目录、SDK 源码、`vendor-site-deps` |
 | `OPENBLAS_NUM_THREADS` | `1` |
 | `PYTHONNOUSERSITE` | `1`，不加载用户级 site-packages |
 | `QT_X11_NO_MITSHM` | `1`，用于 X11 预览兼容 |
 
-`nero_calibration/run_k3.sh` 单独使用 `CALIB_PYTHON`，默认同样走 env.sh 回退链（本板为系统 python）。
+`../biaoding/run_k3.sh` 单独使用 `CALIB_PYTHON`，默认同样走 env.sh 回退链（本板为系统 python）。
 
 ## 5. 环境核验命令
 
@@ -156,4 +156,4 @@ ip -details link show can0
 
 `check_environment.sh` 验证核心包导入、ArUco、配置路径、检测模型和几何模型；不打开相机或 CAN。本次已通过。该脚本没有创建 SpaceMIT 推理会话，不能单独证明加速后端推理成功。
 
-模块来源可通过各解释器的 `模块.__file__` 核对。迁移时需同时保留系统厂商包、RISC-V/Python 3.14 扩展构建产物、SDK 源码、`.deps`、模型与配置；`vendor-site/` 与 `nero_calibration/.deps` 的包清单只是其中一部分。仓库 `requirements-vision.txt` 和 `requirements-sdk.txt` 尚不是完整可复现的版本锁文件。
+模块来源可通过各解释器的 `模块.__file__` 核对。迁移时需同时保留系统厂商包、RISC-V/Python 3.14 扩展构建产物、SDK 源码、`.deps`、模型与配置；`vendor-site/` 与 `vendor-site-deps` 的包清单只是其中一部分。仓库 `requirements-vision.txt` 和 `requirements-sdk.txt` 尚不是完整可复现的版本锁文件。
