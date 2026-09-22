@@ -154,8 +154,7 @@ p.write_text(json.dumps(c,ensure_ascii=False,indent=2)+'\n')
 PY
 RUN="$DICE_ROOT/cup_grasp_demo/datasets/green_current"
 mkdir -p "$RUN"
-"$DICE_ROOT/cup_grasp_demo/flow/run_planar_shake.sh" table-capture \
-  --config "$CFG" --session "$RUN" &&
+python3 scripts/table_capture.py --config "$CFG" --session "$RUN" &&
 "$CALIB_PYTHON" scripts/register_home_table.py \
   --config "$CFG" --table-scene "$RUN/planar_table_scene.json"
 ```

@@ -66,25 +66,13 @@ STEP 在第一条提示前连接 CAN SDK、预热相机并加载 YOLO；等待 E
 
 TCP 图中的点来自关节反馈、模型和标定变换，不能当成相机直接测出的物理接触点。调整 `green_cup.tcp_offset_flange_mm` 时，三个数沿法兰坐标轴，不是图像左右上下方向。
 
-## 4. 单独平面摇晃
+## 4. 单独桌面采集（桌面登记用）
 
-独立桌面采集不识别杯子、不移动机械臂。机械臂、桌面或相机变动后重采：
-
-```bash
-JS="$DICE_ROOT/cup_grasp_demo/flow/run_planar_shake.sh"
-JSCFG="$DICE_ROOT/cup_grasp_demo/flow/planar_shake.json"
-"$JS" table-capture --config "$CFG" --session "$RUN"
-"$JS" plan --config "$CFG" --trial-config "$JSCFG" \
-  --session "$RUN" --table-scene "$RUN/planar_table_scene.json"
-```
-
-确认是空手测试后执行：
+机械臂、桌面或相机变动后重采（配合 `scripts/register_home_table.py`，详见标定文档）：
 
 ```bash
-"$JS" run --plan "$RUN/planar_js_plan.json" --load empty --execute
+python3 scripts/table_capture.py --config "$CFG" --session "$RUN"
 ```
-
-此入口与 GREEN PIPELINE 的关节摇晃不同。不要用 `--load empty` 描述实际持杯状态。历史法兰/TCP 对点工具见[原调试工具说明](../cup_grasp_demo/flow/README_DEBUG.md)，新绿杯流程以本文和顶层配置为准。
 
 ## 5. 耗时和故障定位
 
