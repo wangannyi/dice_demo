@@ -18,3 +18,7 @@ spacemitk3-dice_demo/
 
 **/build/
 **/CMakeFiles/
+
+# 本地会话工件与打包产物
+.zcode/
+.code/

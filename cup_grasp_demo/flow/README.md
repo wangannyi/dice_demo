@@ -1,12 +1,13 @@
-# Pipeline 与调试命令
+# flow/ —— 绿杯主流程
 
-run_debug.sh 提供 pipeline、green-detect、config-check、tcp-view 及历史对点命令；run_joint_test.sh 提供独立关节往复；run_planar_shake.sh 提供平面摇晃实验。新用户从顶层入口开始，勿将历史银杯配置直接用于绿杯流程。
+| 分组 | 模块 |
+| --- | --- |
+| 阶段机 | green_pipeline（HOME→CAPTURE→PLAN→APPROACH→GRIP→LIFT→SHAKE→LOWER→OPEN→RETURN_HOME）、green_control（CONTROL 常驻 JSON 指令） |
+| 运行时 | green_runtime（相机/模型/SDK 预热复用）、green_sdk_worker（CAN 执行子进程）、green_rtsp（摄像头推流）、green_prepared（路径复用） |
+| 感知 | green_yolo、cup_perception、cup_recheck、cup_selection、green_stereo_rim、green_image_rim、green_cup_geometry、green_capture |
+| 运动 | shake、shake_execution、joint_delivery、joint_profile、planar_*、batched_limits、contact_geometry、green_hand_execution、fast_feedback |
+| 规划 | green_cup_planning、grasp、direct_grasp、grasp_cli、parameters、pipeline_home、tcp_overlay |
+| 工具 | debug.py（多命令 CLI 入口）、run_debug.sh、core、hardware、session_storage |
+| 数据 | green_open_cup/、index_joint_center/、config.json、fixtures/ |
 
-绿杯检测默认使用 USB 2.0 的 1280×720、6 FPS。切换 USB 2.0/3.0 及设置帧率、分辨率时，从仓库根目录运行 `python scripts/set_camera_profile.py usb2|usb3`；命令会一并更新标定板配置。具体参数和重新标定条件见[项目安装和运行](../../README.md#相机配置)。
-
-## 使用入口
-
-- [项目安装和运行](../../README.md)
-- [分步调试](../../docs/DEBUG.md)
-- [标定](../../docs/CALIBRATION.md)
-- [应用接入](../../docs/INTEGRATION.md)
+静态动作（HOME 角度、摇晃配方、反馈手势）在 configs/actions/；动态抓取参数在 configs/green_cup.json。
