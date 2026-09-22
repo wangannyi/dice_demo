@@ -62,7 +62,7 @@ def bridge(command, output, cfg, request=None):
 def capture_rgbd(output, cfg, *, frames=5):
     from cup_grasp_demo.flow.green_capture import capture_arguments
     extra = capture_arguments(cfg)
-    subprocess.run([sys.executable, str(ROOT / 'dice_cup_localization/capture_rgbd.py'),
+    subprocess.run([sys.executable, str(ROOT / 'vision/capture/realsense_session.py'),
                     '--serial', cfg['serial'], '--frames', str(frames), '--output', str(output), *extra],
                    cwd=ROOT, check=True)
 
@@ -220,8 +220,8 @@ def main(argv=None):
     p.add_argument('--config', type=Path, default=HERE / 'green_open_cup/config.json')
     p.add_argument('--session', type=Path, required=True)
     p.add_argument('--show', action='store_true')
-    p = commands.add_parser('pipeline', help='银杯抓取与摇晃；step 分步、auto 连续、fast 静默连续')
-    p.add_argument('--config', type=Path, default=HERE / 'index_joint_center/config.json')
+    p = commands.add_parser('pipeline', help='绿杯抓取与摇晃；fast 连续、control 常驻')
+    p.add_argument('--config', type=Path, default=ROOT / 'configs/green_cup.json')
     p.add_argument('--session', type=Path, required=True)
     p.add_argument('--mode', choices=('step', 'auto', 'fast', 'control'), default='step')
     p.add_argument('--until', choices=('ready', 'grip', 'shake-plan', 'shake', 'place'),

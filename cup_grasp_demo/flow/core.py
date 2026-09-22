@@ -1,12 +1,13 @@
 """Offline comparison geometry. No camera, CAN, SDK, or control side effects."""
 
 from dataclasses import asdict
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from contextvars import ContextVar
 from pathlib import Path
 import hashlib
 import json
 import os
+import sys
 import uuid
 import math
 import time
