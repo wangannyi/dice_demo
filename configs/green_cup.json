@@ -121,44 +121,7 @@
   "pipeline_strategy": "green_open_cup",
   "green_cup": {
     "reference": "cup_grasp_demo/flow/green_open_cup/grasp_reference.json",
-    "contact_offset_base_mm": [
-      0,
-      0,
-      30
-    ],
-    "tcp_offset_flange_mm": [
-      30,
-      15,
-      0
-    ],
-    "wrist_reference_deg": [
-      15,
-      -13,
-      5
-    ],
-    "lift_mm": 50,
-    "approach_clearance_mm": 0,
-    "open_targets_0_100": [
-      0,
-      0,
-      0,
-      0,
-      0,
-      0
-    ],
-    "grip_targets_0_100": [
-      0,
-      100,
-      40,
-      40,
-      40,
-      100
-    ],
-    "finger_duration_s": 1.0,
-    "finger_settle_s": 0.0,
     "joint_test_config": "configs/actions/joint_shake.json",
-    "held_cup_margin_mm": 5,
-    "place_tolerance_mm": 3,
     "perception": {
       "height_range_mm": [
         40,
@@ -242,10 +205,6 @@
       0,
       0
     ],
-    "require_hand_position": false,
-    "approach_via_above": false,
-    "retreat_clearance_mm": 50,
-    "require_arm_position": false,
     "fast_speed_percent": 30,
     "shake_start_tolerance_deg": 0.5,
     "recovery_attempts": 1,
@@ -254,7 +213,6 @@
     "read_hand_feedback": false,
     "place_arrival_tolerance_mm": 5.0,
     "direct_return_home": true,
-    "fast_finger_duration_s": 0.25,
     "fast_phase_speed_percent": {
       "approach": 60,
       "return_home": 60
@@ -270,6 +228,7 @@
     "fast_parallel_startup": true,
     "fast_dogbox_ik": true,
     "fast_motion_profile": "trapezoid",
-    "fast_minimize_lift_travel": true
+    "fast_minimize_lift_travel": true,
+    "strategy_file": "vision/strategy/green_cup.json"
   }
 }

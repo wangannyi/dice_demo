@@ -57,6 +57,12 @@ def validate(cfg):
 
     capture_arguments(cfg)
     g = cfg["green_cup"]
+    # Merge grasp strategy fields (vision/strategy/) so validate can check them.
+    if "strategy_file" in g:
+        from vision.strategy.loader import load_strategy
+        strategy = load_strategy(g["strategy_file"])
+        for key, value in vars(strategy).items():
+            g.setdefault(key, value)
     if g.get('fast_motion_profile', 'quintic') not in ('quintic', 'trapezoid'):
         raise ValueError('fast_motion_profile must be quintic or trapezoid')
     for key in ('fast_cached_feedback', 'fast_overlap_grip_preparation',
@@ -173,6 +179,12 @@ class Workflow:
         self.args = args
         self.cfg = load_config(args.config)
         self.g = validate(self.cfg)
+        # validate() already merged the strategy JSON; tolerate mocks without it.
+        if "strategy_file" in self.g:
+            from vision.strategy.loader import load_strategy
+            strategy = load_strategy(self.g["strategy_file"])
+            for key, value in vars(strategy).items():
+                self.g.setdefault(key, value)
         # Reject malformed shake recipes before HOME opens the hand or moves.
         # Runtime planning still rechecks the actual limits and held-cup path.
         joint_trajectory(read_json(ROOT / self.g['joint_test_config']))
