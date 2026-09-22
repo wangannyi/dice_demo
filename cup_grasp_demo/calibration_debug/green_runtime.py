@@ -10,6 +10,8 @@ from concurrent.futures import ThreadPoolExecutor
 import hashlib
 ROOT = Path(__file__).resolve().parents[2]
 
+from cup_grasp_demo.calibration_debug.green_rtsp import RtspStreamer, rtsp_settings
+
 
 def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
@@ -130,6 +132,17 @@ class VisionResources:
         if type(args.fresh_discard_frames) is not int or not 0 <= args.fresh_discard_frames <= 5:
             raise ValueError('fast_camera_fresh_discard_frames must be 0..5')
         self.camera = CaptureSession(args)
+        # RTSP publishing (green_cup.rtsp): one reader thread owns the camera
+        # and feeds cropped color frames to a gst-launch publish pipeline.
+        self.streamer = None
+        settings = rtsp_settings(cfg['green_cup'].get('rtsp', {}))
+        if settings['enabled']:
+            crop = self.camera.crop
+            width, height = ((crop[2], crop[3]) if crop
+                             else tuple(self.camera.color_resolution))
+            self.streamer = RtspStreamer(settings['host'], settings['port'],
+                                         settings['path'], width, height, args.fps)
+            self.camera.set_stream_sink(self.streamer.submit)
         self.pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix='green-prepare')
         self.camera_future = self.pool.submit(self.camera.start)
         self.model_future = self.pool.submit(self.load_model)
@@ -155,3 +168,5 @@ class VisionResources:
         # Startup has bounded SDK frame waits; join before stopping that pipeline.
         self.pool.shutdown(wait=True, cancel_futures=True)
         self.camera.close()
+        if self.streamer is not None:
+            self.streamer.close()

@@ -171,6 +171,7 @@ FAST 复用 SDK/CAN、相机和模型，复用可用的预计算轨迹；只在�
 | `green_cup.fast_camera_fresh_discard_frames` | 0 | FAST 正式采集前额外丢帧数；仍清理旧队列并要求 RGB/深度帧号推进 |
 | `green_cup.camera` | RGB/深度 1280×720、6 FPS | RGB 裁剪 `[220,0,960,720]`；程序同步修正内参。USB 2.0 下已完成采集与绿杯定位验证；完整运动流程尚需实测 |
 | `green_cup.joint_test_config` | `configs/joint_shake.json` | 摇晃配置 |
+| `green_cup.rtsp` | `{enabled, host, port, path}` | 摄像头 RTSP 推流开关与目的地；见下文 |
 
 ### 相机配置
 
@@ -187,6 +188,10 @@ python scripts/set_camera_profile.py usb2 --dry-run  # 只预览，不写文件
 变更彩色分辨率或裁剪时，还必须传入按**新画面**确定的 `--hand-roi X1,Y1,X2,Y2` 和 `--reference-roi X1,Y1,X2,Y2`。脚本会将 `installation_requires_calibration` 设为 `true`；此时必须重新标定，不能直接运行抓杯 Pipeline。深度分辨率变化也需要重新验证杯位和深度对齐。设置后先用 `lsusb -t` 核实实际 USB 链路，再用不驱动机械臂的 `green-detect` 验证采集与定位；PC、K3 的配置文件需同步。
 
 杯沿质量参数位于 `green_cup.perception.stereo_rim`：`min_edge_support=0.85` 要求每路图像至少 85% 的采样杯沿点距离观测边缘小于 `edge_distance_px=2.0` 像素。平均边缘误差上限仍为 1.0 px，单路平均上限仍为 1.2 px；该比例不是 YOLO 置信度。
+
+### 摄像头 RTSP 推流
+
+`green_cup.rtsp` 控制常驻模式下的摄像头推流（`enabled`、`host`、`port`、`path`，缺省 `false` 不推流）。开启时，相机读帧线程持续把裁剪后的彩色画面（与识别同一画面、纯原图不叠加识别结果）经 `spacemith264enc` 硬编与 `rtspclientsink` 发布到本机 MediaMTX：拉流地址 `rtsp://<板子IP>:8554/dice/seg`，浏览器 WebRTC 预览 `http://<板子IP>:8889/dice/seg`。推流子进程崩溃或 MediaMTX 未启动时按 5 秒退避自动重启，采集、识别与运动不受影响；`enabled: false` 时相机保持原有按需采集行为，无额外读帧开销。
 
 六路手指顺序为：拇指尖、拇指根、食指、中指、无名指、小指。指令完成不等于已测量确认抓牢。TCP 偏移属于法兰坐标系，不能直接按图像左右方向修改。
 
