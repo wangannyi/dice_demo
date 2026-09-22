@@ -106,7 +106,7 @@ def main(argv=None, *, connected=None):
             from cup_grasp_demo.calibration_debug.fast_feedback import arm_snapshot
             return arm_snapshot(robot, demo)
         return demo.arm_snapshot(robot)
-    from visual_servo_probe import control_lock, evidence_blockers, host_control_evidence
+    from nero_revo2_control.bridges.visual_servo_probe import control_lock, evidence_blockers, host_control_evidence
     from can.interfaces.socketcan import SocketcanBus
     robot, tx = None, []
     result = dict(success=False, command=args.command, motion_attempted=False,
