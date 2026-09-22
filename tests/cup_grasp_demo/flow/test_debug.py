@@ -35,7 +35,7 @@ class DebugTest(unittest.TestCase):
 
     def test_j7_rotation_is_in_fk_without_mutating_local_tcp(self):
         arm = load_model()
-        q = np.array(json.loads((Path(HERE).parents[2] / 'configs/actions/home.json').read_text())['joints_rad'])
+        q = np.array(json.loads((HERE.parents[1] / 'configs/actions/home.json').read_text())['joints_rad'])
         tcp = pose_matrix([.14, .006, .007, 0, 0, 0])
         original = tcp.copy()
         first = np.array(arm.fk(q)) @ tcp
