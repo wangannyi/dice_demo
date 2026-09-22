@@ -5,8 +5,8 @@ import math
 import cv2
 
 from cup_grasp_demo.flow.core import write_json
-from cup_grasp_demo.side_grasp.preview_index import depth_candidates
-from dice_cup_localization.geometry import Config
+from vision.capture.frame_io import depth_candidates
+from vision.geometry.table_plane import Config
 
 
 def selection_options(cfg):

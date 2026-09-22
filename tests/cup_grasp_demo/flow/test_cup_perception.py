@@ -12,9 +12,9 @@ import numpy as np
 from cup_grasp_demo.flow import cup_perception as vision, debug
 from cup_grasp_demo.flow.core import ROOT, digest, load_config, read_json
 from cup_grasp_demo.flow.cup_selection import select_cup
-from cup_grasp_demo.side_grasp.preview_index import load_batch
-from cup_grasp_demo.side_grasp.preview_index import section
-from dice_cup_localization.geometry import Config
+from vision.capture.frame_io import load_batch
+from vision.capture.frame_io import section
+from vision.geometry.table_plane import Config
 
 MODEL = 'cup_grasp_demo/models/cup_yolov8n_seg_20260918/best.q.onnx'
 

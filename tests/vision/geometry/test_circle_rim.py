@@ -2,13 +2,13 @@
 import unittest
 import cv2
 import numpy as np
-from cup_grasp_demo.flow.green_stereo_rim import make_view, project, fit_circle
+from vision.geometry.circle_rim import make_view, project, fit_circle
 
 
 class StereoRimTest(unittest.TestCase):
     def test_calibrated_table_skips_runtime_depth_plane_fit(self):
         from unittest.mock import patch
-        from cup_grasp_demo.flow.green_stereo_rim import table_from_base_scene, resolve_table
+        from vision.geometry.circle_rim import table_from_base_scene, resolve_table
         transform = np.diag([1, -1, -1, 1]).astype(float)
         transform[:3, 3] = [0, 0, .7]
         scene = dict(cup_support_base_m=[.1, .2, 0], cup_normal_base=[0, 0, 1],
@@ -16,7 +16,7 @@ class StereoRimTest(unittest.TestCase):
         fixed = table_from_base_scene(scene, transform)
         np.testing.assert_allclose(fixed['point'], [.1, -.2, .7])
         np.testing.assert_allclose(fixed['normal'], [0, 0, -1])
-        with patch('cup_grasp_demo.flow.green_stereo_rim._plane',
+        with patch('vision.geometry.circle_rim._plane',
                    side_effect=AssertionError('runtime table fit forbidden')):
             point, normal, fraction, rms, source = resolve_table(
                 None, None, None, 6, fixed)
@@ -60,7 +60,7 @@ class StereoRimTest(unittest.TestCase):
                        [.025,.075],[.04,.18],fixed_height=.065)
 
     def test_height_mode_validation(self):
-        from cup_grasp_demo.flow.green_stereo_rim import height_options
+        from vision.geometry.circle_rim import height_options
         self.assertEqual(height_options({})[0],'measured')
         opts=dict(height_mode='fixed',fixed_height_mm=65,geometry_method='stereo_rim',height_range_mm=[40,180])
         self.assertEqual(height_options(opts),('fixed',.065))
@@ -85,7 +85,7 @@ class StereoRimTest(unittest.TestCase):
         self.assertAlmostEqual(fitted['radius_m']*2, .1125, delta=.003)
 
     def test_quality_configuration_validation(self):
-        from cup_grasp_demo.flow.green_stereo_rim import quality_options
+        from vision.geometry.circle_rim import quality_options
         for bad in ({'min_edge_support': 1.1}, {'edge_distance_px': float('nan')},
                     {'max_center_spread_mm': True}, {'unknown': 1}):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
@@ -111,12 +111,12 @@ class StereoRimTest(unittest.TestCase):
 class StereoSequenceTest(unittest.TestCase):
     def test_shared_starts_do_not_replace_independent_observations(self):
         from unittest.mock import patch
-        from cup_grasp_demo.flow.green_stereo_rim import refine_sequence, QUALITY
+        from vision.geometry.circle_rim import refine_sequence, QUALITY
         initial = [dict(center=[0, 0, .60], radius_m=.0375),
                    dict(center=[0, 0, .61], radius_m=.037)]
         views = [object(), object()]
         independent_results = [dict(center=[0, 0, .6001]), dict(center=[0, 0, .6102])]
-        with patch('cup_grasp_demo.flow.green_stereo_rim.fit_circle',
+        with patch('vision.geometry.circle_rim.fit_circle',
                    side_effect=independent_results) as fit:
             result = refine_sequence(views, initial, [0, 0, 1], [0, 0, -1],
                                      [.025, .075], [.04, .18], QUALITY)
@@ -128,11 +128,11 @@ class StereoSequenceTest(unittest.TestCase):
 
     def test_bad_first_search_can_be_recovered_but_each_frame_is_rechecked(self):
         from unittest.mock import patch
-        from cup_grasp_demo.flow.green_stereo_rim import fit_frame_sequence, QUALITY
+        from vision.geometry.circle_rim import fit_frame_sequence, QUALITY
         good = dict(center=[0, 0, .6], radius_m=.0375)
         views = [object(), object()]
         diag = {}
-        with patch('cup_grasp_demo.flow.green_stereo_rim.fit_circle',
+        with patch('vision.geometry.circle_rim.fit_circle',
                    side_effect=[ValueError('bad initial guess'), good, good, good]) as fit:
             result = fit_frame_sequence(views, [0, 0, 1], [0, 0, -1],
                                        [[0, 0, .7, .04]], [.025, .075], [.04, .18], QUALITY, diag)
@@ -144,16 +144,16 @@ class StereoSequenceTest(unittest.TestCase):
 
     def test_missing_edges_are_not_rescued_by_neighbor_frames(self):
         from unittest.mock import patch
-        from cup_grasp_demo.flow.green_stereo_rim import fit_frame_sequence, QUALITY
+        from vision.geometry.circle_rim import fit_frame_sequence, QUALITY
         good = dict(center=[0, 0, .6], radius_m=.0375)
-        with patch('cup_grasp_demo.flow.green_stereo_rim.fit_circle',
+        with patch('vision.geometry.circle_rim.fit_circle',
                    side_effect=[ValueError('missing edges'), good, ValueError('missing edges')]):
             with self.assertRaisesRegex(ValueError, 'missing edges'):
                 fit_frame_sequence([object(), object()], [0, 0, 1], [0, 0, -1],
                                    [[0, 0, .7, .04]], [.025, .075], [.04, .18], QUALITY, {})
 
     def test_real_motion_still_fails_original_limits(self):
-        from cup_grasp_demo.flow.green_stereo_rim import validate_sequence, QUALITY
+        from vision.geometry.circle_rim import validate_sequence, QUALITY
         frames = [dict(center=[x, 0, .6], height_m=.065, radius_m=.0375)
                   for x in [0, 0, 0, .01, .02]]
         diag = {}
@@ -162,7 +162,7 @@ class StereoSequenceTest(unittest.TestCase):
         self.assertEqual(diag['center_spread_mm'], 20)
 
     def test_failed_batch_height_variation_remains_rejected(self):
-        from cup_grasp_demo.flow.green_stereo_rim import validate_sequence, QUALITY
+        from vision.geometry.circle_rim import validate_sequence, QUALITY
         heights = [.0720637, .0663968, .0659890, .0687016, .0686496]
         frames = [dict(center=[0, 0, .735-h], height_m=h, radius_m=.0373) for h in heights]
         with self.assertRaisesRegex(ValueError, 'height span 6.07 mm'):
@@ -176,10 +176,10 @@ if __name__ == '__main__':
 class FixedQuorumTest(unittest.TestCase):
     def test_quorum_preserves_quality_and_records_rejected_frames(self):
         from unittest.mock import patch
-        from cup_grasp_demo.flow.green_stereo_rim import fit_fixed_sequence, QUALITY
+        from vision.geometry.circle_rim import fit_fixed_sequence, QUALITY
         good = dict(center=[0, 0, .6], height_m=.065, radius_m=.0375)
         diagnostic = {}
-        with patch('cup_grasp_demo.flow.green_stereo_rim.fit_circle',
+        with patch('vision.geometry.circle_rim.fit_circle',
                    side_effect=[ValueError('weak edge'), good, ValueError('no rim'), good, good]) as fit:
             results, first = fit_fixed_sequence([None]*5, [0,0,.665], [0,0,-1], [],
                 [.025,.075], [.04,.18], QUALITY, .065, 3, diagnostic)
@@ -191,13 +191,13 @@ class FixedQuorumTest(unittest.TestCase):
 
     def test_insufficient_frames_and_motion_still_fail(self):
         from unittest.mock import patch
-        from cup_grasp_demo.flow.green_stereo_rim import fit_fixed_sequence, QUALITY
+        from vision.geometry.circle_rim import fit_fixed_sequence, QUALITY
         good = dict(center=[0,0,.6], height_m=.065, radius_m=.0375)
         moved = dict(good, center=[.02,0,.6])
         for values, minimum in (([good,good]+[ValueError('weak')]*3,3),
                                 ([good]*3+[ValueError('weak')]*2,5),
                                 ([good,good,moved]+[ValueError('weak')]*2,3)):
-            with patch('cup_grasp_demo.flow.green_stereo_rim.fit_circle', side_effect=values):
+            with patch('vision.geometry.circle_rim.fit_circle', side_effect=values):
                 with self.assertRaises(ValueError):
                     fit_fixed_sequence([None]*5,[0,0,.665],[0,0,-1],[],[.025,.075],
                                        [.04,.18],QUALITY,.065,minimum,{})

@@ -118,7 +118,7 @@ class SDKClient:
 
 class VisionResources:
     def __init__(self, cfg, output):
-        from dice_cup_localization.capture_rgbd import CaptureSession, argument_parser
+        from vision.capture.realsense_session import CaptureSession, argument_parser
         from cup_grasp_demo.flow.green_capture import capture_arguments
         self.cfg = cfg
         args = argument_parser().parse_args(['--output', str(output), '--serial', cfg['serial'],
@@ -149,7 +149,7 @@ class VisionResources:
         self.closed = False
 
     def load_model(self):
-        from cup_grasp_demo.flow.green_yolo import configured_session
+        from vision.inference.detector import configured_session
         p = self.cfg['green_cup']['perception']
         path = (ROOT / p['model']).resolve()
         if not path.is_relative_to(ROOT):

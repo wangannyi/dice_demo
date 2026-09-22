@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 from scipy.ndimage import map_coordinates
 from scipy.optimize import least_squares
-from dice_cup_localization.geometry import Config, _plane, deproject
+from vision.geometry.table_plane import Config, _plane, deproject
 from cup_grasp_demo.flow.green_image_rim import image_contour
 
 

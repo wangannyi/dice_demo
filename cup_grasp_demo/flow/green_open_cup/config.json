@@ -7,7 +7,7 @@
   "calibration": "configs/calibration/handeye_result.json",
   "orientation_reference": "cup_grasp_demo/flow/green_open_cup/grasp_reference.json",
   "tcp_candidate": "cup_grasp_demo/flow/green_open_cup/tcp_candidate.json",
-  "grasp_config": "cup_grasp_demo/side_grasp/CURRENT_GRASP.json",
+  "grasp_config": "cup_grasp_demo/flow/green_open_cup/CURRENT_GRASP.json",
   "allow_provisional_calibration": true,
   "plane_tolerance_mm": 6.0,
   "contact_height_fraction": 0.9090909090909091,

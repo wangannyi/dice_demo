@@ -14,8 +14,8 @@ from cup_grasp_demo.flow import debug
 from cup_grasp_demo.flow.core import ROOT, digest, load_config, read_json
 from cup_grasp_demo.flow.cup_selection import choose_candidate, select_cup, selection_options
 from cup_grasp_demo.flow.grasp import observed_scene
-from cup_grasp_demo.side_grasp.preview_index import depth_candidates, depth_proposals, load_batch
-from dice_cup_localization.geometry import Config
+from vision.capture.frame_io import depth_candidates, depth_proposals, load_batch
+from vision.geometry.table_plane import Config
 
 
 class CupSelectionTest(unittest.TestCase):

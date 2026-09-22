@@ -13,9 +13,9 @@ import time
 import cv2
 import numpy as np
 
-from cup_grasp_demo.side_grasp.preview_index import section
-from dice_cup_localization.geometry import Config, _plane, deproject
-from dice_cup_localization.yolo_seg import preprocess
+from vision.capture.frame_io import section
+from vision.geometry.table_plane import Config, _plane, deproject
+from vision.inference.yolo_seg import preprocess
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULTS = dict(confidence=.35, iou_threshold=.45, mask_threshold=.5,

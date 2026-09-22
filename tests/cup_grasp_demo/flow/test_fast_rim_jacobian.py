@@ -2,8 +2,8 @@
 import unittest
 import numpy as np
 from scipy.ndimage import map_coordinates
-from cup_grasp_demo.flow.green_stereo_rim import fixed_rim_residual,project,fit_circle
-import test_green_stereo_rim as fixtures
+from vision.geometry.circle_rim import fixed_rim_residual,project,fit_circle
+import test_circle_rim as fixtures
 
 class JacobianTest(unittest.TestCase):
     def test_residual_and_derivative_match(self):

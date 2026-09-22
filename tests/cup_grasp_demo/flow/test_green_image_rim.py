@@ -6,7 +6,7 @@ from copy import deepcopy
 import numpy as np
 import cv2
 from cup_grasp_demo.flow.core import ROOT, load_config
-from cup_grasp_demo.flow.green_cup_geometry import detect
+from vision.geometry.cup_height import detect
 from cup_grasp_demo.flow.green_image_rim import options
 
 

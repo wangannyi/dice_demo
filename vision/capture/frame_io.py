@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from cup_grasp_demo.hand_geometry import RightRevo2Model, check_hand_pose  # noqa: E402
 from cup_grasp_demo.planning import load_calibration  # noqa: E402
-from dice_cup_localization.geometry import Config, _circle, _plane, deproject  # noqa: E402
+from vision.geometry.table_plane import Config, _circle, _plane, deproject  # noqa: E402
 from cup_grasp_demo.flow.transforms import inverse  # noqa: E402
 from nero_revo2_control.kinematics import load_model  # noqa: E402
 

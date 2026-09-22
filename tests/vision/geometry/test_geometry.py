@@ -9,7 +9,7 @@ import unittest
 
 import numpy as np
 
-from dice_cup_localization.geometry import deproject, estimate_points, localize
+from vision.geometry.table_plane import deproject, estimate_points, localize
 
 
 def scene(arc=160, tilt=0, noise=0.0002):
@@ -132,7 +132,7 @@ class GeometryTests(unittest.TestCase):
 class PlaneRefinementTest(unittest.TestCase):
     def test_refine_before_support_gate(self):
         from unittest.mock import Mock, patch
-        from dice_cup_localization.geometry import _plane, Config
+        from vision.geometry.table_plane import _plane, Config
         rng = np.random.default_rng(9)
         points = np.column_stack((rng.uniform(-.2,.2,(1000,2)), rng.uniform(-.003,.003,1000)))
         points = np.vstack(([[-.2,-.2,.0048],[.2,-.2,.0048],[0,.2,.0048]], points))
@@ -140,12 +140,12 @@ class PlaneRefinementTest(unittest.TestCase):
         self.assertLess(initial.mean(), .8)
         chooser=Mock()
         chooser.choice.side_effect=lambda n,size,replace: np.arange(n) if size>3 else np.array([0,1,2])
-        with patch('dice_cup_localization.geometry.np.random.default_rng',return_value=chooser):
+        with patch('vision.geometry.table_plane.np.random.default_rng',return_value=chooser):
             _,_,fraction,_ = _plane(points,Config(plane_tolerance_m=.006))
         self.assertGreaterEqual(fraction,.8)
 
     def test_refinement_still_rejects_unsupported_cloud(self):
-        from dice_cup_localization.geometry import _plane, Config
+        from vision.geometry.table_plane import _plane, Config
         points=np.random.default_rng(22).uniform(-.2,.2,(3000,3))
         with self.assertRaisesRegex(ValueError,'table_plane_not_supported'):
             _plane(points,Config(plane_tolerance_m=.006))

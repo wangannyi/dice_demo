@@ -1,7 +1,7 @@
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
-from cup_grasp_demo.flow import green_yolo as y
+from vision.inference import detector as y
 
 class BackendTests(unittest.TestCase):
     def tearDown(self):

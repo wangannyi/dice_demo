@@ -2,7 +2,7 @@
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from dice_cup_localization.capture_rgbd import argument_parser
+from vision.capture.realsense_session import argument_parser
 from cup_grasp_demo.flow.green_capture import capture_arguments
 from cup_grasp_demo.flow import debug
 

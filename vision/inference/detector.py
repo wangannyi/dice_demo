@@ -10,7 +10,7 @@ import time
 import numpy as np
 from cup_grasp_demo.flow.core import ROOT
 from cup_grasp_demo.flow.cup_perception import decode
-from dice_cup_localization.yolo_seg import preprocess
+from vision.inference.yolo_seg import preprocess
 
 
 def cap_outputs(outputs):

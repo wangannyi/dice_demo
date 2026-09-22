@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 import cv2
 import numpy as np
-from cup_grasp_demo.side_grasp.preview_index import load_batch
+from vision.capture.frame_io import load_batch
 
 
 class SingleFrameDepthTests(unittest.TestCase):

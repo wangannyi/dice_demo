@@ -32,9 +32,9 @@ def main():
     sys.path.insert(0, str(ROOT))
     import cv2
     import numpy as np
-    from cup_grasp_demo.flow.green_yolo import configured_session, cap_outputs
+    from vision.inference.detector import configured_session, cap_outputs
     from cup_grasp_demo.flow.cup_perception import decode
-    from dice_cup_localization.yolo_seg import preprocess
+    from vision.inference.yolo_seg import preprocess
     opts = json.loads(args.config.read_text())['green_cup']['perception']
     image = cv2.imread(str(args.image))
     if image is None:

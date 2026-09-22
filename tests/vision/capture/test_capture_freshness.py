@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import Mock, patch
-from dice_cup_localization.capture_rgbd import argument_parser, next_frames
+from vision.capture.realsense_session import argument_parser, next_frames
 
 def frame(c, d):
     f=Mock()
@@ -27,11 +27,11 @@ class FreshnessTests(unittest.TestCase):
 
     def test_stale_frames_timeout(self):
         pipeline=Mock();pipeline.wait_for_frames.return_value=frame(10,10)
-        with patch('dice_cup_localization.capture_rgbd.time.monotonic',side_effect=[0,1,4]):
+        with patch('vision.capture.realsense_session.time.monotonic',side_effect=[0,1,4]):
             with self.assertRaises(TimeoutError):next_frames(pipeline,(10,10))
 
     def test_fast_warmup_counts_all_streams_not_api_returns(self):
-        from dice_cup_localization.capture_rgbd import CaptureSession
+        from vision.capture.realsense_session import CaptureSession
         args=argument_parser().parse_args(['--serial','test','--output','/tmp/test','--stereo','--warmup-frames','5'])
         args.unique_warmup=True
         def pair(c,d,ir):
@@ -45,7 +45,7 @@ class FreshnessTests(unittest.TestCase):
         self.assertEqual(rs.pipeline.return_value.wait_for_frames.call_count,7)
 
     def test_legacy_warmup_keeps_twenty_calls(self):
-        from dice_cup_localization.capture_rgbd import CaptureSession
+        from vision.capture.realsense_session import CaptureSession
         args=argument_parser().parse_args(['--serial','test','--output','/tmp/test'])
         rs=Mock()
         with patch.dict('sys.modules',pyrealsense2=rs):
@@ -120,7 +120,7 @@ class StreamingReaderTests(unittest.TestCase):
     def test_reader_streams_idle_frames(self):
         import queue as pyq, time
         import numpy as np
-        from dice_cup_localization.capture_rgbd import CaptureSession
+        from vision.capture.realsense_session import CaptureSession
         color=np.zeros((48,64,3),np.uint8);depth=np.zeros((48,64),np.uint16)
         q=pyq.Queue()
         rs=fake_rs(lambda t=3000:q.get(timeout=2))
@@ -142,7 +142,7 @@ class StreamingReaderTests(unittest.TestCase):
         import io, json, queue as pyq, tempfile, threading, time
         from pathlib import Path
         import numpy as np
-        from dice_cup_localization.capture_rgbd import CaptureSession
+        from vision.capture.realsense_session import CaptureSession
         color=np.zeros((48,64,3),np.uint8);depth=np.zeros((48,64),np.uint16)
         q=pyq.Queue()
         rs=fake_rs(lambda t=3000:q.get(timeout=2))
@@ -178,7 +178,7 @@ class StreamingReaderTests(unittest.TestCase):
         import io, json, tempfile
         from pathlib import Path
         import numpy as np
-        from dice_cup_localization.capture_rgbd import CaptureSession
+        from vision.capture.realsense_session import CaptureSession
         color=np.zeros((48,64,3),np.uint8);depth=np.zeros((48,64),np.uint16)
         feed=iter([rich_frameset(color,depth,1,1),rich_frameset(color,depth,2,2),
                    rich_frameset(color,depth,3,3)])

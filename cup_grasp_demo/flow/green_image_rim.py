@@ -2,7 +2,7 @@
 
 import cv2
 import numpy as np
-from dice_cup_localization.geometry import Config, _circle, deproject
+from vision.geometry.table_plane import Config, _circle, deproject
 
 DEFAULTS = dict(
     contour_source="green_outline",

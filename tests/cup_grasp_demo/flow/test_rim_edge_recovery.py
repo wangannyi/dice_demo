@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 import numpy as np
-from cup_grasp_demo.flow.green_stereo_rim import (
+from vision.geometry.circle_rim import (
     check_edge_quality, quality_options, RimEdgeQualityError)
 from cup_grasp_demo.flow.green_pipeline import Workflow
 

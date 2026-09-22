@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from dice_cup_localization.yolo_seg import decode, decode_standard2, preprocess, select_green_cup
+from vision.inference.yolo_seg import decode, decode_standard2, preprocess, select_green_cup
 
 
 class SegmentationTests(unittest.TestCase):

@@ -9,7 +9,7 @@ from unittest.mock import patch
 import numpy as np
 import cv2
 from cup_grasp_demo.flow import green_pipeline as flow
-from cup_grasp_demo.flow.green_cup_geometry import rim_geometry, detect
+from vision.geometry.cup_height import rim_geometry, detect
 from cup_grasp_demo.flow.green_cup_planning import (
     solve,
     held_cup_clearance,
@@ -170,7 +170,7 @@ class GreenTest(unittest.TestCase):
             detect(depth, image, meta, opts, 5, instances=instances)
 
     def test_two_class_decoder_drops_ground_without_shifting_mask_coefficients(self):
-        from cup_grasp_demo.flow.green_yolo import cap_outputs
+        from vision.inference.detector import cap_outputs
 
         detections = np.zeros((1, 38, 8400), np.float32)
         proto = np.zeros((1, 32, 160, 160), np.float32)

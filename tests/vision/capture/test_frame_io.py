@@ -3,8 +3,8 @@ import unittest
 
 import numpy as np
 
-from cup_grasp_demo.side_grasp.preview_index import ray_surface_x, section
-from dice_cup_localization.geometry import Config
+from vision.capture.frame_io import ray_surface_x, section
+from vision.geometry.table_plane import Config
 
 
 class IndexPreviewTests(unittest.TestCase):

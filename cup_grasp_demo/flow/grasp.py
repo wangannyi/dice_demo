@@ -8,7 +8,7 @@ import numpy as np
 
 from cup_grasp_demo.flow.core import Screen, flange_target, make_plan, read_json
 from cup_grasp_demo.flow.cup_selection import select_cup
-from cup_grasp_demo.side_grasp.preview_index import load_batch
+from vision.capture.frame_io import load_batch
 from cup_grasp_demo.flow.transforms import matrix
 from nero_revo2_control.kinematics import load_model
 

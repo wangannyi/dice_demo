@@ -20,8 +20,8 @@ from cup_grasp_demo.flow.core import (
     read_json,
     write_json,
 )
-from cup_grasp_demo.flow.green_cup_geometry import detect
-from cup_grasp_demo.flow.green_yolo import infer, runtime_settings
+from vision.geometry.cup_height import detect
+from vision.inference.detector import infer, runtime_settings
 from cup_grasp_demo.flow.green_cup_planning import (
     arm_plan,
     held_cup_clearance,
@@ -32,7 +32,7 @@ from cup_grasp_demo.flow.core import save, log_output
 from cup_grasp_demo.flow.session_storage import session_lock
 from cup_grasp_demo.flow.shake import Kinematics
 from cup_grasp_demo.flow.joint_profile import make_plan as joint_plan, trajectory as joint_trajectory
-from cup_grasp_demo.side_grasp.preview_index import load_batch
+from vision.capture.frame_io import load_batch
 
 PHASES = (
     "HOME",
@@ -160,10 +160,10 @@ def validate(cfg):
     from cup_grasp_demo.flow.green_image_rim import options
 
     options(p)
-    from cup_grasp_demo.flow.green_stereo_rim import height_options
+    from vision.geometry.circle_rim import height_options
     height_options(p)
     if p.get("geometry_method") == "stereo_rim":
-        from cup_grasp_demo.flow.green_stereo_rim import quality_options
+        from vision.geometry.circle_rim import quality_options
         quality_options(p.get("stereo_rim"))
     return g
 
@@ -418,7 +418,7 @@ class Workflow:
             try:
                 return self._capture_once()
             except ValueError as exc:
-                from cup_grasp_demo.flow.green_stereo_rim import RimEdgeQualityError
+                from vision.geometry.circle_rim import RimEdgeQualityError
                 transient = isinstance(exc, RimEdgeQualityError) or str(exc) in (
                     'table_plane_not_supported',
                     'Stereo rim requires one YOLO cup in the red workspace',
@@ -470,7 +470,7 @@ class Workflow:
         diagnostic = {}
         try:
             if self.g["perception"].get("geometry_method") == "stereo_rim":
-                from cup_grasp_demo.flow.green_stereo_rim import detect_stereo, table_from_base_scene
+                from vision.geometry.circle_rim import detect_stereo, table_from_base_scene
                 fixed_table = None
                 if self.g.get('table_plane_source', 'live_depth') == 'calibrated':
                     fixed_table = table_from_base_scene(self.table_scene, camera)
@@ -485,7 +485,7 @@ class Workflow:
                     diagnostics=diagnostic)
         except ValueError as exc:
             diagnostic["error"] = str(exc)
-            from cup_grasp_demo.flow.green_stereo_rim import RimEdgeQualityError
+            from vision.geometry.circle_rim import RimEdgeQualityError
             if isinstance(exc, RimEdgeQualityError):
                 diagnostic['edge_quality'] = exc.report
             raise
