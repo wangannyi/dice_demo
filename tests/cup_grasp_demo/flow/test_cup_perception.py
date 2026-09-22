@@ -99,6 +99,8 @@ class ModelGeometryTest(unittest.TestCase):
         cls.cfg['cup_perception'] = dict(backend='yolo_seg_onnx', model=MODEL)
         cls.cfg['contact_height_fraction'] = 10/11
         cls.fixture = ROOT / 'cup_grasp_demo/datasets/compare_20260917_221945'
+        if not cls.fixture.is_dir():
+            raise unittest.SkipTest('冻结采集数据集不存在（datasets 不入 git）：' + str(cls.fixture))
         cls.meta, cls.depth, cls.image, _ = load_batch(cls.fixture)
         cls.instances, cls.provenance = vision.infer(cls.image, vision.perception_options(cls.cfg))
         cls.assert_inference = (cls.instances, cls.provenance)

@@ -66,6 +66,8 @@ class RecordedContactTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         path = ROOT / 'cup_grasp_demo/datasets/clearance_10of11_20260918_02/source'
+        if not (path / 'session.json').is_file():
+            raise unittest.SkipTest('冻结采集数据集不存在（datasets 不入 git）：' + str(path))
         cls.session = read_json(path / 'session.json')
         cls.saved = read_json(path / 'ready_plan.json')
         cls.scene = cls.saved['scene']

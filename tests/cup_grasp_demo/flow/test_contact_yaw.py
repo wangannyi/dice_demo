@@ -21,7 +21,10 @@ from nero_revo2_control.kinematics import load_model
 class AzimuthTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cfg = load_config(ROOT / 'cup_grasp_demo/flow/index_joint_center/config.json')
+        legacy = ROOT / 'cup_grasp_demo/flow/index_joint_center/config.json'
+        if not legacy.is_file():
+            raise unittest.SkipTest('旧银杯流程配置已随瘦身移除：' + str(legacy))
+        cfg = load_config(legacy)
         cls.rotation = np.array(load_model().fk(read_json(cfg['orientation_reference'])['joints_rad']))[:3, :3]
         link = read_json(cfg['tcp_candidate'])['link']
         cls.palm = RightRevo2Model().link_transforms_from_flange(np.eye(4))[link][:3, 0]
@@ -93,6 +96,10 @@ class AzimuthCaptureTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.config = ROOT / 'cup_grasp_demo/flow/index_joint_center/config.json'
+        if not cls.config.is_file():
+            raise unittest.SkipTest('旧银杯流程配置已随瘦身移除：' + str(cls.config))
+        if not (ROOT / 'cup_grasp_demo/datasets/contact_yaw20_20260917_01/current').is_dir():
+            raise unittest.SkipTest('冻结采集数据集不存在：contact_yaw20_20260917_01')
         cls.cfg = load_config(cls.config)
         cls.cfg.pop('cup_perception', None)  # Keep the original geometric azimuth regression.
         cls.cfg['contact_height_fraction'] = 9 / 11  # Preserve the original azimuth regression.

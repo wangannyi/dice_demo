@@ -219,6 +219,7 @@ class ImageRimTest(unittest.TestCase):
             flow = object.__new__(green_pipeline.Workflow)
             flow.root = root
             flow.cfg = {}
+            flow.g = {"table_plane_source": "live_depth", "perception": {"frame_count": 1}}
             from types import SimpleNamespace
             flow.args = SimpleNamespace(mode="fast", show=False)
             with patch.object(

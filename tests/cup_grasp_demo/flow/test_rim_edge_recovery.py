@@ -52,7 +52,7 @@ class EdgeRecoveryTest(unittest.TestCase):
         error=RimEdgeQualityError(dict(mean_edge_error_px=1.1,edge_support=[.95,.91],
             height_mm=65,diameter_mm=75,failed_checks=['max_mean_edge_error_px']))
         with tempfile.TemporaryDirectory() as tmp:
-            w=object.__new__(Workflow);w.root=Path(tmp);w.args=SimpleNamespace(mode='fast');w._vision=object()
+            w=object.__new__(Workflow);w.root=Path(tmp);w.args=SimpleNamespace(mode='fast');w._vision=object();w.g={'table_plane_source':'live_depth'}
             w._capture_once=Mock(side_effect=[error,'fresh result'])
             self.assertEqual(w.capture(),'fresh result');self.assertEqual(w._capture_once.call_count,2)
             w._capture_once=Mock(side_effect=error)

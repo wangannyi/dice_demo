@@ -37,13 +37,30 @@ class WorkerRetryTest(unittest.TestCase):
         from cup_grasp_demo.flow import green_sdk_worker as worker
         from cup_grasp_demo.flow import hardware, joint_execution
         robot=Mock();demo=SimpleNamespace(create_robot=Mock(return_value=robot))
-        probe=SimpleNamespace(control_lock=lambda path:nullcontext(),host_control_evidence=lambda channel:{},evidence_blockers=lambda *args:[])
+        # shake_execution 持有真实的 visual_servo_probe 引用（包属性不随
+        # sys.modules patch 变化），evidence 必须满足 evidence_blockers 的
+        # 真实校验：连接前无 CAN 接收器，连接后恰为 SDK 默认两条注册行。
+        observe_calls=[]
+        def fake_evidence(channel):
+            observe_calls.append(channel)
+            if len(observe_calls)==1:
+                return {'errors':[], 'channel':channel, 'receiver_rows':[],
+                        'candidate_control_processes':[]}
+            line='00000000 00000000'
+            return {'errors':[], 'channel':channel, 'candidate_control_processes':[],
+                    'receiver_rows':[{'list':'all','line':f'{channel} 000 00000000 {line}'},
+                                     {'list':'err','line':f'{channel} 000 1fffffff {line}'}]}
+        probe=SimpleNamespace(control_lock=lambda path:nullcontext(),host_control_evidence=fake_evidence,evidence_blockers=lambda *args:[])
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);request=root/'request.json';request.write_text('{}')
             messages=[dict(command='shake',request=str(request),sha256=hashlib.sha256(b'{}').hexdigest(),output=str(root/f'out{i}.json')) for i in range(2)]
             messages.append(dict(command='close'))
             out=io.StringIO()
-            with patch.dict(sys.modules,{'nero_revo2_control.nero_revo2_demo':demo,'nero_revo2_control.bridges.visual_servo_probe':probe}),patch.object(sys,'argv',['worker','--channel','can0']),patch.object(sys,'stdin',io.StringIO(''.join(json.dumps(m)+'\n' for m in messages))),patch.object(worker.signal,'signal'),patch.object(joint_execution,'run',side_effect=[dict(self.report(),success=False),dict(success=True)]) as run,redirect_stdout(out):
+            # sys.modules patch 在包属性已被先前测试设置时会被
+            # `from 包 import 子模块` 的 getattr 绕过，需同时 patch 包属性。
+            import nero_revo2_control
+            import nero_revo2_control.bridges
+            with patch.dict(sys.modules,{'nero_revo2_control.nero_revo2_demo':demo,'nero_revo2_control.bridges.visual_servo_probe':probe}),patch.object(nero_revo2_control,'nero_revo2_demo',demo,create=True),patch.object(nero_revo2_control.bridges,'visual_servo_probe',probe,create=True),patch.object(sys,'argv',['worker','--channel','can0']),patch.object(sys,'stdin',io.StringIO(''.join(json.dumps(m)+'\n' for m in messages))),patch.object(worker.signal,'signal'),patch.object(joint_execution,'run',side_effect=[dict(self.report(),success=False),dict(success=True)]) as run,redirect_stdout(out):
                 worker.main()
             self.assertEqual(run.call_count,2)
             demo.create_robot.assert_called_once()

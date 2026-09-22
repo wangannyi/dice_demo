@@ -7,16 +7,16 @@ from unittest.mock import Mock, patch
 from cup_grasp_demo.flow import green_pipeline as g
 
 class FastOverheadTest(unittest.TestCase):
-    def test_fast_finger_override_preserves_step_duration(self):
+    def test_fast_finger_override_applies_fast_parameters(self):
         cfg=g.ROOT/'cup_grasp_demo/flow/green_open_cup/stereo_config.json'
         with tempfile.TemporaryDirectory() as d, patch.object(g,'digest',return_value='test'), patch.object(g.Workflow,'file_stamp',return_value=(1,)):
-            fast=g.Workflow(SimpleNamespace(config=cfg,session=Path(d),mode='fast'))
-            step=g.Workflow(SimpleNamespace(config=cfg,session=Path(d),mode='step'))
-        self.assertEqual(fast.cfg['speed_percent'],fast.g.get('fast_speed_percent',100))
-        self.assertEqual(fast.g['finger_settle_s'],0)
-        self.assertGreater(step.g['finger_settle_s'],0)
-        self.assertEqual(fast.g['finger_duration_s'],step.g.get('fast_finger_duration_s', step.g['finger_duration_s']))
-        self.assertEqual(step.g['finger_duration_s'], g.read_json(cfg)['green_cup']['finger_duration_s'])
+            flow=g.Workflow(SimpleNamespace(config=cfg,session=Path(d),mode='fast'))
+        # step/auto 已移除：Workflow 无条件应用 FAST 参数。
+        self.assertEqual(flow.cfg['speed_percent'],flow.g.get('fast_speed_percent',100))
+        self.assertEqual(flow.g['finger_settle_s'],0)
+        self.assertEqual(flow.g['finger_duration_s'],flow.g.get('fast_finger_duration_s',flow.g['finger_duration_s']))
+        # 配置文件原值保持不变，运行时覆盖不写回。
+        self.assertGreater(g.read_json(cfg)['green_cup']['finger_duration_s'],flow.g['finger_duration_s'])
 
     def test_fresh_receipt_is_reused(self):
         for age,reads in [(0,0),(2,1)]:
