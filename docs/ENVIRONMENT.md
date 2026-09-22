@@ -47,6 +47,15 @@
 
 `run.sh` 会加载 `scripts/env.sh` 并显式选择解释器（探测顺序：`$HOME/.venv-grasp` → `$HOME/agilex-api-test/venv` → `/usr/bin/python3`），不要求先 `source activate`。
 
+### 依赖分布（2026-09-23 实测）
+
+| 层 | 包 | 来源 |
+| --- | --- | --- |
+| 系统 apt（/usr/lib/python3/dist-packages） | numpy 2.3.5、scipy 1.16.3、cv2 4.10（含 aruco） | `python3-numpy` / `python3-scipy` / `python3-opencv` |
+| 系统 apt（/usr/lib/python3.14/dist-packages） | onnxruntime 1.24.2+spacemit.a1、spacemit_ort 2.0.6 | `spacemit-onnxruntime` / `python3-spacemit-ort`（K3 厂商源） |
+| 仓库 vendor-site/（27MB，gitignored） | pyrealsense2 2.57.7、pyAgxArm（NERO SDK 源码）、packaging、wrapt | 已集成到当前目录，无需外部安装 |
+| 仓库 nero_calibration/.deps/（3MB，gitignored） | python-can 4.6.1、typing_extensions | 已集成到当前目录 |
+
 ### 视觉环境的主要 Python 依赖
 
 | 包 | 当前版本 | 实际来源/用途 |

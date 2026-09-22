@@ -10,7 +10,6 @@ DBG="$DICE_ROOT/cup_grasp_demo/flow/run_debug.sh"
 CFG="$DICE_ROOT/configs/green_cup.json"
 RUN="$DICE_ROOT/cup_grasp_demo/datasets/green_current"
 mkdir -p "$RUN"
-"$DBG" config-check --config "$CFG"
 ```
 
 `green_current` 保存最近一次定位与计划，`runs/` 保存每次执行记录。修改参数后重新运行定位和规划，不能把旧计划当成新配置的结果。
@@ -67,20 +66,7 @@ STEP 在第一条提示前连接 CAN SDK、预热相机并加载 YOLO；等待 E
 
 TCP 图中的点来自关节反馈、模型和标定变换，不能当成相机直接测出的物理接触点。调整 `green_cup.tcp_offset_flange_mm` 时，三个数沿法兰坐标轴，不是图像左右上下方向。
 
-## 4. 单独关节摇晃
-
-```bash
-JT="$DICE_ROOT/cup_grasp_demo/flow/run_joint_test.sh"
-JCFG="$DICE_ROOT/configs/actions/joint_shake.json"
-"$JT" plan --config "$JCFG" --system-config "$CFG" --session "$RUN" &&
-"$JT" run --plan "$RUN/joint_plan.json" --execute
-```
-
-从当前姿态生成往复，不包含抓杯。`joints` 与 `amplitude_deg`、`velocity_deg_s`、`acceleration_deg_s2` 按下标一一对应。幅度是单侧角幅，完整行程为两倍；`cycles` 是完整往返次数。规划频率不是实测频率。
-
-当前交付配置使用 J1/J4/J5/J6/J7、各 ±5°、6 个周期。改动前查看实际配置，不要沿用早期 J1/J4/J7 的描述。`--execute` 直接执行，不再输入确认词；规划未通过时先解决报错。
-
-## 5. 单独平面摇晃
+## 4. 单独平面摇晃
 
 独立桌面采集不识别杯子、不移动机械臂。机械臂、桌面或相机变动后重采：
 
@@ -100,7 +86,7 @@ JSCFG="$DICE_ROOT/cup_grasp_demo/flow/planar_shake.json"
 
 此入口与 GREEN PIPELINE 的关节摇晃不同。不要用 `--load empty` 描述实际持杯状态。历史法兰/TCP 对点工具见[原调试工具说明](../cup_grasp_demo/flow/README_DEBUG.md)，新绿杯流程以本文和顶层配置为准。
 
-## 6. 耗时和故障定位
+## 5. 耗时和故障定位
 
 `[耗时]` 是阶段总耗时，可能包含连接、采集、计算、发送与运动。STEP 的图像采集和显示也计入阶段；比较性能时使用相同配置的 FAST。
 
@@ -115,7 +101,7 @@ JSCFG="$DICE_ROOT/cup_grasp_demo/flow/planar_shake.json"
 
 不要同时启动两个真机控制程序。错误记录需要保留实际原因，不能把发送命令成功写成实际抓牢或放置成功。
 
-## 7. YOLO 两核 AI 离线测试
+## 6. YOLO 两核 AI 离线测试
 
 使用已保存的 RGB 图比较后端，不启动相机或机械臂：
 
@@ -134,7 +120,7 @@ JSON 区分模型加载、首次推理和后续纯推理时间；同名 NPZ 保�
 
 后端设置参见[SpacemiT 官方说明](https://github.com/spacemit-com/docs-ai/blob/main/en/compute_stack/ai_compute_stack/onnxruntime.md)。切换后端需比较检测数、掩码与三维定位结果，不能只看速度。
 
-## 8. 相机取帧耗时
+## 7. 相机取帧耗时
 
 FAST 默认预热 5 组 RGB、深度、左右红外均已更新的有效帧（重复帧不计数），正式采集前额外丢帧为 0。配置项为 `green_cup.fast_camera_warmup_frames` 和 `green_cup.fast_camera_fresh_discard_frames`。相机启动预热不是保存采样帧数；固定高度 FAST 仍只保存 1 帧。STEP 和通用采集默认保留 20 帧预热。
 
@@ -142,7 +128,7 @@ FAST 默认预热 5 组 RGB、深度、左右红外均已更新的有效帧（�
 
 FAST 的桌面拟合不通过或工作区杯子候选不唯一时，复用相机取一帧重试，最多一次；正常路径不增加等待。重试原因保存为 `green_capture_retry.json`。重试仍失败时退出，不使用上次成功定位。
 
-## 9. 比大小后的反馈手势
+## 8. 比大小后的反馈手势
 
 独立入口 `run_feedback.sh` 不运行抓杯流程、不采集相机或调用 YOLO。先完成放杯，再执行反馈动作；当前 yeah、thumbs-up 配置为机械臂与手指同时启动，时延为 0；也可配置先后执行。完成后保持姿态，不自动返回 HOME。保留现有 CAN 控制、关节路径和桌面检查，使用当前标定对应的已保存桌面记录。
 

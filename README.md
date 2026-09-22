@@ -220,7 +220,7 @@ configs/
   actions/                    静态动作库：home.json、joint_shake.json、result_feedback.json
   installation/               相机安装档案
 cup_grasp_demo/
-  flow/                       绿杯主流程（阶段机/常驻控制/相机运行时/感知/摇晃运动/CLI）
+  flow/                       绿杯主流程（阶段机/常驻统一调度器/相机运行时/感知/摇晃运动/入口 CLI）
   planning.py hand_geometry.py side_grasp/   抓取规划与手指几何
   models/                     YOLO 检测模型
 nero_revo2_control/
