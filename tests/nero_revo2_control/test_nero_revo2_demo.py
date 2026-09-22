@@ -29,11 +29,7 @@ except ModuleNotFoundError:
     sdk_stub.create_agx_arm_config = lambda **values: values
     sys.modules["pyAgxArm"] = sdk_stub
 
-MODULE_DIR = Path(__file__).resolve().parents[2] / 'nero_revo2_control'
-if str(MODULE_DIR) not in sys.path:
-    sys.path.insert(0, str(MODULE_DIR))
-
-import nero_revo2_demo as demo  # noqa: E402
+from nero_revo2_control import nero_revo2_demo as demo
 
 
 class FakeHand:

@@ -11,7 +11,7 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path[:0] = [str(ROOT), str(ROOT / "rgb_hand_tracking")]
+sys.path[:0] = [str(ROOT)]
 from cup_grasp_demo.calibration_debug import shake_execution as shared
 from cup_grasp_demo.calibration_debug.joint_delivery import take_js_control, fresh_js_hold
 from cup_grasp_demo.calibration_debug.joint_profile import (

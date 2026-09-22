@@ -101,7 +101,7 @@ def _plan_command(args, timer, *, prepared=None):
         if args.trial_config is not None:
             paths.append(args.trial_config)
         paths += [HERE / name for name in SOURCES]
-        paths += [ROOT / "rgb_hand_tracking" / name for name in
+        paths += [ROOT / "nero_revo2_control/bridges" / name for name in
                   ("visual_servo_probe.py", "passive_pose_bridge.py", "finger_feedback_probe.py")]
         result.update(offline_only=offline, created_epoch_s=time.time(), session_path=str(args.session.resolve()),
                       config_path=str(args.config.resolve()),

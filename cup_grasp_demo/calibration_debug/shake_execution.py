@@ -11,9 +11,8 @@ import time
 
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path[:0] = [str(ROOT), str(ROOT / "rgb_hand_tracking")]
-import visual_servo_probe as core
-from finger_feedback_probe import BroadcastCache, FINGERS, _copy_getter
+from nero_revo2_control.bridges import visual_servo_probe as core
+from nero_revo2_control.bridges.finger_feedback_probe import BroadcastCache, FINGERS, _copy_getter
 from cup_grasp_demo.calibration_debug.joint_delivery import take_js_control, fresh_js_hold
 from cup_grasp_demo.calibration_debug.shake_readback import is_read_only_request
 from cup_grasp_demo.calibration_debug.parameters import shake_options

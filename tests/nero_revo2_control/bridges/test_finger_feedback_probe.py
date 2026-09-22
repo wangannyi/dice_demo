@@ -2,8 +2,8 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from rgb_hand_tracking import finger_feedback_probe as probe
-from rgb_hand_tracking.passive_pose_bridge import PassiveTransmitForbidden
+from nero_revo2_control.bridges import finger_feedback_probe as probe
+from nero_revo2_control.bridges.passive_pose_bridge import PassiveTransmitForbidden
 
 
 def frame(can_id=0x1C1, stamp=100., remote=True, payload=None):

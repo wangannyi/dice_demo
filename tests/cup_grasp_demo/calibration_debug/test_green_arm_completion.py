@@ -2,7 +2,7 @@
 import math
 import unittest
 from unittest.mock import patch
-import nero_revo2_demo as demo
+from nero_revo2_control import nero_revo2_demo as demo
 from test_nero_revo2_demo import FakeRobot, SimulatedClock
 from cup_grasp_demo.calibration_debug.hardware import arm_motion_args
 

@@ -174,8 +174,8 @@ def execute(args, *, confirm=None, return_receipt=False, prepared=None):
         "passive_pose_bridge.py",
         "finger_feedback_probe.py",
     ):
-        hashes[str(common.ROOT / "rgb_hand_tracking" / name)] = digest(
-            common.ROOT / "rgb_hand_tracking" / name
+        hashes[str(common.ROOT / "nero_revo2_control/bridges" / name)] = digest(
+            common.ROOT / "nero_revo2_control/bridges" / name
         )
     for name, expected in session["source_hashes"].items():
         hashes[str(common.ROOT / name)] = expected

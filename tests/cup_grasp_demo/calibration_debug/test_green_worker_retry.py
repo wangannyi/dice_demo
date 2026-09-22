@@ -43,7 +43,7 @@ class WorkerRetryTest(unittest.TestCase):
             messages=[dict(command='shake',request=str(request),sha256=hashlib.sha256(b'{}').hexdigest(),output=str(root/f'out{i}.json')) for i in range(2)]
             messages.append(dict(command='close'))
             out=io.StringIO()
-            with patch.dict(sys.modules,{'nero_revo2_demo':demo,'visual_servo_probe':probe}),patch.object(sys,'argv',['worker','--channel','can0']),patch.object(sys,'stdin',io.StringIO(''.join(json.dumps(m)+'\n' for m in messages))),patch.object(worker.signal,'signal'),patch.object(joint_execution,'run',side_effect=[dict(self.report(),success=False),dict(success=True)]) as run,redirect_stdout(out):
+            with patch.dict(sys.modules,{'nero_revo2_control.nero_revo2_demo':demo,'nero_revo2_control.bridges.visual_servo_probe':probe}),patch.object(sys,'argv',['worker','--channel','can0']),patch.object(sys,'stdin',io.StringIO(''.join(json.dumps(m)+'\n' for m in messages))),patch.object(worker.signal,'signal'),patch.object(joint_execution,'run',side_effect=[dict(self.report(),success=False),dict(success=True)]) as run,redirect_stdout(out):
                 worker.main()
             self.assertEqual(run.call_count,2)
             demo.create_robot.assert_called_once()

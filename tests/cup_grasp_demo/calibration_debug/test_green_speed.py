@@ -2,7 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-import nero_revo2_demo as demo
+from nero_revo2_control import nero_revo2_demo as demo
 from cup_grasp_demo.calibration_debug.core import ROOT, load_config
 from cup_grasp_demo.calibration_debug.hardware import arm_motion_args
 from cup_grasp_demo.calibration_debug.joint_delivery import delivery_options

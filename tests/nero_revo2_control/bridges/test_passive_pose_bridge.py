@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from rgb_hand_tracking import passive_pose_bridge as bridge
+from nero_revo2_control.bridges import passive_pose_bridge as bridge
 
 
 class FakeBus:

@@ -6,9 +6,7 @@ from pathlib import Path
 import sys
 from datetime import datetime, timezone
 
-ROOT = Path(__file__).resolve().parents[2] / 'rgb_hand_tracking'
-sys.path.insert(0, str(ROOT))
-import visual_servo_probe as core
+from nero_revo2_control.bridges import visual_servo_probe as core
 
 
 def is_read_only_request(can_id, data):

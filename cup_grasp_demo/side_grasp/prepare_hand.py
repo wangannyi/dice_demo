@@ -11,11 +11,9 @@ from pathlib import Path
 import sys
 import time
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'rgb_hand_tracking'))
-
-from finger_feedback_probe import BroadcastCache, FINGERS, _copy_getter
-from passive_pose_bridge import PassivePoseSession, load_sdk_runtime
-from visual_servo_probe import (AuditedSendGuard, control_lock, evidence_blockers,
+from nero_revo2_control.bridges.finger_feedback_probe import BroadcastCache, FINGERS, _copy_getter
+from nero_revo2_control.bridges.passive_pose_bridge import PassivePoseSession, load_sdk_runtime
+from nero_revo2_control.bridges.visual_servo_probe import (AuditedSendGuard, control_lock, evidence_blockers,
                                 host_control_evidence, ready_blockers, stopped_window, take_can_control)
 
 

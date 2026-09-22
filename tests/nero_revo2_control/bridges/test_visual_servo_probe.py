@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from rgb_hand_tracking import visual_servo_probe as probe
+from nero_revo2_control.bridges import visual_servo_probe as probe
 
 
 def feedback(q=None, mode=1):

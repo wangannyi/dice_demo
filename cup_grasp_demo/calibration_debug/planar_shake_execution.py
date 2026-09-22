@@ -10,8 +10,8 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path[:0] = [str(ROOT), str(ROOT / "rgb_hand_tracking")]
-from passive_pose_bridge import _packet_timestamps
+sys.path[:0] = [str(ROOT)]
+from nero_revo2_control.bridges.passive_pose_bridge import _packet_timestamps
 from cup_grasp_demo.calibration_debug import shake_execution as legacy
 from cup_grasp_demo.calibration_debug.parameters import number
 from cup_grasp_demo.calibration_debug.phase_timing import PhaseTimer

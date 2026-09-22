@@ -97,8 +97,7 @@ def main(argv=None, *, connected=None):
             raise ValueError('Unapproved or blocked request')
         if not 0 <= time.time() - request['authorized_epoch_s'] <= 60:
             raise ValueError('Execution authorization expired')
-    sys.path[:0] = [str(ROOT / 'nero_revo2_control'), str(ROOT / 'rgb_hand_tracking'), str(ROOT)]
-    import nero_revo2_demo as demo
+    from nero_revo2_control import nero_revo2_demo as demo
     fast_feedback = args.cached_snapshot or bool(request and request['config'].get('pipeline_strategy') == 'green_open_cup'
                          and request['config'].get('green_cup', {}).get('fast_completion')
                          and request['config']['green_cup'].get('fast_cached_feedback', False))

@@ -8,8 +8,7 @@ import signal
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path[:0] = [str(ROOT), str(ROOT / 'nero_revo2_control'),
-                 str(ROOT / 'rgb_hand_tracking'), str(Path(__file__).parent)]
+sys.path[:0] = [str(ROOT), str(Path(__file__).parent)]
 
 
 def interrupted(signum, frame):
@@ -68,8 +67,8 @@ def main():
     args = parser.parse_args()
     if not args.channel.isalnum():
         raise ValueError('Invalid CAN channel')
-    import nero_revo2_demo as demo
-    from visual_servo_probe import control_lock, host_control_evidence
+    from nero_revo2_control import nero_revo2_demo as demo
+    from nero_revo2_control.bridges.visual_servo_probe import control_lock, host_control_evidence
     from cup_grasp_demo.calibration_debug.shake_execution import control_conflicts
     from cup_grasp_demo.calibration_debug import hardware, joint_execution
     for sig in (signal.SIGINT, signal.SIGTERM):
