@@ -1,6 +1,6 @@
 # 手眼标定与固定板外参恢复
 
-collect 人工采集法兰姿态与手背板图像，solve 求解手眼变换；reference_board.py 注册桌面板并在相机移动后恢复外参。自动回放示教姿态采样尚未实现。
+`collect --preview` 人工采集法兰姿态、手背板图像及每帧七轴反馈；`solve` 求解手眼变换。`auto_collect.py draw-window` 画手背板的可见范围，`plan` 离线检查示教路径，`run --execute` 自动移动机械臂并重采图像。`reference_board.py` 注册桌面板，并在相机移动后恢复外参。具体命令和限制见 [标定文档](../docs/CALIBRATION.md)。
 
 ## 使用入口
 

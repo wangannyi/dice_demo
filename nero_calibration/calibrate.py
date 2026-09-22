@@ -31,6 +31,8 @@ def read_dataset(path):
     path = Path(path)
     if (path/'INVALIDATED.json').exists():
         raise ValueError('Dataset is invalidated; inspect INVALIDATED.json and start a new session')
+    if (path/'AUTO_INCOMPLETE.json').exists():
+        raise ValueError('Automatic collection is incomplete; inspect AUTO_INCOMPLETE.json')
     manifest = json.loads((path/'manifest.json').read_text())
     if manifest.get('schema') != 1 or manifest.get('mode') != 'eye_to_hand':
         raise ValueError('Unsupported dataset schema/mode')
@@ -79,7 +81,7 @@ def read_resume_dataset(path, board, tcp_name, tcp):
     return manifest, samples
 
 
-def capture_sample(arm, camera, detector):
+def capture_sample(arm, camera, detector, frame_check=None):
     from sensors import assert_still
     poses = []
     # Require stationary fresh observations before and around image acquisition.
@@ -89,27 +91,36 @@ def capture_sample(arm, camera, detector):
     assert_still(poses)
     joints_before = arm.read_joints()
     # Discard queued frames collected before the current pose settled.
+    discarded_joints = []
     for _ in range(5):
-        camera.capture()
+        frame = camera.capture()
+        discarded_joints.append(arm.read_joints())
+        if frame_check is not None:
+            frame_check(frame)
     start = time.monotonic()
     observations = []
     for _ in range(3):
         poses.append(arm.read())
         image = camera.capture()
+        frame_joints = arm.read_joints()
         board, quality, vis = detector.detect(image, camera.K, camera.D)
+        if frame_check is not None:
+            frame_check(image, board)
         poses.append(arm.read())
-        observations.append((board, quality, image, vis, poses[-1]))
+        observations.append((board, quality, image, vis, poses[-1], frame_joints))
     assert_still(poses)
     if any(p > .002 or a > 1. for p, a in
            [distance(observations[0][0], o[0]) for o in observations[1:]]):
         raise ValueError('Board observations unstable; sample rejected')
-    board, quality, image, vis, flange = min(observations, key=lambda o: o[1]['reprojection_rms_px'])
+    board, quality, image, vis, flange, _ = min(observations, key=lambda o: o[1]['reprojection_rms_px'])
     joints_after = arm.read_joints()
     if np.max(np.abs(np.asarray(joints_after['joints_rad']) - joints_before['joints_rad'])) > np.radians(.2):
         raise ValueError('Joints moved during calibration sample')
     return {'T_base_flange': flange.tolist(), 'T_camera_board': board.tolist(),
             'joints_rad': joints_after['joints_rad'], 'joints_deg': joints_after['joints_deg'],
             'joint_observations': {'before': joints_before, 'after': joints_after},
+            'frame_joint_observations': [o[5] for o in observations],
+            'discarded_frame_joint_observations': discarded_joints,
             'joint_recording_source': 'fresh_sdk_feedback',
             'quality': quality, 'time_unix_s': time.time(),
             'capture_duration_s': time.monotonic()-start}, image, vis
@@ -226,9 +237,19 @@ def main(argv=None):
         if preview and existing:
             last_image = cv2.imread(str(args.dataset/f'sample_{count-1:04d}_detected.png'))
             preview.restore(last_image, count, existing[-1]['quality'])
+        if preview and (args.dataset/'board_window.json').is_file():
+            preview.board_window = json.loads((args.dataset/'board_window.json').read_text())['window_xyxy']
+        def record_preview_frame(image, board_pose, quality):
+            observation = {'time_unix_s': time.time(), 'joints': arm.read_joints(),
+                           'T_camera_board': None if board_pose is None else board_pose.tolist(),
+                           'quality': quality, 'image_width': image.shape[1],
+                           'image_height': image.shape[0]}
+            with (args.dataset/'teaching_frames.jsonl').open('a') as stream:
+                stream.write(json.dumps(observation, allow_nan=False) + '\n')
         while True:
             try:
-                command = (preview.read_command(camera, detector, count) if preview
+                command = (preview.read_command(camera, detector, count,
+                                                on_frame=record_preview_frame) if preview
                            else input(f'[{count} samples] > ').strip().lower())
             except EOFError:
                 break
