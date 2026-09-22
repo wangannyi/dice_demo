@@ -4,7 +4,7 @@
   "channel": "can0",
   "home": "cup_grasp_demo/calibration_debug/home_reference.json",
   "home_open_hand": true,
-  "calibration": "configs/installation/camera.json",
+  "calibration": "nero_calibration/datasets/handeye_20260920_203405/dimensions_measured_86p5x108/result.json",
   "orientation_reference": "cup_grasp_demo/calibration_debug/green_open_cup/grasp_reference.json",
   "tcp_candidate": "cup_grasp_demo/calibration_debug/green_open_cup/tcp_candidate.json",
   "grasp_config": "cup_grasp_demo/side_grasp/CURRENT_GRASP.json",
@@ -260,7 +260,7 @@
     "shake_start_tolerance_deg": 0.5,
     "recovery_attempts": 1,
     "persistent_runtime": true,
-    "installation_requires_calibration": true,
+    "installation_requires_calibration": false,
     "read_hand_feedback": false,
     "place_arrival_tolerance_mm": 5.0,
     "direct_return_home": true,
@@ -278,9 +278,9 @@
     "fast_uncompressed_capture": true,
     "fast_analytic_rim_jacobian": true,
     "fast_batched_ik_rotations": true,
+    "fast_parallel_startup": true,
     "fast_dogbox_ik": true,
     "fast_motion_profile": "trapezoid",
-    "fast_minimize_lift_travel": true,
-    "fast_parallel_startup": true
+    "fast_minimize_lift_travel": true
   }
 }

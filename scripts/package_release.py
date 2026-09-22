@@ -9,7 +9,7 @@ ROOT=Path(__file__).resolve().parents[1]
 TREES=('cup_grasp_demo','dice_cup_localization','nero_revo2_control','nero_calibration','rgb_hand_tracking','configs','scripts','docs')
 SKIP={'build','CMakeFiles','.pytest_cache','.ruff_cache','datasets','output','runtime','diagnostics','__pycache__','.git','.deps','.venv'}
 
-def build(destination):
+def build(destination, *, site_active=False):
     destination=destination.resolve()
     if destination.exists():
         raise ValueError('Output must not exist: '+str(destination))
@@ -45,9 +45,11 @@ def build(destination):
     calibration=stage/'configs/installation/camera.json'
     calibration.parent.mkdir(parents=True,exist_ok=True)
     shutil.copy2(ROOT/cfg['calibration'],calibration)
-    # Every delivered installation starts with an explicit calibration gate.
-    for relative in ('configs/green_cup.json','cup_grasp_demo/calibration_debug/green_open_cup/stereo_config.json'):
-        p=stage/relative;d=json.loads(p.read_text());d['calibration']='configs/installation/camera.json';d['green_cup']['installation_requires_calibration']=True;p.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n')
+    # The default handoff requires calibration. An explicit snapshot may retain
+    # the current K3 installation paths and gate for byte-for-byte comparison.
+    if not site_active:
+        for relative in ('configs/green_cup.json','cup_grasp_demo/calibration_debug/green_open_cup/stereo_config.json'):
+            p=stage/relative;d=json.loads(p.read_text());d['calibration']='configs/installation/camera.json';d['green_cup']['installation_requires_calibration']=True;p.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n')
     # Normalize whitespace in generated vendor XML only; geometry is unchanged.
     for path in stage.rglob('*'):
         if path.suffix in ('.urdf', '.xacro'):
@@ -60,4 +62,6 @@ def build(destination):
     print(json.dumps(dict(directory=str(stage),archive=str(archive),files=len(manifest),bytes=archive.stat().st_size)))
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--output',type=Path,required=True);a=p.parse_args();build(a.output)
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--output',type=Path,required=True)
+    p.add_argument('--site-active',action='store_true',help='Preserve this K3 installation configuration; do not use for a new installation')
+    a=p.parse_args();build(a.output,site_active=a.site_active)

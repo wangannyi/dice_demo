@@ -137,7 +137,7 @@
       5
     ],
     "lift_mm": 50,
-    "approach_clearance_mm": 0,
+    "approach_clearance_mm": 50,
     "open_targets_0_100": [
       0,
       0,
