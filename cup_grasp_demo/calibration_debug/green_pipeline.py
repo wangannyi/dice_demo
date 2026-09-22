@@ -173,22 +173,22 @@ class Workflow:
         # Reject malformed shake recipes before HOME opens the hand or moves.
         # Runtime planning still rechecks the actual limits and held-cup path.
         joint_trajectory(read_json(ROOT / self.g['joint_test_config']))
-        if args.mode == "fast":
-            self.cfg.setdefault('joint_delivery', {})['profile'] = self.g.get('fast_motion_profile', 'quintic')
-            self.g['perception']['save_debug_images'] = False
-            self.g['perception']['analytic_jacobian'] = self.g.get('fast_analytic_rim_jacobian', False)
-            self.cfg["speed_percent"] = self.g.get("fast_speed_percent", 100)
-            self.g["fast_completion"] = True
-            self.g["require_arm_position"] = False
-            self.g["finger_settle_s"] = 0.0
-            self.g["finger_duration_s"] = self.g.get("fast_finger_duration_s", self.g["finger_duration_s"])
-            self.g["read_hand_feedback"] = False
-            if self.g['perception'].get('height_mode') == 'fixed' and self.g['perception'].get('geometry_method') == 'stereo_rim':
-                self.g['perception']['frame_count'] = 1
+        # FAST is the only green-cup mode; its tuning is applied unconditionally.
+        self.cfg.setdefault('joint_delivery', {})['profile'] = self.g.get('fast_motion_profile', 'quintic')
+        self.g['perception']['save_debug_images'] = False
+        self.g['perception']['analytic_jacobian'] = self.g.get('fast_analytic_rim_jacobian', False)
+        self.cfg["speed_percent"] = self.g.get("fast_speed_percent", 100)
+        self.g["fast_completion"] = True
+        self.g["require_arm_position"] = False
+        self.g["finger_settle_s"] = 0.0
+        self.g["finger_duration_s"] = self.g.get("fast_finger_duration_s", self.g["finger_duration_s"])
+        self.g["read_hand_feedback"] = False
+        if self.g['perception'].get('height_mode') == 'fixed' and self.g['perception'].get('geometry_method') == 'stereo_rim':
+            self.g['perception']['frame_count'] = 1
         self._sdk = None
         self._vision = None
         self._prepared = None
-        if args.mode == 'fast' and self.g.get('persistent_runtime', True):
+        if self.g.get('persistent_runtime', True):
             from cup_grasp_demo.calibration_debug.green_prepared import PreparedRoutes
             self._prepared = PreparedRoutes()
         self._route_pool = None
@@ -218,13 +218,13 @@ class Workflow:
         self.hashes = {str(p.resolve()): digest(p) for p in self.deps}
         self._file_stats = {p: self.file_stamp(p) for p in self.hashes}
         from cup_grasp_demo.calibration_debug.green_startup import claim
-        self._startup = claim(args.config, args.session) if args.mode == 'fast' else None
+        self._startup = claim(args.config, args.session)
 
     def bridge(self, command, output, cfg, request=None, *, on_dispatched=None):
-        if self.args.mode not in ('fast', 'step') or not getattr(self, 'g', {}).get('persistent_runtime', hasattr(self, '_sdk')):
+        if not getattr(self, 'g', {}).get('persistent_runtime', hasattr(self, '_sdk')):
             return common.bridge(command, output, cfg, request)
         from cup_grasp_demo.calibration_debug.green_runtime import SDKClient
-        if self._sdk is None:
+        if getattr(self, '_sdk', None) is None:
             self._sdk = (self._startup.acquire('sdk') if getattr(self, '_startup', None) is not None and 'sdk' not in self._startup.claimed
                          else SDKClient(cfg, common.new_run(self.root, 'green_sdk_session')))
         return self._sdk.call(command, output, request,
@@ -254,16 +254,14 @@ class Workflow:
                 self._vision = None
 
     def prepare_vision(self):
-        if self.args.mode in ('fast', 'step') and self.g.get('persistent_runtime', True) and self._vision is None:
+        if self.g.get('persistent_runtime', True) and getattr(self, '_vision', None) is None:
             from cup_grasp_demo.calibration_debug.green_runtime import VisionResources
             self._vision = (self._startup.acquire('vision') if getattr(self, '_startup', None) is not None
                             else VisionResources(self.cfg, self.root / 'unused_capture_path'))
 
     def prepare_step_runtime(self):
-        """Connect once before the first STEP prompt; subsequent frames remain fresh."""
-        # 'fast' here means the CONTROL session reusing FAST phase parameters;
-        # the one-shot FAST CLI never calls this.
-        if self.args.mode not in ('step', 'fast') or not self.g.get('persistent_runtime', True):
+        """Connect once up front (CONTROL session startup); frames stay fresh."""
+        if not self.g.get('persistent_runtime', True):
             return
         self.prepare_vision()
         try:
@@ -275,14 +273,6 @@ class Workflow:
             self.close()
             raise
 
-    def capture_with_feedback(self, output):
-        if self.args.mode != 'step' or getattr(self, '_vision', None) is None:
-            return common.capture_with_feedback(output, self.cfg)
-        return common.capture_with_feedback(
-            output, self.cfg, bridge_fn=self.bridge,
-            capture_fn=lambda path, _cfg: self._vision.capture(
-                path, self.g['perception'].get('frame_count', 5)))
-
     @staticmethod
     def file_stamp(path):
         s = Path(path).stat()
@@ -290,7 +280,7 @@ class Workflow:
 
     def unchanged(self):
         for p, h in self.hashes.items():
-            if (self.args.mode == "fast" and self.file_stamp(p) == self._file_stats.get(p)
+            if (self.file_stamp(p) == self._file_stats.get(p)
                     and all(time.time_ns() - t >= 2_000_000_000 for t in self._file_stats[p][-2:])):
                 continue
             if digest(p) != h:
@@ -300,7 +290,7 @@ class Workflow:
         # Reuse only a just-returned physical SDK receipt; the executor still
         # rereads and validates the real starting joints before every motion.
         cached = getattr(self, "_snapshot_cache", None)
-        if self.args.mode == "fast" and cached is not None and 0 <= time.time() - cached["observed_epoch_s"] <= 1.0:
+        if cached is not None and 0 <= time.time() - cached["observed_epoch_s"] <= 1.0:
             common.ready(cached)
             return list(cached["joints_rad"])
         run = common.new_run(self.root, "green_readback")
@@ -344,7 +334,7 @@ class Workflow:
             plan=plan,
             config=self.cfg,
         )
-        if self.args.mode == 'fast' and label in self.g.get('fast_phase_speed_percent', {}):
+        if label in self.g.get('fast_phase_speed_percent', {}):
             request['config'] = dict(self.cfg, speed_percent=self.g['fast_phase_speed_percent'][label])
         write_json(run / "request.json", request)
         try:
@@ -430,7 +420,7 @@ class Workflow:
                     'table_plane_not_supported',
                     'Stereo rim requires one YOLO cup in the red workspace',
                 )
-                if attempt or self.args.mode != 'fast' or getattr(self, '_vision', None) is None or not transient:
+                if attempt or getattr(self, '_vision', None) is None or not transient:
                     raise
                 save(self.root / 'green_capture_retry.json', dict(
                     reason=str(exc), retry=1, action='capture_fresh_frame'))
@@ -450,10 +440,7 @@ class Workflow:
         ):
             (self.root / name).unlink(missing_ok=True)
         try:
-            capture_snapshot = None
-            if self.args.mode == "step":
-                capture_snapshot = self.capture_with_feedback(run / "rgbd")
-            elif getattr(self, '_vision', None) is not None:
+            if getattr(self, '_vision', None) is not None:
                 self._vision.capture(run / 'rgbd', self.g['perception'].get('frame_count', 5))
             elif self.g['perception'].get('frame_count') == 1:
                 common.capture_rgbd(run / "rgbd", self.cfg, frames=1)
@@ -498,16 +485,11 @@ class Workflow:
             from cup_grasp_demo.calibration_debug.green_stereo_rim import RimEdgeQualityError
             if isinstance(exc, RimEdgeQualityError):
                 diagnostic['edge_quality'] = exc.report
-            if self.args.show and self.args.mode == "step":
-                cv2.imwrite(
-                    str(self.root / "green_rim_debug.png"), overlay(image, diagnostic)
-                )
-                print(f"检测失败，诊断图已保存：{self.root / 'green_rim_debug.png'}", flush=True)
             raise
         finally:
             write_json(run / "rim_diagnostics.json", diagnostic)
             save(self.root / "green_rim_diagnostics.json", diagnostic)
-            if self.args.mode != "fast" or diagnostic.get("error"):
+            if diagnostic.get("error"):
                 debug_image = overlay(image, diagnostic)
                 cv2.imwrite(str(run / "rim_debug.png"), debug_image)
                 cv2.imwrite(str(self.root / "green_rim_debug.png"), debug_image)
@@ -523,58 +505,6 @@ class Workflow:
         self.center = center
         self.normal = normal
         self.capture_time = time.time()
-        if self.args.mode != "fast":
-            cv2.drawContours(image, [contour], -1, (0, 255, 0), 2)
-            intr = meta["intrinsics"]
-            for label, point, color in [
-                ("rim center", center, (0, 255, 255)),
-                ("TCP target", self.contact, (0, 0, 255)),
-            ]:
-                p = (np.linalg.inv(camera) @ np.r_[point, 1])[:3]
-                uv = tuple(
-                    np.rint(
-                        [
-                            intr["fx"] * p[0] / p[2] + intr["cx"],
-                            intr["fy"] * p[1] / p[2] + intr["cy"],
-                        ]
-                    ).astype(int)
-                )
-                cv2.circle(image, uv, 5, color, -1)
-                cv2.putText(image, label, uv, cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1)
-            cv2.putText(
-                image,
-                f"{geo.get('height_source', 'measured')} height {geo['height_m'] * 1000:.1f} mm; rim {2 * geo['radius_m'] * 1000:.1f} mm",
-                (10, 25),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,
-                (0, 255, 255),
-                1,
-            )
-            if capture_snapshot is not None:
-                image, tcp_report = common.draw_tcp(
-                    image, dict(intrinsics=intr, T_base_camera=camera.tolist(),
-                                T_flange_tcp=self.tcp.tolist()),
-                    capture_snapshot, self.contact)
-                save(self.root / "green_tcp_capture.json", tcp_report)
-            cv2.imwrite(str(self.root / "green_detection.png"), image)
-            cv2.imwrite(str(self.root / "green_mask.png"), mask)
-            # Metric top view: +X right, +Y up. Circle is the fitted cup rim, not a color photograph.
-            top = np.full((500, 500, 3), 245, np.uint8)
-            scale = 2000
-            cv2.circle(top, (250, 250), round(geo["radius_m"] * scale), (0, 130, 0), 2)
-            delta = self.contact - center
-            uv = (round(250 + delta[0] * scale), round(250 - delta[1] * scale))
-            cv2.circle(top, uv, 6, (0, 0, 255), -1)
-            cv2.putText(
-                top,
-                "+X right / +Y up; 2 px/mm",
-                (12, 25),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,
-                (0, 0, 0),
-                1,
-            )
-            cv2.imwrite(str(self.root / "green_top_view.png"), top)
         save(
             self.root / "green_scene.json",
             dict(
@@ -590,17 +520,14 @@ class Workflow:
                 physical_tcp_verified=False,
             ),
         )
-        if self.args.show and self.args.mode == "step":
-            common.show(self.root / "green_detection.png", True, timeout_s=3.0)
 
     def plan(self):
         plan_started = time.perf_counter()
         target = np.asarray(self.reference["T_base_flange"]).copy()
         target[:3, 3] = self.contact - target[:3, :3] @ self.tcp[:3, 3]
         seed = np.asarray(self.reference["joints_rad"])
-        solver_options = ({'fast_fk': True} if self.args.mode == 'fast'
-                          and self.g.get('fast_batched_ik_rotations', False) else {})
-        if self.args.mode == 'fast' and self.g.get('fast_dogbox_ik', False):
+        solver_options = ({'fast_fk': True} if self.g.get('fast_batched_ik_rotations', False) else {})
+        if self.g.get('fast_dogbox_ik', False):
             solver_options['method'] = 'dogbox'
         self.grasp_q = solve(target, seed, self.g["wrist_reference_deg"], **solver_options)
         self.approach_targets = [self.grasp_q]
@@ -651,7 +578,7 @@ class Workflow:
         """Prepare from measured grasp pose while the SDK is closing fingers."""
         if getattr(self, '_prepared', None) is None or self.args.until in ('ready', 'grip'):
             return
-        overlap = self.args.mode == 'fast' and self.g.get('fast_overlap_grip_preparation', False)
+        overlap = self.g.get('fast_overlap_grip_preparation', False)
         cached = getattr(self, '_snapshot_cache', None)
         if (overlap and cached is not None
                 and 0 <= time.time() - cached.get('observed_epoch_s', 0) <= .25):
@@ -718,9 +645,8 @@ class Workflow:
     def build_following(self, start, held, publish=None):
         from cup_grasp_demo.calibration_debug.green_prepared import PreparedRoutes
         prepared = PreparedRoutes()
-        fast_options = ({'fast_fk': True} if self.args.mode == 'fast'
-                        and self.g.get('fast_batched_ik_rotations', False) else {})
-        if self.args.mode == 'fast' and self.g.get('fast_minimize_lift_travel', False):
+        fast_options = ({'fast_fk': True} if self.g.get('fast_batched_ik_rotations', False) else {})
+        if self.g.get('fast_minimize_lift_travel', False):
             fast_options['minimize_travel'] = True
         lift = vertical_targets(start, self.tcp, self.g['lift_mm'] / 1000,
                                 self.g['wrist_reference_deg'], single_target=True, **fast_options)
@@ -750,10 +676,10 @@ class Workflow:
         prepared = future.result(timeout=self.cfg['timeout_s'])
         self._route_future = None
         # GRIP receipts can precede final arm settling: compare a fresh pose.
-        if not (self.args.mode == 'fast' and self.g.get('fast_overlap_grip_preparation', False)):
+        if not self.g.get('fast_overlap_grip_preparation', False):
             self._snapshot_cache = None
         actual = self.snapshot()
-        if (self.args.mode == 'fast' and self.g.get('fast_overlap_grip_preparation', False)
+        if (self.g.get('fast_overlap_grip_preparation', False)
                 and 'lift' in prepared.vertical):
             from cup_grasp_demo.calibration_debug.green_prepared import lift_seed_close
             old, targets = prepared.vertical['lift']
@@ -783,10 +709,8 @@ class Workflow:
         targets = prepared.take_vertical(label, start, self.kin) if prepared else None
         return targets if targets is not None else vertical_targets(
             start, self.tcp, dz, self.g['wrist_reference_deg'], single_target=single_target,
-            **({'minimize_travel': True} if self.args.mode == 'fast'
-               and self.g.get('fast_minimize_lift_travel', False) else {}),
-            **({'fast_fk': True} if self.args.mode == 'fast'
-               and self.g.get('fast_batched_ik_rotations', False) else {}))
+            **({'minimize_travel': True} if self.g.get('fast_minimize_lift_travel', False) else {}),
+            **({'fast_fk': True} if self.g.get('fast_batched_ik_rotations', False) else {}))
 
     def record_recovery(self, phase, reason):
         if not hasattr(self, 'recovery_events'):
@@ -795,7 +719,9 @@ class Workflow:
         print(f"{phase} 自动修正：{reason}", flush=True)
 
     def start_shake_prepare(self, target):
-        if self.args.mode != 'fast' or self.args.until in ('ready', 'grip') or getattr(self, '_shake_future', None) is not None:
+        if getattr(self.args, 'until', None) in ('ready', 'grip') or getattr(self, '_shake_future', None) is not None:
+            return
+        if not getattr(self, 'receipts', {}).get('approach'):
             return
         receipt = read_json(self.receipts['approach'])
         events = receipt.get('joint_delivery_events', [])
@@ -837,7 +763,7 @@ class Workflow:
         return p, table
 
     def shake(self, attempt=0):
-        persistent = self.args.mode in ('fast', 'step') and self.g.get('persistent_runtime', True)
+        persistent = self.g.get('persistent_runtime', True)
         if not persistent:
             self.close_sdk()
         run = common.new_run(self.root, "green_joint_shake")
@@ -930,60 +856,28 @@ class Workflow:
             raise RuntimeError("摇晃未回抬杯起点，禁止下降")
         self.receipts["shake"] = str(run / "actual.json")
 
-    def step_tcp_view(self, phase):
-        """Fresh stationary RGB + joint feedback; no detection or movement commands."""
-        if self.args.mode != "step" or phase not in (
-            "APPROACH", "GRIP", "LIFT", "SHAKE", "LOWER", "OPEN"
-        ):
-            return
-        run = common.new_run(self.root, "green_tcp_" + phase.lower())
-        feedback = self.capture_with_feedback(run / "rgbd")
-        meta, _, image, _ = load_batch(run)
-        camera, _ = common.camera_transform(meta, self.cfg)
-        closed = phase in ("GRIP", "LIFT", "SHAKE", "LOWER")
-        image, report = common.draw_tcp(
-            image, dict(intrinsics=meta["intrinsics"], T_base_camera=camera.tolist(),
-                        T_flange_tcp=self.tcp.tolist()),
-            feedback, self.contact,
-            hand_state="after_close_command" if closed else "open_command_sent")
-        report.update(phase=phase, target_meaning="frozen_grasp_contact",
-                      tcp_definition="configured_middle_finger_root_palm")
-        cv2.putText(image, phase, (8, image.shape[0] - 8),
-                    cv2.FONT_HERSHEY_SIMPLEX, .6, (255, 255, 255), 2)
-        for stem in (run / "tcp_view", self.root / ("green_tcp_" + phase.lower()),
-                     self.root / "green_tcp_current"):
-            if not cv2.imwrite(str(stem.with_suffix(".png")), image):
-                raise OSError("Cannot save TCP preview")
-            save(stem.with_suffix(".json"), report)
-        common.show(self.root / "green_tcp_current.png", self.args.show, timeout_s=3.0)
-
     def perform(self, phase):
         if phase == "HOME":
-            if self.args.mode == 'fast':
-                self.prepare_vision()
+            self.prepare_vision()
             self.table()
             home = read_json(self.cfg["home"])
             self.home = np.radians(home["joints_deg"]).tolist()
-            if self.args.mode == 'fast':
-                start = self.snapshot()
-                already_home = np.max(np.abs(np.asarray(start) - self.home)) <= math.radians(.5)
-                if already_home:
-                    # CONTROL cycles reach HOME repeatedly; reuse the pools.
-                    if getattr(self, '_geometry_pool', None) is None:
-                        self._geometry_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='green-geometry')
-                    self._geometry_future = self._geometry_pool.submit(
-                        copy_context().run, lambda: Screen(table_only=True))
-                    route = dict(start_q_rad=start, stages=[], blockers=[])
-                    if getattr(self, '_capture_pool', None) is None:
-                        self._capture_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='green-capture')
-                    self._capture_future = self._capture_pool.submit(self.capture)
-                else:
-                    route = arm_plan(start, [self.home], self.scene, self.cfg)
-                route.update(kind='green_home_open', target_0_100=[0] * 6)
-                self.issue(route, 'home')
+            start = self.snapshot()
+            already_home = np.max(np.abs(np.asarray(start) - self.home)) <= math.radians(.5)
+            if already_home:
+                # CONTROL cycles reach HOME repeatedly; reuse the pools.
+                if getattr(self, '_geometry_pool', None) is None:
+                    self._geometry_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='green-geometry')
+                self._geometry_future = self._geometry_pool.submit(
+                    copy_context().run, lambda: Screen(table_only=True))
+                route = dict(start_q_rad=start, stages=[], blockers=[])
+                if getattr(self, '_capture_pool', None) is None:
+                    self._capture_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='green-capture')
+                self._capture_future = self._capture_pool.submit(self.capture)
             else:
-                self.hand(self.g["open_targets_0_100"], "initial_open")
-                self.move([self.home], "home")
+                route = arm_plan(start, [self.home], self.scene, self.cfg)
+            route.update(kind='green_home_open', target_0_100=[0] * 6)
+            self.issue(route, 'home')
         elif phase == "CAPTURE":
             future = getattr(self, '_capture_future', None)
             if future is None:
@@ -1045,18 +939,13 @@ class Workflow:
                 self.move([self.home], "return_home")
                 return
             q = self.snapshot()
-            fast = self.args.mode == "fast"
             targets = self.vertical(
                 "retreat", q,
                 self.g["retreat_clearance_mm"] / 1000,
-                single_target=fast,
+                single_target=True,
             )
-            if fast:
-                # One retreat endpoint and one HOME endpoint in one SDK session.
-                self.move([*targets, self.home], "return_home")
-            else:
-                self.move(targets, "retreat")
-                self.move([self.home], "return_home")
+            # One retreat endpoint and one HOME endpoint in one SDK session.
+            self.move([*targets, self.home], "return_home")
 
 
 def run(args):
@@ -1071,6 +960,8 @@ def run(args):
         return 0
     if args.resume:
         raise ValueError("绿色杯流程暂不支持跨进程恢复；停止后核实持杯状态再开始")
+    if getattr(args, 'mode', 'fast') != 'fast':
+        raise ValueError("绿色杯流程仅支持 fast 模式（step/auto 已移除；CONTROL 会话内部同样走 fast 参数）")
     if not args.execute:
         print(
             "绿色杯：HOME → CAPTURE → GRASP → LIFT → SHAKE → LOWER → OPEN → HOME；加 --execute 执行"
@@ -1096,31 +987,17 @@ def run(args):
             state['parallel_startup_elapsed_s'] = time.perf_counter() - startup.started
         path = args.session / "green_pipeline_state.json"
         try:
-            if args.mode == 'step':
-                flow.prepare_step_runtime()
             for phase in PHASES:
                 print("GREEN PIPELINE " + phase, flush=True)
-                if (
-                    args.mode == "step"
-                    and input("Enter 执行本阶段；q 停止：").strip().lower() == "q"
-                ):
-                    state["status"] = "PAUSED"
-                    save(path, state)
-                    return 0
                 start = time.perf_counter()
                 flow.unchanged()
                 state["active_phase"] = phase
                 save(path, state)
-                if args.mode == "fast":
-                    log_run = common.new_run(
-                        args.session, "green_phase_" + phase.lower()
-                    )
-                    with log_output(log_run / "phase.log"):
-                        flow.perform(phase)
-                else:
+                log_run = common.new_run(
+                    args.session, "green_phase_" + phase.lower()
+                )
+                with log_output(log_run / "phase.log"):
                     flow.perform(phase)
-                    if args.mode == "step":
-                        flow.step_tcp_view(phase)
                 elapsed = time.perf_counter() - start
                 state["events"].append(dict(phase=phase, status="completed"))
                 state["phase_timings_s"][phase] = elapsed

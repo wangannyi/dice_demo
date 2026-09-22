@@ -66,9 +66,6 @@ class FreshnessTests(unittest.TestCase):
             w._capture_once=Mock(side_effect=ValueError('table_plane_not_supported'))
             with self.assertRaises(ValueError):w.capture()
             self.assertEqual(w._capture_once.call_count,2)
-            w.args.mode='step';w._capture_once.reset_mock()
-            with self.assertRaises(ValueError):w.capture()
-            self.assertEqual(w._capture_once.call_count,1)
 
 
 def make_intr(w=64,h=48):

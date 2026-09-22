@@ -19,10 +19,10 @@ class DeliveryTests(unittest.TestCase):
             fake.write_text('#!/bin/sh\nprintf "%s\\n" "$@"\n')
             fake.chmod(0o755)
             env = dict(os.environ, DICE_VISION_PYTHON=str(fake), DICE_CONFIG='/tmp/custom.json', DICE_RUN='/tmp/custom_run')
-            result = subprocess.run([str(ROOT/'run.sh'), 'step', '--until', 'grip'], env=env, capture_output=True, text=True, check=True)
+            result = subprocess.run([str(ROOT/'run.sh'), 'fast', '--until', 'grip'], env=env, capture_output=True, text=True, check=True)
             self.assertIn('/tmp/custom.json', result.stdout)
             self.assertIn('/tmp/custom_run', result.stdout)
-            self.assertIn('step', result.stdout)
+            self.assertIn('fast', result.stdout)
             self.assertTrue(result.stdout.rstrip().endswith('grip'))
             self.assertNotIn('--execute', result.stdout)
 

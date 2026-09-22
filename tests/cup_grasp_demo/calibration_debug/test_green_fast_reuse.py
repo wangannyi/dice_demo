@@ -100,18 +100,14 @@ class FastReuseTest(unittest.TestCase):
         self.assertEqual(w._prepared.routes,{})
         self.assertEqual(len(w.recovery_events),1)
 
-    def test_home_fast_one_request_step_keeps_sequential_behavior(self):
-        for mode in ['fast','step']:
-            w=self.workflow();w.args.mode=mode
-            w.prepare_vision=Mock();w.table=Mock();w.hand=Mock();w.move=Mock();w.issue=Mock()
-            w.g['open_targets_0_100']=[0]*6;w.cfg['home']='unused'
-            with patch.object(f,'read_json',return_value={'joints_deg':[0]*7}),patch.object(f,'arm_plan',return_value={'blockers':[]}):
-                w.perform('HOME')
-            if mode=='fast':
-                w.hand.assert_not_called();w.move.assert_not_called()
-                self.assertEqual(w.issue.call_args.args[0]['kind'],'green_home_open')
-            else:
-                w.hand.assert_called_once();w.move.assert_called_once();w.issue.assert_not_called()
+    def test_home_issues_single_request(self):
+        w=self.workflow();w.args.mode='fast'
+        w.prepare_vision=Mock();w.table=Mock();w.hand=Mock();w.move=Mock();w.issue=Mock()
+        w.g['open_targets_0_100']=[0]*6;w.cfg['home']='unused'
+        with patch.object(f,'read_json',return_value={'joints_deg':[0]*7}),patch.object(f,'arm_plan',return_value={'blockers':[]}):
+            w.perform('HOME')
+        w.hand.assert_not_called();w.move.assert_not_called()
+        self.assertEqual(w.issue.call_args.args[0]['kind'],'green_home_open')
 
     def test_hand_and_home_overlap_without_extra_duration_wait(self):
         clock=[0.];events=[]

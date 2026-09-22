@@ -98,25 +98,19 @@ sudo ip link set can0 up type can bitrate 1000000
 # 不访问硬件，只打印流程
 ./run.sh fast
 
-# 分步运行；每阶段 Enter 继续、q 停止
-./run.sh step --show --execute
-
 # 上层应用常驻调度；按 JSON 指令推进到指定阶段
 ./run.sh control --execute
 
-# 自动连续运行，保留非 FAST 的执行与诊断路径
-./run.sh auto --execute
-
-# 快速连续运行，复用 SDK、相机和模型
+# 自动连续运行，复用 SDK、相机和模型
 ./run.sh fast --execute
 ```
 
 | 模式 | 阶段确认 | 诊断 | 运动设置 |
 | --- | --- | --- | --- |
-| `step` | 每步 Enter | `--show` 可显示图像和 TCP | `speed_percent` |
-| `control` | 上层 JSON 指令推进，阶段间常驻等待 | JSON 事件与状态文件；详细日志在 stderr | 与 STEP 相同的阶段运动配置 |
-| `auto` | 连续执行 | 保留常规图像及记录；不弹 STEP 窗口 | `speed_percent` |
+| `control` | 上层 JSON 指令推进，阶段间常驻等待 | JSON 事件与状态文件；详细日志在 stderr | 与 FAST 相同的阶段运动配置 |
 | `fast` | 连续执行 | 精简图像；保存状态、计划、收据和错误 | FAST 专用参数 |
+
+慢速的 `step`/`auto` 模式已移除（2026-09-22 瘦身）；调试定位用 `green-detect`，常驻调度用 `control`。
 
 默认运行到放杯并返回 HOME。可加 `--until ready`、`--until grip`、`--until shake` 分别停在靠近、闭手、摇完；停在后两者时可能仍持杯。没有 `--execute` 不会运动。
 

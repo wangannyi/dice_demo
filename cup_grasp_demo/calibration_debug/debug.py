@@ -620,7 +620,7 @@ def main(argv=None):
         if load_config(args.config).get('pipeline_strategy') != 'green_open_cup':
             raise ValueError('green-detect requires green_open_cup configuration')
         from cup_grasp_demo.calibration_debug.green_pipeline import Workflow
-        args.mode = 'step'
+        args.mode = 'fast'
         def green_detect_only(args):
             flow = Workflow(args)
             flow.capture()
@@ -629,6 +629,8 @@ def main(argv=None):
         return dispatch(args, green_detect_only)
     if args.command == 'pipeline':
         if load_config(args.config).get('pipeline_strategy') == 'green_open_cup':
+            if args.mode in ('step', 'auto'):
+                raise ValueError('绿色杯流程仅支持 fast/control（step/auto 已移除）')
             if args.until is None:
                 args.until = 'place'
             if args.mode == 'control':

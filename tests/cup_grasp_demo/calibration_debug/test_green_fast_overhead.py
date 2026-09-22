@@ -18,9 +18,9 @@ class FastOverheadTest(unittest.TestCase):
         self.assertEqual(fast.g['finger_duration_s'],step.g.get('fast_finger_duration_s', step.g['finger_duration_s']))
         self.assertEqual(step.g['finger_duration_s'], g.read_json(cfg)['green_cup']['finger_duration_s'])
 
-    def test_fresh_receipt_reused_only_in_fast(self):
-        for mode,age,reads in [('fast',0,0),('fast',2,1),('step',0,1)]:
-            wf=object.__new__(g.Workflow);wf.args=SimpleNamespace(mode=mode)
+    def test_fresh_receipt_is_reused(self):
+        for age,reads in [(0,0),(2,1)]:
+            wf=object.__new__(g.Workflow);wf.args=SimpleNamespace(mode='fast')
             wf.root=Path('/tmp');wf.cfg={}
             wf._snapshot_cache=dict(observed_epoch_s=time.time()-age,joints_rad=[.1]*7)
             with patch.object(g.common,'ready'),patch.object(g.common,'new_run',return_value=Path('/tmp/run')),patch.object(g.common,'bridge',return_value=dict(joints_rad=[.2]*7)) as bridge:
@@ -38,19 +38,14 @@ class FastOverheadTest(unittest.TestCase):
             p.write_text('new contents')
             with self.assertRaises(ValueError):wf.unchanged()
 
-    def test_fast_return_has_two_endpoints_one_execution(self):
-        for mode in ('fast','step'):
-            wf=object.__new__(g.Workflow);wf.args=SimpleNamespace(mode=mode)
-            wf.snapshot=Mock(return_value=[0]*7);wf.tcp=object();wf.home=[.2]*7
-            wf.g=dict(retreat_clearance_mm=50,wrist_reference_deg=[0,-13,5]);wf.move=Mock()
-            with patch.object(g,'vertical_targets',return_value=[[.1]*7]) as vertical:
-                wf.perform('RETURN_HOME')
-            self.assertEqual(vertical.call_args.kwargs['single_target'],mode=='fast')
-            if mode=='fast':
-                wf.move.assert_called_once_with([[.1]*7,wf.home],'return_home')
-            else:
-                self.assertEqual(wf.move.call_count,2)
-                self.assertEqual(wf.move.call_args.args,([wf.home],'return_home'))
+    def test_return_has_two_endpoints_one_execution(self):
+        wf=object.__new__(g.Workflow);wf.args=SimpleNamespace(mode='fast')
+        wf.snapshot=Mock(return_value=[0]*7);wf.tcp=object();wf.home=[.2]*7
+        wf.g=dict(retreat_clearance_mm=50,wrist_reference_deg=[0,-13,5]);wf.move=Mock()
+        with patch.object(g,'vertical_targets',return_value=[[.1]*7]) as vertical:
+            wf.perform('RETURN_HOME')
+        self.assertTrue(vertical.call_args.kwargs['single_target'])
+        wf.move.assert_called_once_with([[.1]*7,wf.home],'return_home')
 
 
 class ShakeStartTest(unittest.TestCase):

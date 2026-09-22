@@ -88,18 +88,28 @@ class GreenTest(unittest.TestCase):
 
         wf = object.__new__(flow.Workflow)
         wf.cfg = load_config(CFG)
-        wf.args = SimpleNamespace(mode="step")
+        wf.args = SimpleNamespace(mode="fast")
         wf.g = wf.cfg["green_cup"]
-        wf.hand = Mock()
-        wf.move = Mock()
+        wf.prepare_vision = Mock()
+        wf.snapshot = Mock(return_value=[0.1] * 7)  # 不在 HOME → arm_plan 路径
+        wf.issue = Mock()
+        real_read_json = flow.read_json
+
+        def home_only(path):
+            if str(path) == str(wf.cfg["home"]):
+                return {"joints_deg": [0] * 7}
+            return real_read_json(path)
+
         with patch.object(
             flow.common,
             "capture_rgbd",
             side_effect=AssertionError("HOME camera forbidden"),
-        ):
+        ), patch.object(flow, "read_json", side_effect=home_only), patch.object(
+            flow, "arm_plan", return_value=dict(blockers=[])
+        ) as plan:
             wf.perform("HOME")
-        wf.hand.assert_called_once_with([0] * 6, "initial_open")
-        wf.move.assert_called_once()
+        plan.assert_called_once()
+        self.assertEqual(wf.issue.call_args.args[0]["kind"], "green_home_open")
         self.assertIn("cup_normal_base", wf.scene)
         with patch.object(flow, "digest", return_value="changed"):
             with self.assertRaisesRegex(ValueError, "标定已改变"):
