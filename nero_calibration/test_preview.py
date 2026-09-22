@@ -18,6 +18,29 @@ ROOT = Path(__file__).resolve().parent
 
 
 class PreviewTests(unittest.TestCase):
+    def test_manual_preview_records_joints_for_each_displayed_frame(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)/'new'
+            camera, arm, ui = Mock(), Mock(), Mock()
+            camera.info = {'serial': 'mock-camera', 'width': 640, 'height': 480}
+            arm.read_joints.return_value = {'joints_rad': [.1]*7, 'joints_deg': [5.73]*7}
+            frame = np.zeros((480, 640, 3), np.uint8)
+            def preview_frame(_camera, _detector, _count, on_frame):
+                on_frame(frame, np.eye(4), {'corners': 12, 'reprojection_rms_px': .1})
+                return 'q'
+            ui.read_command.side_effect = preview_frame
+            with patch('sensors.RealSenseCamera', return_value=camera), \
+                 patch('sensors.NeroFeedback', return_value=arm), \
+                 patch('preview.CollectionPreview', return_value=ui), \
+                 patch('builtins.print'):
+                self.assertEqual(main(['collect', '--preview', '--dataset', str(path)]), 0)
+            trace = [json.loads(line) for line in (path/'teaching_frames.jsonl').read_text().splitlines()]
+            self.assertEqual(len(trace), 1)
+            self.assertEqual(trace[0]['joints']['joints_rad'], [.1]*7)
+            self.assertEqual(trace[0]['image_width'], 640)
+            arm.close.assert_called_once()
+            camera.close.assert_called_once()
+
     def test_preview_preserves_rejection_resume_and_saved_data(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp)

@@ -19,6 +19,7 @@ class CollectionPreview:
         self.last_lines = ['No capture in this window yet.']
         self.last_color = (180, 180, 180)
         self.current_image = None
+        self.board_window = None
         self.closed = False
         cv2.namedWindow(self.TITLE, cv2.WINDOW_NORMAL)
         cv2.resizeWindow(self.TITLE, 1280, 640)
@@ -72,7 +73,7 @@ class CollectionPreview:
         line = sys.stdin.readline()
         return 'q' if line == '' else line.strip().lower()
 
-    def read_command(self, camera, detector, count):
+    def read_command(self, camera, detector, count, on_frame=None):
         while True:
             try:
                 visible = cv2.getWindowProperty(self.TITLE, cv2.WND_PROP_VISIBLE)
@@ -90,11 +91,18 @@ class CollectionPreview:
                          f'Board in camera (mm): {xyz[0]:.1f}, {xyz[1]:.1f}, {xyz[2]:.1f}',
                          'Detection OK. Stop the arm before capturing.']
             except ValueError as exc:
+                board = quality = None
                 vis = image.copy()
                 if detector.roi is not None:
                     x0, y0, x1, y1 = detector.roi
                     cv2.rectangle(vis, (x0, y0), (x1-1, y1-1), (255, 128, 0), 1)
                 lines = ['DETECTION FAILED', *textwrap.wrap(str(exc), width=68)]
+            if on_frame is not None:
+                on_frame(image, board, quality)
+            if self.board_window is not None:
+                x0, y0, x1, y1 = self.board_window
+                cv2.rectangle(vis, (x0, y0), (x1-1, y1-1), (255, 255, 0), 2)
+                lines.append('CYAN BOX: hand-board visibility window')
             self.current_image = vis
             cv2.imshow(self.TITLE, self.render(vis, lines, count))
             # Five previews per second limit X11 traffic; collection still uses fresh frames.

@@ -9,7 +9,7 @@ HOME → CAPTURE → PLAN → APPROACH → GRIP → LIFT → SHAKE → LOWER →
 
 - [K3 系统依赖与 Python 环境实测清单](docs/ENVIRONMENT.md)
 - [分步调试与单项测试](docs/DEBUG.md)
-- [首次标定、示教点与相机移动后的校准](docs/CALIBRATION.md)
+- [首次人工标定、画框与自动重采、相机移动后的校准](docs/CALIBRATION.md)
 - [上层应用接入接口](docs/INTEGRATION.md)
 - [第三方依赖与分发范围](THIRD_PARTY.md)
 
@@ -197,7 +197,7 @@ configs/                    交付使用的主配置、摇晃配置
 scripts/                    环境检查、源码打包、桌面参数登记
 cup_grasp_demo/              识别、规划、状态机和调试入口
 nero_revo2_control/          机械臂及灵巧手控制、运动学
-nero_calibration/           手眼标定、示教点记录、参考板恢复
+nero_calibration/           手眼标定、逐帧示教轨迹、自动重采、参考板恢复
 rgb_hand_tracking/          复用的 SDK 反馈与控制审计模块
 agx_arm_ros/.../agx_arm_urdf/ 几何模型，不要求 ROS 运行时
 docs/                       调试和标定指南

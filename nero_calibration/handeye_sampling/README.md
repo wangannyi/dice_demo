@@ -1,6 +1,6 @@
 # 手眼标定采样
 
-采样入口为 nero_calibration/run_k3.sh collect。人工改变姿态后静止采样，保存的数据与 teaching_poses.json 应单独备份。自动回放采样尚未实现。
+人工采样入口为 `nero_calibration/run_k3.sh collect --preview`。预览的每一帧将七轴反馈写入 `teaching_frames.jsonl`；有效样本的采集帧反馈写入各 `sample_*.json`。人工改变姿态后静止采样，保存的数据、`teaching_poses.json` 和所画的 `board_window.json` 应一起备份。重复采样使用 `nero_calibration/auto_collect.py plan` 离线检查，再用 `run --execute` 自动移动并采图；见 [标定文档](../../docs/CALIBRATION.md)。
 
 ## 使用入口
 
