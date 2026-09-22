@@ -116,36 +116,41 @@ def fixed_rim_residual(views, origin, basis, unit):
                             np.broadcast_to(basis[:, 1], unit.shape), unit), axis=-1)
     # The circle basis and stereo extrinsics are constant for every optimizer
     # iteration and seed; rotate their derivatives once per residual factory.
-    prepared = [(view, np.einsum('ij,nip->njp', view['R'], derivatives)) for view in views]
+    count = len(unit)
+    dc = np.concatenate([np.einsum('ij,nip->njp', v['R'], derivatives) for v in views])
+    base = np.repeat(np.array([(origin-v['t']) @ v['R'] for v in views]), count, axis=0)
+    fx, fy, cx, cy = [np.repeat([v['k'][key] for v in views], count)
+                       for key in ('fx', 'fy', 'cx', 'cy')]
+    heights = np.repeat([v['distance'].shape[0] for v in views], count)
+    widths = np.repeat([v['distance'].shape[1] for v in views], count)
+    sizes = [v['distance'].size for v in views]
+    offsets = np.repeat(np.cumsum([0] + sizes[:-1]), count)
+    pixels = np.concatenate([v['distance'].ravel() for v in views])
     cached = [None, None, None]
 
     def evaluate(q):
         if cached[0] is not None and np.array_equal(q, cached[0]):
             return cached[1], cached[2]
-        points = origin + basis @ q[:2] + q[2] * unit
-        values, jacobians = [], []
-        for view, dc in prepared:
-            camera = (points - view['t']) @ view['R']
-            if np.any(camera[:, 2] <= 0):
-                raise ValueError('Stereo points behind camera')
-            z = camera[:, 2]
-            k = view['k']
-            x = camera[:, 0] / z * k['fx'] + k['cx']
-            y = camera[:, 1] / z * k['fy'] + k['cy']
-            dx = k['fx'] * (dc[:, 0, :] * z[:, None] - camera[:, 0, None] * dc[:, 2, :]) / z[:, None]**2
-            dy = k['fy'] * (dc[:, 1, :] * z[:, None] - camera[:, 1, None] * dc[:, 2, :]) / z[:, None]**2
-            image = view['distance']; height, width = image.shape
-            inside = (x >= 0) & (x <= width-1) & (y >= 0) & (y <= height-1)
-            ix = np.clip(np.floor(x).astype(int), 0, width-2)
-            iy = np.clip(np.floor(y).astype(int), 0, height-2)
-            u, v = x-ix, y-iy
-            a, b = image[iy, ix], image[iy, ix+1]
-            c, d = image[iy+1, ix], image[iy+1, ix+1]
-            value = (1-v)*((1-u)*a+u*b)+v*((1-u)*c+u*d)
-            gx, gy = (1-v)*(b-a)+v*(d-c), (1-u)*(c-a)+u*(d-b)
-            values.append(np.where(inside, value, 50.))
-            jacobians.append(np.where(inside[:, None], gx[:, None]*dx + gy[:, None]*dy, 0.))
-        cached[:] = [np.array(q, copy=True), np.concatenate(values), np.vstack(jacobians)]
+        camera = base + dc @ q
+        z = camera[:, 2]
+        if np.any(z <= 0):
+            raise ValueError('Stereo points behind camera')
+        xn, yn = camera[:, 0]/z, camera[:, 1]/z
+        x, y = xn*fx+cx, yn*fy+cy
+        inside = (x >= 0) & (x <= widths-1) & (y >= 0) & (y <= heights-1)
+        ix = np.minimum(np.maximum(np.floor(x).astype(int), 0), widths-2)
+        iy = np.minimum(np.maximum(np.floor(y).astype(int), 0), heights-2)
+        u, v = x-ix, y-iy
+        index = offsets + iy*widths + ix
+        a, b = pixels[index], pixels[index+1]
+        c, d = pixels[index+widths], pixels[index+widths+1]
+        value = (1-v)*((1-u)*a+u*b)+v*((1-u)*c+u*d)
+        gx, gy = (1-v)*(b-a)+v*(d-c), (1-u)*(c-a)+u*(d-b)
+        dx = (fx/z)[:, None]*(dc[:, 0, :]-xn[:, None]*dc[:, 2, :])
+        dy = (fy/z)[:, None]*(dc[:, 1, :]-yn[:, None]*dc[:, 2, :])
+        jac = gx[:, None]*dx+gy[:, None]*dy
+        cached[:] = [np.array(q, copy=True), np.where(inside, value, 50.),
+                     np.where(inside[:, None], jac, 0.)]
         return cached[1], cached[2]
 
     return lambda q: evaluate(q)[0], lambda q: evaluate(q)[1]

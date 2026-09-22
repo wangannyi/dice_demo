@@ -11,7 +11,7 @@ from cup_grasp_demo.calibration_debug import green_pipeline as f
 class OverlapTests(unittest.TestCase):
     def test_at_home_capture_overlaps_open_without_arm_target(self):
         w=object.__new__(f.Workflow);w.args=SimpleNamespace(mode='fast');w.cfg={'home':'unused'}
-        w.prepare_vision=Mock();w.table=Mock();w.capture=Mock();w.snapshot=Mock(return_value=[0]*7);w.issue=Mock()
+        w.g={'persistent_runtime':False};w.prepare_vision=Mock();w.table=Mock();w.capture=Mock();w.snapshot=Mock(return_value=[0]*7);w.issue=Mock()
         try:
             with patch.object(f,'read_json',return_value={'joints_deg':[0]*7}):w.perform('HOME')
             w.perform('CAPTURE')
@@ -21,7 +21,7 @@ class OverlapTests(unittest.TestCase):
 
     def test_away_from_home_capture_is_not_started_early(self):
         w=object.__new__(f.Workflow);w.args=SimpleNamespace(mode='fast');w.cfg={'home':'unused'};w.scene={}
-        w.prepare_vision=Mock();w.table=Mock();w.capture=Mock();w.snapshot=Mock(return_value=[.1]*7);w.issue=Mock()
+        w.g={'persistent_runtime':False};w.prepare_vision=Mock();w.table=Mock();w.capture=Mock();w.snapshot=Mock(return_value=[.1]*7);w.issue=Mock()
         with patch.object(f,'read_json',return_value={'joints_deg':[0]*7}),patch.object(f,'arm_plan',return_value={'stages':[{}]}):w.perform('HOME')
         w.capture.assert_not_called();self.assertFalse(hasattr(w,'_capture_future'))
         w.perform('CAPTURE');w.capture.assert_called_once()

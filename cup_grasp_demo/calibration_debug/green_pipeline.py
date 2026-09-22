@@ -57,8 +57,11 @@ def validate(cfg):
 
     capture_arguments(cfg)
     g = cfg["green_cup"]
+    if g.get('fast_motion_profile', 'quintic') not in ('quintic', 'trapezoid'):
+        raise ValueError('fast_motion_profile must be quintic or trapezoid')
     for key in ('fast_cached_feedback', 'fast_overlap_grip_preparation',
-                'fast_uncompressed_capture', 'fast_analytic_rim_jacobian', 'fast_batched_ik_rotations'):
+                'fast_uncompressed_capture', 'fast_analytic_rim_jacobian', 'fast_batched_ik_rotations',
+                'fast_parallel_startup', 'fast_dogbox_ik', 'fast_minimize_lift_travel'):
         if type(g.get(key, False)) is not bool:
             raise ValueError(key + ' must be boolean')
     if g.get('precision_error_action', 'stop') not in ('stop', 'record'):
@@ -84,8 +87,8 @@ def validate(cfg):
     if not isinstance(phase_speeds, dict) or set(phase_speeds) - {'approach', 'return_home'} or any(type(v) is not int or not 1 <= v <= 100 for v in phase_speeds.values()):
         raise ValueError('fast_phase_speed_percent: approach/return_home must be 1..100')
     fast_finger = g.get('fast_finger_duration_s', g['finger_duration_s'])
-    if isinstance(fast_finger, bool) or not isinstance(fast_finger, (int, float)) or not math.isfinite(fast_finger) or not .5 <= fast_finger <= 2.55:
-        raise ValueError('fast_finger_duration_s must be 0.5..2.55')
+    if isinstance(fast_finger, bool) or not isinstance(fast_finger, (int, float)) or not math.isfinite(fast_finger) or not .25 <= fast_finger <= 2.55:
+        raise ValueError('fast_finger_duration_s must be 0.25..2.55')
     from cup_grasp_demo.calibration_debug.green_hand_execution import open_feedback_reference
     open_feedback_reference(g)
     for name in ("open_targets_0_100", "grip_targets_0_100"):
@@ -167,6 +170,7 @@ class Workflow:
         # Runtime planning still rechecks the actual limits and held-cup path.
         joint_trajectory(read_json(ROOT / self.g['joint_test_config']))
         if args.mode == "fast":
+            self.cfg.setdefault('joint_delivery', {})['profile'] = self.g.get('fast_motion_profile', 'quintic')
             self.g['perception']['save_debug_images'] = False
             self.g['perception']['analytic_jacobian'] = self.g.get('fast_analytic_rim_jacobian', False)
             self.cfg["speed_percent"] = self.g.get("fast_speed_percent", 100)
@@ -209,13 +213,16 @@ class Workflow:
         self.deps += list(common.HERE.glob("*.py"))
         self.hashes = {str(p.resolve()): digest(p) for p in self.deps}
         self._file_stats = {p: self.file_stamp(p) for p in self.hashes}
+        from cup_grasp_demo.calibration_debug.green_startup import claim
+        self._startup = claim(args.config, args.session) if args.mode == 'fast' else None
 
     def bridge(self, command, output, cfg, request=None, *, on_dispatched=None):
         if self.args.mode != 'fast' or not getattr(self, 'g', {}).get('persistent_runtime', hasattr(self, '_sdk')):
             return common.bridge(command, output, cfg, request)
         from cup_grasp_demo.calibration_debug.green_runtime import SDKClient
         if self._sdk is None:
-            self._sdk = SDKClient(cfg, common.new_run(self.root, 'green_sdk_session'))
+            self._sdk = (self._startup.acquire('sdk') if getattr(self, '_startup', None) is not None and 'sdk' not in self._startup.claimed
+                         else SDKClient(cfg, common.new_run(self.root, 'green_sdk_session')))
         return self._sdk.call(command, output, request,
                               **({'on_dispatched': on_dispatched} if on_dispatched is not None else {}))
 
@@ -226,6 +233,8 @@ class Workflow:
         self._snapshot_cache = None
 
     def close(self):
+        if getattr(self, '_startup', None) is not None:
+            self._startup.close()
         for name in ('_capture_pool', '_shake_pool', '_geometry_pool'):
             pool = getattr(self, name, None)
             if pool is not None:
@@ -243,7 +252,8 @@ class Workflow:
     def prepare_vision(self):
         if self.args.mode == 'fast' and self.g.get('persistent_runtime', True) and self._vision is None:
             from cup_grasp_demo.calibration_debug.green_runtime import VisionResources
-            self._vision = VisionResources(self.cfg, self.root / 'unused_capture_path')
+            self._vision = (self._startup.acquire('vision') if getattr(self, '_startup', None) is not None
+                            else VisionResources(self.cfg, self.root / 'unused_capture_path'))
 
     @staticmethod
     def file_stamp(path):
@@ -554,6 +564,8 @@ class Workflow:
         seed = np.asarray(self.reference["joints_rad"])
         solver_options = ({'fast_fk': True} if self.args.mode == 'fast'
                           and self.g.get('fast_batched_ik_rotations', False) else {})
+        if self.args.mode == 'fast' and self.g.get('fast_dogbox_ik', False):
+            solver_options['method'] = 'dogbox'
         self.grasp_q = solve(target, seed, self.g["wrist_reference_deg"], **solver_options)
         self.approach_targets = [self.grasp_q]
         if self.g.get("approach_via_above", True):
@@ -672,6 +684,8 @@ class Workflow:
         prepared = PreparedRoutes()
         fast_options = ({'fast_fk': True} if self.args.mode == 'fast'
                         and self.g.get('fast_batched_ik_rotations', False) else {})
+        if self.args.mode == 'fast' and self.g.get('fast_minimize_lift_travel', False):
+            fast_options['minimize_travel'] = True
         lift = vertical_targets(start, self.tcp, self.g['lift_mm'] / 1000,
                                 self.g['wrist_reference_deg'], single_target=True, **fast_options)
         retreat = [] if self.g.get("direct_return_home", False) else vertical_targets(
@@ -733,6 +747,8 @@ class Workflow:
         targets = prepared.take_vertical(label, start, self.kin) if prepared else None
         return targets if targets is not None else vertical_targets(
             start, self.tcp, dz, self.g['wrist_reference_deg'], single_target=single_target,
+            **({'minimize_travel': True} if self.args.mode == 'fast'
+               and self.g.get('fast_minimize_lift_travel', False) else {}),
             **({'fast_fk': True} if self.args.mode == 'fast'
                and self.g.get('fast_batched_ik_rotations', False) else {}))
 
@@ -1035,6 +1051,9 @@ def run(args):
         state = dict(
             strategy="green_open_cup", status="RUNNING", events=[], phase_timings_s={}
         )
+        startup = getattr(flow, '_startup', None)
+        if startup is not None:
+            state['parallel_startup_elapsed_s'] = time.perf_counter() - startup.started
         path = args.session / "green_pipeline_state.json"
         try:
             for phase in PHASES:
@@ -1063,6 +1082,8 @@ def run(args):
                 elapsed = time.perf_counter() - start
                 state["events"].append(dict(phase=phase, status="completed"))
                 state["phase_timings_s"][phase] = elapsed
+                if phase == 'CAPTURE' and startup is not None:
+                    state['startup_to_capture_s'] = time.perf_counter() - startup.started
                 state['reuse_events'] = flow._prepared.events if getattr(flow, '_prepared', None) else []
                 state["handoff_timings"] = getattr(flow, 'handoff_timings', {})
                 state['lift_endpoint_reused'] = getattr(flow, 'lift_endpoint_reused', False)

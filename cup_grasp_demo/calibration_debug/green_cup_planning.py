@@ -3,7 +3,7 @@
 import math
 import inspect
 import numpy as np
-from scipy.optimize import least_squares
+from scipy.optimize import least_squares, minimize
 from scipy.spatial.transform import Rotation
 from cup_grasp_demo.calibration_debug.shake import Kinematics
 from cup_grasp_demo.calibration_debug.core import Screen
@@ -37,7 +37,9 @@ def batched_rotation_forward(kin, q):
     return transform, np.concatenate((np.cross(axes, transform[:3, 3] - pivots).T, axes.T))
 
 
-def solve(target, seed, wrist_deg, *, fast_fk=False):
+def solve(target, seed, wrist_deg, *, fast_fk=False, method='trf'):
+    if method not in ('trf', 'dogbox'):
+        raise ValueError('IK method must be trf or dogbox')
     kin = Kinematics()
     forward = (lambda q: batched_rotation_forward(kin, q)) if fast_fk else kin.forward
     reference = np.radians(wrist_deg)
@@ -103,6 +105,7 @@ def solve(target, seed, wrist_deg, *, fast_fk=False):
             np.clip(start, lower + 1e-8, upper - 1e-8),
             bounds=(lower, upper),
             jac=jacobian,
+            method=method,
             max_nfev=150,
             xtol=1e-9,
             ftol=1e-9,
@@ -122,6 +125,8 @@ def solve(target, seed, wrist_deg, *, fast_fk=False):
                 )
             )
     if not solutions:
+        if method == 'dogbox':
+            return solve(target, seed, wrist_deg, fast_fk=fast_fk, method='trf')
         raise ValueError("绿色杯目标 IK 无合格解；保留当前姿态")
     return min(solutions, key=lambda item: item[0])[1]
 
@@ -176,7 +181,37 @@ def arm_plan(start, targets, scene, cfg, *, held=None, cup_margin_mm=0):
     )
 
 
-def vertical_targets(start, tcp, dz, wrist_deg, *, single_target=False, fast_fk=False):
+def minimize_joint_travel(start, candidate, target):
+    """Redistribute redundant motion without changing the Cartesian endpoint.
+
+    Equal per-axis acceleration budgets make the largest angular displacement
+    the rest-to-rest timing bottleneck. The normal solver remains the fallback;
+    arm_plan still checks the resulting joint path and held-cup clearance.
+    """
+    kin = Kinematics()
+    start, candidate = np.asarray(start), np.asarray(candidate)
+    lower, upper = kin.lower + math.radians(1), kin.upper - math.radians(1)
+    def equality(x):
+        pose = batched_rotation_forward(kin, x[:7])[0]
+        return np.r_[10 * (pose[:3, 3] - target[:3, 3]),
+                     Rotation.from_matrix(target[:3, :3] @ pose[:3, :3].T).as_rotvec()]
+    def travel(x):
+        delta = x[:7] - start
+        return np.r_[x[7] - delta, x[7] + delta]
+    original = float(np.max(abs(candidate-start)))
+    result = minimize(lambda x: x[7], np.r_[candidate, original], method='SLSQP',
+                      bounds=list(zip(lower, upper)) + [(0., max(original, 1e-6))],
+                      constraints=[dict(type='eq', fun=equality), dict(type='ineq', fun=travel)],
+                      options=dict(ftol=1e-10, maxiter=60))
+    if (result.success and np.all(np.isfinite(result.x))
+            and np.max(abs(equality(result.x))) < 1e-6
+            and np.all(result.x[:7] >= lower) and np.all(result.x[:7] <= upper)
+            and np.max(abs(result.x[:7]-start)) < original):
+        return result.x[:7]
+    return candidate
+
+
+def vertical_targets(start, tcp, dz, wrist_deg, *, single_target=False, fast_fk=False, minimize_travel=False):
     kin = Kinematics()
     flange, _ = kin.forward(start)
     pose = flange @ tcp
@@ -186,6 +221,10 @@ def vertical_targets(start, tcp, dz, wrist_deg, *, single_target=False, fast_fk=
     for distance in distances:
         target = pose.copy()
         target[2, 3] += distance
-        q = solve(target @ np.linalg.inv(tcp), q, wrist_deg, **({'fast_fk': True} if fast_fk else {}))
+        flange_target = target @ np.linalg.inv(tcp)
+        previous = q
+        q = solve(flange_target, q, wrist_deg, **({'fast_fk': True} if fast_fk else {}))
+        if minimize_travel:
+            q = minimize_joint_travel(previous, q, flange_target)
         targets.append(q.tolist())
     return targets

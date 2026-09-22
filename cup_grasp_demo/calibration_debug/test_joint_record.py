@@ -14,7 +14,7 @@ from cup_grasp_demo.calibration_debug import joint_profile as profile
 from cup_grasp_demo.calibration_debug import joint_test as cli
 from cup_grasp_demo.calibration_debug import test_joint_lab as fixture
 
-EVIDENCE = ROOT / "cup_grasp_demo/datasets/joint_record_20260918"
+EVIDENCE = ROOT / "cup_grasp_demo/calibration_debug/fixtures"
 
 
 class JointRecordTest(unittest.TestCase):

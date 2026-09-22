@@ -2,6 +2,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 import numpy as np
 from cup_grasp_demo.calibration_debug import green_pipeline as flow
@@ -22,7 +23,7 @@ class DirectApproachTest(unittest.TestCase):
     def test_direct_and_legacy_routes(self):
         for enabled in (False, True):
             with tempfile.TemporaryDirectory() as d:
-                wf=object.__new__(flow.Workflow)
+                wf=object.__new__(flow.Workflow);wf.args=SimpleNamespace(mode="step")
                 wf.root=Path(d);wf.reference=dict(T_base_flange=np.eye(4).tolist(),joints_rad=[0]*7)
                 wf.contact=np.array([.1,.2,.3]);wf.tcp=np.eye(4)
                 wf.g=dict(approach_via_above=enabled,approach_clearance_mm=50,wrist_reference_deg=[0,-13,5])
@@ -39,7 +40,7 @@ class DirectApproachTest(unittest.TestCase):
 
 class DirectLiftTest(unittest.TestCase):
     def test_lift_sends_only_one_endpoint(self):
-        wf=object.__new__(flow.Workflow)
+        wf=object.__new__(flow.Workflow);wf.args=SimpleNamespace(mode="step")
         wf.place_q=[0]*7;wf.tcp=np.eye(4);wf.held={}
         wf.g=dict(lift_mm=50,wrist_reference_deg=[0,-13,5],place_tolerance_mm=3)
         wf.move=Mock();wf.snapshot=Mock(return_value=[.1]*7)
@@ -51,7 +52,7 @@ class DirectLiftTest(unittest.TestCase):
 
 class PlacementTest(unittest.TestCase):
     def test_place_uses_saved_pose_and_checks_before_open(self):
-        wf=object.__new__(flow.Workflow)
+        wf=object.__new__(flow.Workflow);wf.args=SimpleNamespace(mode="step")
         wf.place_q=[.1]*7;wf.tcp=np.eye(4);wf.held={}
         wf.g=dict(place_tolerance_mm=3)
         wf.move=Mock();wf.snapshot=Mock(return_value=[.1]*7)
@@ -77,7 +78,7 @@ class PlacementTest(unittest.TestCase):
 
 class RecoverPlacementTest(unittest.TestCase):
     def test_corrected_place_continues(self):
-        wf=object.__new__(flow.Workflow);wf.place_q=[0]*7;wf.tcp=np.eye(4);wf.held={}
+        wf=object.__new__(flow.Workflow);wf.args=SimpleNamespace(mode="step");wf.place_q=[0]*7;wf.tcp=np.eye(4);wf.held={}
         wf.g=dict(place_tolerance_mm=3,recovery_attempts=1)
         wf.move=Mock();wf.snapshot=Mock(return_value=[0]*7);wf.kin=Mock()
         wrong=np.eye(4);wrong[2,3]=.01
@@ -88,7 +89,7 @@ class RecoverPlacementTest(unittest.TestCase):
         self.assertEqual(len(wf.recovery_events),1)
 
     def test_small_place_error_continues_without_changing_collision_margin(self):
-        wf=object.__new__(flow.Workflow);wf.place_q=[0]*7;wf.tcp=np.eye(4);wf.held={}
+        wf=object.__new__(flow.Workflow);wf.args=SimpleNamespace(mode="step");wf.place_q=[0]*7;wf.tcp=np.eye(4);wf.held={}
         wf.g=dict(place_tolerance_mm=3,place_arrival_tolerance_mm=5)
         wf.move=Mock();wf.snapshot=Mock(return_value=[0]*7);wf.kin=Mock()
         offset=np.eye(4);offset[2,3]=.00337
@@ -98,7 +99,7 @@ class RecoverPlacementTest(unittest.TestCase):
         self.assertAlmostEqual(wf.place_arrival_error_mm,3.37)
 
     def test_direct_return_home_has_no_vertical_retreat(self):
-        wf=object.__new__(flow.Workflow);wf.g={'direct_return_home':True};wf.home=[0]*7
+        wf=object.__new__(flow.Workflow);wf.args=SimpleNamespace(mode="step");wf.g={'direct_return_home':True};wf.home=[0]*7
         wf.move=Mock();wf.vertical=Mock();wf.snapshot=Mock()
         wf.perform('RETURN_HOME')
         wf.move.assert_called_once_with([wf.home],'return_home')

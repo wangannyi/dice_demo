@@ -8,11 +8,13 @@ def delivery_options(raw=None):
     """Keep legacy defaults; the release config explicitly selects full budget."""
     options = dict(limit_utilization=.97, acceleration_cap_rad_s2=5.,
                    tracking_error_deg=5., tracking_error_action='stop',
-                   envelope_margin_deg=5., velocity_cap_deg_s=50.)
+                   envelope_margin_deg=5., velocity_cap_deg_s=50., profile='quintic')
     raw = raw or {}
     if not isinstance(raw, dict) or set(raw) - set(options):
         raise ValueError('Invalid joint_delivery options')
     options.update(raw)
+    if options['profile'] not in ('quintic', 'trapezoid'):
+        raise ValueError('joint_delivery.profile must be quintic or trapezoid')
     for name, low, high in (('limit_utilization', .1, 1.),
                             ('acceleration_cap_rad_s2', .1, 5.),
                             ('tracking_error_deg', .1, 10.),
@@ -41,6 +43,36 @@ def smooth_duration(start, target, velocity, acceleration):
             for a, b, v, acc in zip(start, target, velocity, acceleration)
         ],
     )
+
+
+def trapezoid_profile(start, target, velocity, acceleration):
+    """Synchronized rest-to-rest motion, bounded by every moving joint.
+
+    Return duration, acceleration interval and normalized peak velocity.
+    Zero-distance paths retain a short constant-position delivery interval.
+    """
+    moving = [(abs(b-a), v, acc) for a, b, v, acc in
+              zip(start, target, velocity, acceleration) if abs(b-a) > 1e-12]
+    if not moving:
+        return .04, .02, 0.
+    vmax = min(v / distance for distance, v, _ in moving)
+    amax = min(acc / distance for distance, _, acc in moving)
+    peak = min(vmax, math.sqrt(amax))
+    ramp = peak / amax
+    duration = 1 / peak + ramp
+    scale = max(1., .04 / duration)
+    return duration * scale, ramp * scale, peak / scale
+
+
+def trapezoid_position(elapsed, duration, ramp, peak):
+    if peak == 0:
+        return min(1., max(0., elapsed / duration))
+    elapsed = min(duration, max(0., elapsed))
+    if elapsed < ramp:
+        return .5 * peak / ramp * elapsed**2
+    if elapsed > duration - ramp:
+        return 1 - .5 * peak / ramp * (duration - elapsed)**2
+    return peak * (elapsed - .5 * ramp)
 
 
 class ServoJointRobot:
@@ -156,6 +188,11 @@ class ServoJointRobot:
             event['limits_read_s'] = self.monotonic() - limit_started
             event['limits_batched'] = self.batch_limits
             duration = smooth_duration(start, target, velocity, acceleration)
+            profile = self.options['profile']
+            if profile == 'trapezoid':
+                duration, ramp, normalized_peak = trapezoid_profile(start, target, velocity, acceleration)
+            else:
+                normalized_peak = 1.875 / duration
             if duration > 120:
                 raise ValueError("MoveJS transition exceeds 120 seconds")
             if max(
@@ -164,13 +201,13 @@ class ServoJointRobot:
                 raise RuntimeError(
                     "MoveJS starting posture changed while querying limits"
                 )
-            event.update(duration_s=duration, start_q_rad=start,
+            event.update(duration_s=duration, profile=profile, start_q_rad=start,
                          acceleration_budget_rad_s2=acceleration,
                          tracking_error_action=self.options['tracking_error_action'],
                          tracking_exceeded_samples=0, tracking_max_error_deg=0.)
             event["motion_started_epoch_s"] = self.wallclock()
             began = last_time = self.monotonic()
-            peak_speed = 1.875 * max(abs(b-a) for a, b in zip(start, target)) / duration
+            peak_speed = normalized_peak * max(abs(b-a) for a, b in zip(start, target))
             sample_period = min(0.02, math.radians(0.5) / peak_speed) if peak_speed else 0.02
             max_phase_step = math.radians(0.9) / peak_speed if peak_speed else 0.08
             phase_elapsed = 0.0
@@ -201,6 +238,8 @@ class ServoJointRobot:
                 event['phase_delay_s'] += elapsed - advance
                 t = min(phase_elapsed / duration, 1.0)
                 u = 10 * t**3 - 15 * t**4 + 6 * t**5
+                if profile == 'trapezoid':
+                    u = trapezoid_position(t * duration, duration, ramp, normalized_peak)
                 q = [a + (b - a) * u for a, b in zip(start, target)]
                 if max(abs(a - b) for a, b in zip(q, last)) > math.radians(1):
                     raise RuntimeError("MoveJS command step exceeds 1 degree")

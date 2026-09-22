@@ -7,7 +7,16 @@ import signal
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
-from cup_grasp_demo.calibration_debug.core import ROOT, digest, read_json
+import hashlib
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def digest(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def read_json(path):
+    return json.loads(Path(path).read_text())
 
 
 class SDKClient:

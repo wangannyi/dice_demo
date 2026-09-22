@@ -233,3 +233,15 @@ bash run_feedback.sh tie --execute   # 执行；draw 为同义别名
 `cycles` 是往返次数（1–20）；一次为 A→B→A。默认发送 A、B、A、B、A、B、A，共 3 次往返。`interval_s` 是相邻手势指令的最小间隔，不是手指限速；最大速度模式下不低于 `finger_max_wait_s`。默认最后一条指令也观察 0.65 秒，手部序列约 4.55 秒，实际可能受调度延迟影响。晚到的指令不会集中补发。
 
 动作中省略 `hand_sequence` 则保持原来的单一手势行为。仍可使用 `arm_then_hand` / `hand_then_arm`；顺序模式可能增加反馈读取开销。
+
+## FAST 启动耗时
+
+FAST 启动性能通过 `green_cup.fast_parallel_startup` 开关对比。设为 `false` 恢复按阶段初始化；设为 `true` 让只读资源初始化与模块加载并行。比较 `green_pipeline_state.json` 的 `startup_to_capture_s` 时，应同时保留命令总耗时，避免只比较阶段数字。相机预热帧数、手指动作时间和识别质量阈值不随此开关变化。
+
+## 摇晃指令下发频率
+
+`configs/joint_shake.json` 的 `command_rate_hz=200` 表示每 5 ms 更新一次七轴 `move_js()` 目标，不是每秒摇晃 200 次。开发入口的 `calibration_debug/joint_test_config.json` 使用同一参数。支持 20–200 Hz；省略或设为 `null` 保留原来等待新反馈后发送的循环。
+
+200 Hz 模式使用独立只读反馈线程，发送线程按单调时钟调度；反馈过期、故障及运动约束检查仍有效。迟到时跳过错过的时隙，不连续补发积压目标。Python/Linux 调度与 CAN 发送仍可能有抖动，不能把配置值当作实测频率。
+
+摇晃 `actual.json` 中的 `command_stream` 记录 `requested_hz`、`achieved_hz`、`max_interval_ms`、`skipped_slots` 和 `max_lateness_ms`；频率基于 SDK 调用完成时间，不是 CAN 总线抓包时间。改配置后重新运行 Pipeline，独立关节测试需重新 plan。

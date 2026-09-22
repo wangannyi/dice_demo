@@ -47,5 +47,6 @@
     5.0,
     5.0
   ],
-  "phase_delay_deg": null
+  "phase_delay_deg": null,
+  "command_rate_hz": 200
 }
