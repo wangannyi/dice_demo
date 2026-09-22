@@ -26,7 +26,7 @@ def build(destination, *, site_active=False):
                 selected.add(rel)
     for name in ('README.md','run.sh','run_feedback.sh','.gitignore','requirements-vision.txt','requirements-sdk.txt','THIRD_PARTY.md'):
         selected.add(Path(name))
-    mesh=Path('agx_arm_ros/src/agx_arm_description/agx_arm_urdf')
+    mesh=Path('nero_revo2_control/models/hand_geometry')
     for path in (ROOT/mesh).rglob('*'):
         rel=path.relative_to(ROOT)
         if path.is_file() and not path.is_symlink() and '.git' not in rel.parts:

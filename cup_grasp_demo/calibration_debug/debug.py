@@ -196,7 +196,7 @@ def source_hashes(cfg):
     paths = [Path(cfg[key]) for key in ('home', 'calibration', 'tcp_candidate', 'orientation_reference', 'grasp_config')]
     paths += [Path(x['path']) for x in hand.provenance['model_sources']]
     paths += [item[-1] for item in hand.collision.values()]
-    description = ROOT / 'agx_arm_ros/src/agx_arm_description/agx_arm_urdf/nero'
+    description = ROOT / 'nero_revo2_control/models/hand_geometry/nero'
     paths += list((description / 'meshes').glob('link*.stl'))
     paths += [description / 'meshes/revo2_flange.stl', description / 'urdf/nero_description.urdf']
     paths += [ROOT / 'nero_revo2_control/models/nero_description.urdf']

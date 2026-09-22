@@ -26,7 +26,7 @@ from nero_calibration.core import inverse, matrix, pose_matrix
 
 
 REPO = Path(__file__).resolve().parents[1]
-DESCRIPTION = REPO / 'agx_arm_ros/src/agx_arm_description/agx_arm_urdf'
+DESCRIPTION = REPO / 'nero_revo2_control/models/hand_geometry'
 RIGHT_XACRO = DESCRIPTION / 'nero/urdf/nero_with_right_revo2_description.xacro'
 FLANGE_XACRO = DESCRIPTION / 'nero/urdf/nero_with_revo2_flange_description.xacro'
 RIGHT_URDF = DESCRIPTION / 'revo2/urdf/revo2_right_hand.urdf'
