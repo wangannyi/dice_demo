@@ -28,18 +28,20 @@ import time
 ROOT = Path(__file__).resolve().parent.parent
 
 MENU = """\
-数字指令：
-  1  status               查询状态（不动硬件）
-  2  advance              执行下一阶段
-  3  advance→GRIP         连续执行到闭手抓杯
-  4  advance→SHAKE        连续执行到摇完停住（可能仍持杯）
-  5  advance→RETURN_HOME  放杯+张手+归位
+静态手势（空闲时随意调度、随意互切；抓取流程进行中会被拒，跑完自动回空闲）：
+  y  yeah（机械臂赢）      t  thumbs-up（机械臂输）    e  tie（平局）
+  h  home 归位（张手+回 HOME）
+  a <名字>  手势库任意动作    l  列出全部可用动作名
+
+抓取流程（视觉联动复合任务）：
+  g  完整流程（一口气到 RETURN_HOME，结束自动回空闲）
+  2  单阶段推进（调试）      3  连续执行到 GRIP（闭手抓杯）
+  4  连续执行到 SHAKE（摇完停住）    5  连续执行到 RETURN_HOME
   6  refresh_perception   退回 CAPTURE 重新识别（仅 CAPTURE 后、APPROACH 前可用）
-  7  new_cycle            下一轮（仅 RETURN_HOME 完成后可用）
-  8  close                释放设备并退出
+  1  status               8  close 释放设备并退出
   9  仅退控制台（子进程收到 EOF 后释放设备，状态记 PAUSED）
   0  显示本菜单
-也可直接输入一行 JSON 命令，如 {"command":"advance","until":"LIFT"}。
+也可直接输入一行 JSON 命令，如 {"command":"action","name":"yeah"}。
 """
 
 CHOICES = {
@@ -48,16 +50,25 @@ CHOICES = {
     "3": {"command": "advance", "until": "GRIP"},
     "4": {"command": "advance", "until": "SHAKE"},
     "5": {"command": "advance", "until": "RETURN_HOME"},
+    "g": {"command": "advance", "until": "RETURN_HOME"},
     "6": {"command": "refresh_perception"},
-    "7": {"command": "new_cycle"},
+    "y": {"command": "action", "name": "yeah"},
+    "t": {"command": "action", "name": "thumbs-up"},
+    "e": {"command": "action", "name": "tie"},
+    "h": {"command": "action", "name": "home"},
+    "l": {"command": "actions"},
     "8": {"command": "close"},
 }
 
 HINTS = {
-    "ready": "常驻就绪：预热完成，可以下发指令",
+    "ready": "常驻就绪：预热完成，空闲态可发手势或开始抓取流程",
     "phase_started": "阶段开始",
     "phase_completed": "阶段完成",
     "command_completed": "命令完成",
+    "run_completed": "抓取流程完成：自动复位回空闲，可发手势或直接再来一轮",
+    "action_started": "静态动作开始",
+    "action_completed": "静态动作完成（保持姿态）",
+    "actions": "可用动作名",
     "status": "当前状态",
     "perception_reset": "已退回 CAPTURE：下次 advance 会重新识别与规划",
     "rejected": "命令被拒绝",
@@ -70,9 +81,12 @@ HINTS = {
 def describe(event):
     parts = []
     for key, label in (("phase", "阶段"), ("next_phase", "下一阶段"), ("status", "状态"),
-                       ("cycle", "轮次"), ("code", "code"), ("through", "推进到")):
+                       ("run", "运行序号"), ("cycle", "运行序号"), ("code", "code"),
+                       ("through", "推进到"), ("name", "动作"), ("receipt", "收据")):
         if event.get(key) is not None:
             parts.append(f"{label}={event[key]}")
+    if event.get("names") is not None:
+        parts.append("可选=" + "、".join(event["names"]))
     if event.get("elapsed_s") is not None:
         parts.append(f"耗时={event['elapsed_s']:.2f}s")
     for key in ("message", "error"):
@@ -137,6 +151,12 @@ class SimulateBackend:
             def perform(self, phase):
                 time.sleep(0.4)
 
+        def fake_run_action(name):
+            if name == "nope":
+                raise ValueError("未知动作：nope；可选：yeah、thumbs-up、tie、home")
+            time.sleep(0.3)
+            return dict(name=name, receipt="/tmp/sim_receipt.json", elapsed_s=0.3)
+
         self.tmp = tempfile.mkdtemp(prefix="dice-control-sim-")
         read_in, write_in = os.pipe()
         read_out, write_out = os.pipe()
@@ -145,7 +165,9 @@ class SimulateBackend:
         self.session = ControlSession(
             FakeFlow(), Path(self.tmp) / "green_pipeline_state.json",
             os.fdopen(read_in, "r", buffering=1),
-            os.fdopen(write_out, "w", buffering=1), sys.stderr)
+            os.fdopen(write_out, "w", buffering=1), sys.stderr,
+            actions=("home", "yeah", "thumbs-up", "tie", "win", "lose", "draw"),
+            run_action=fake_run_action)
         self.thread = threading.Thread(target=self.session.serve, daemon=True)
         self.thread.start()
 
@@ -225,14 +247,16 @@ def main():
                 continue
             if raw in CHOICES:
                 command = dict(CHOICES[raw])
+            elif raw.startswith("a ") and raw[2:].strip():
+                command = {"command": "action", "name": raw[2:].strip()}
             elif raw.startswith("{"):
                 try:
                     command = json.loads(raw)
                 except ValueError:
-                    print("JSON 解析失败；请输入数字 0-9 或一行完整 JSON")
+                    print("JSON 解析失败；请输入菜单指令或一行完整 JSON")
                     continue
             else:
-                print("无效指令；数字 0-9 或一行 JSON（0 显示菜单）")
+                print("无效指令；输入 0 显示菜单（y/t/e/h 手势、a <名字> 任意动作、g 完整抓取）")
                 continue
             seq += 1
             command.setdefault("id", f"c{seq}")
