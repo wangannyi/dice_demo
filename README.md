@@ -38,6 +38,8 @@ python3 scripts/package_release.py --output "dist/release_$(date +%Y%m%d_%H%M%S)
 
 输出包含 `dice_demo/` 源码目录、`dice_demo-source.tar.gz`、`SHA256SUMS`。目录内 `MANIFEST.sha256.json` 记录逐文件哈希。打包不会提交、上传或操作机械臂。
 
+仓库 `main` 保存当前 K3 安装的配置快照；其中相机标定、板尺寸和动作幅度只对应这套固定现场。向新设备交付时使用上面的默认打包命令：它将相机标定路径指向包内参考文件，并把 `installation_requires_calibration` 设为 `true`。仅用于复现当前 K3 文件时，显式加 `--site-active`，保留现场配置原值；不要将此包直接用于另一套安装。
+
 ## 2. 安装运行环境
 
 ### 2.1 软件依赖
@@ -86,7 +88,7 @@ sudo ip link set can0 up type can bitrate 1000000
 
 已 UP 时不要重复设置 bitrate；`Device or resource busy` 不等于 CAN 已故障。确认急停解除、机械臂七轴使能、WEB 灵巧手页面使能及 CAN 推送开启。程序支持从 WEB 切入 CAN，但不代替 WEB 灵巧手使能设置。运行期间关闭占用相机的 ffplay，不使用第二个机械臂控制程序。
 
-新安装先完成[标定](docs/CALIBRATION.md)。发行包将 `installation_requires_calibration` 设为 `true`，避免将示例标定当作新现场的有效标定。
+新安装先完成[标定](docs/CALIBRATION.md)。默认发行包将 `installation_requires_calibration` 设为 `true`，避免将当前 K3 标定当作新现场的有效标定。
 
 ## 3. 一条命令运行
 
@@ -173,14 +175,14 @@ FAST 的 HOME/CAPTURE 阶段耗时不包含 CLI 模块加载。`green_pipeline_s
 | 参数 | 交付值 | 含义 |
 | --- | --- | --- |
 | `joints` | `[1,4,5,6,7]` | 同时摇晃的关节编号 |
-| `amplitude_deg` | `[5,5,5,5,5]` | 各关节单侧幅度；负号表示反向 |
+| `amplitude_deg` | `[2.5,2.5,2.5,2.5,2.5]` | 当前 K3 主流程各关节单侧幅度；负号表示反向 |
 | `velocity_deg_s` | `[170,170,170,200,200]` | 各关节速度预算，°/s |
 | `acceleration_deg_s2` | 各 277.8845 | 各关节加速度预算，°/s² |
 | `cycles` | 6 | 完整往返周期，另有渐入和回中心 |
 | `phase_delay_deg` | 省略或 `null` | 按 `joints` 顺序设置各轴相位滞后，0～360°；90° 表示晚四分之一周期开始 |
 | `controller_speed_percent` | 100 | 摇晃执行速度百分比 |
 
-当前 `stereo_config.json` 开发入口使用 `cup_grasp_demo/calibration_debug/joint_test_config.json`：`joints=[1,4,5,6,7]`、`amplitude_deg=[5,5,5,5,5]`、`phase_delay_deg=null`、`cycles=6`。当前各轴同步运动，没有相位延迟。关闭相位延迟推荐使用 `null`，增减关节时不必修改该字段；使用列表时必须与 `joints` 一一对应。当前五轴若设为 `[0,0,0,0,90]`，J7 相对 J6 滞后四分之一周期；每轴均从中心静止启动，完成自身周期后回中心，整体时长增加最大相位延迟。pipeline 在 HOME 之前校验摇晃参数，配置错误时不会先移动再报错。修改后重新生成计划，不执行旧计划。顶层 `configs/joint_shake.json` 已同步上述参数；以后修改使用入口实际指向的配置。
+当前 `stereo_config.json` 开发入口使用 `cup_grasp_demo/calibration_debug/joint_test_config.json`：`joints=[1,4,5,6,7]`、`amplitude_deg=[4,4,-4,4,4]`、`phase_delay_deg=null`、`cycles=6`。负号使 J5 反向运动。顶层 `configs/joint_shake.json` 是主流程配方，当前幅度为各轴 2.5°；两套配方按用途分别调整。关闭相位延迟推荐使用 `null`，增减关节时不必修改该字段；使用列表时必须与 `joints` 一一对应。当前五轴若设为 `[0,0,0,0,90]`，J7 相对 J6 滞后四分之一周期；每轴均从中心静止启动，完成自身周期后回中心，整体时长增加最大相位延迟。pipeline 在 HOME 之前校验摇晃参数，配置错误时不会先移动再报错。修改后重新生成计划，不执行旧计划。
 
 速度预算不是实际到达速度；最终轨迹仍受关节行程及控制器限值约束。配置里的控制器加速度目标不代表每次 pipeline 都写入硬件参数。
 
