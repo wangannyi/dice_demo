@@ -19,6 +19,11 @@ for key in ('home','calibration','tcp_candidate','orientation_reference','grasp_
     assert Path(cfg[key]).is_file(), cfg[key]
 for key in ('reference','home_table_scene','joint_test_config'):
     assert (root/cfg['green_cup'][key]).is_file(), key
+for relative in ('calibration/auto_collect.py',
+                 'calibration/config/board_hand_redcloth.json',
+                 'calibration/config/board_hand_redcloth_cover_fixed.json',
+                 'calibration/config/board_reference_redcloth.json'):
+    assert (root/relative).is_file(), relative
 assert (root/cfg['green_cup']['perception']['model']).is_file()
 from cup_grasp_demo.flow.core import Screen
 Screen(table_only=True)

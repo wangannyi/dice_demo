@@ -18,7 +18,7 @@ bash run.sh fast --until place --execute
 
 | 参数/环境变量 | 约定 |
 | --- | --- |
-| 第一个参数 | `fast` 连续执行精简诊断；`control` 常驻模式，上层 JSON 指令逐阶段推进（step/auto 已移除，2026-09-22） |
+| 第一个参数 | `fast` 连续执行；`control` 常驻模式，上层通过 JSON 指令逐阶段推进 |
 | `--execute` | 真机执行；缺省仅打印流程，不验证整条硬件通路 |
 | `--until ready` | 到抓取位置后停止 |
 | `--until grip` | 闭手后停止 |
@@ -54,7 +54,6 @@ bash run.sh control --execute
 | `{"id":"7","command":"actions"}` | 列出全部可用动作名（含 `home` 与别名） |
 | `{"id":"9","command":"reload"}` | 空闲时重扫 `configs/actions/gestures/` 并原子替换动作表（设备连接不断开）；流程进行中拒绝，失败保留旧表 |
 | `{"id":"8","command":"close"}` | 释放 SDK/相机并退出；未完成流程记为 `PAUSED` |
-| ~~`new_cycle`~~ | **已移除**：轮次概念取消，RETURN_HOME 完成自动复位回空闲，直接 `advance` 即下一轮 |
 
 启动时返回 `ready`（含可用动作列表），每阶段返回 `phase_started`、`phase_completed`，目标阶段结束后返回 `command_completed`。**RETURN_HOME 完成发 `run_completed` 并自动复位回空闲**（无轮次；直接 `advance` 即开始下一次抓取）。静态动作返回 `action_started`、`action_completed`（含收据路径与耗时）；未知动作名返回 `rejected(unknown_action)` 不中断会话。**抓取流程进行中（已开始未跑完 RETURN_HOME）请求 `action` 一律 `rejected(flow_in_progress)`**——包括持杯间隙；空闲时静态动作随意调度互切。`status` 事件含 `status`、`next_phase`、`completed_phases`；阶段执行失败返回 `failed` 且进程退出。上层必须持续读取 stdout，按 `id` 和事件判断完成；**不要靠固定睡眠或耗时文本推断动作完成**。阶段执行时追加的命令会排队，按顺序处理（链结束后依次执行）；运行中中止仍使用 SIGINT，并核实硬件状态。
 
@@ -64,7 +63,7 @@ import os
 from pathlib import Path
 import subprocess
 
-root = Path('/home/spacemit/projects/dice-game/dice_demo')
+root = Path('/path/to/dice_demo')
 session = root / 'cup_grasp_demo/datasets/app_control_001'
 session.mkdir(parents=True, exist_ok=True)
 env = dict(os.environ, DICE_CONFIG=str(root / 'configs/green_cup.json'),
@@ -130,11 +129,11 @@ bash run_feedback.sh draw --config configs/green_cup.json --session /tmp/dice_fe
 
 `--gestures` 指定手势分组目录（或单个组文件），默认 `configs/actions/gestures/`；`--list` 列出全部注册动作。不带 `--execute` 仅预览。执行后保持动作姿态，**不自动回 HOME**，也不订阅比赛事件。默认臂速度 50%，臂手同时启动，手使用最大速度指令。
 
-手指六路顺序：拇指尖、拇指根、食指、中指、无名指、小指。七轴角度单位为度。新增、删除动作和调整执行时延见[调试文档](DEBUG.md#8-比大小后的反馈手势)。动作内字段覆盖全局默认值；修改全局速度时注意已有动作也可能配置了覆盖值。
+手指六路顺序：拇指尖、拇指根、食指、中指、无名指、小指。七轴角度单位为度。新增、删除动作和调整执行时延见[调试文档](DEBUG.md#6-反馈动作)。动作内字段覆盖全局默认值；修改全局速度时注意已有动作也可能配置了覆盖值。
 
 ## 4. 状态、返回值和收据
 
-stdout 是人类可读日志，**不要解析耗时行判断成功**。Pipeline 状态文件为 `$DICE_RUN/green_pipeline_state.json`：
+FAST 的终端耗时行只用于观察，不应作为程序接口。CONTROL 的 stdout 为逐行 JSON 事件，诊断日志写入 stderr。Pipeline 状态文件为 `$DICE_RUN/green_pipeline_state.json`：
 
 | 字段 | 含义 |
 | --- | --- |

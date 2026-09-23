@@ -16,7 +16,14 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 GREEN_FILES = ('vision/camera.json',)
 CAMERA_FILE = 'vision/camera.json'
-# 标定板参数文件已随标定工具分离到 ../biaoding/config/，不再由本脚本同步。
+PIPELINE_FILE = 'configs/green_cup.json'
+HAND_BOARD_FILES = (
+    'calibration/config/board_hand_redcloth.json',
+    'calibration/config/board_hand_redcloth_cover_fixed.json',
+)
+BOARD_FILES = HAND_BOARD_FILES + (
+    'calibration/config/board_reference_redcloth.json',
+)
 DEFAULT_COLOR = [1280, 720]
 DEFAULT_DEPTH = [1280, 720]
 DEFAULT_CROP = [220, 0, 960, 720]
@@ -74,8 +81,8 @@ def updated_files(root, link, *, color=None, depth=None, fps=None, crop=None,
                                          else [0, 0, *color])
     check_profile(link, color, depth, fps, crop)
     files = {name: json.loads((root / name).read_text())
-             for name in GREEN_FILES}
-    previous = files[GREEN_FILES[0]]
+             for name in GREEN_FILES + BOARD_FILES + (PIPELINE_FILE,)}
+    previous = files[CAMERA_FILE]
     spatial_change = (previous['color_resolution'] != color or
                       previous.get('crop_xywh') != crop)
     if spatial_change and (hand_roi is None or reference_roi is None):
@@ -83,12 +90,22 @@ def updated_files(root, link, *, color=None, depth=None, fps=None, crop=None,
     for roi in (hand_roi, reference_roi):
         if roi is not None:
             check_roi(roi, crop)
-    for name in GREEN_FILES:
-        camera = files[name]
-        camera['color_resolution'] = color.copy()
-        camera['depth_resolution'] = depth.copy()
-        camera['fps'] = fps
-        camera['crop_xywh'] = crop.copy()
+    camera = files[CAMERA_FILE]
+    camera['color_resolution'] = color.copy()
+    camera['depth_resolution'] = depth.copy()
+    camera['fps'] = fps
+    camera['crop_xywh'] = crop.copy()
+    for name in BOARD_FILES:
+        board = files[name]
+        board['image_profile'] = dict(color_resolution=color.copy(), fps=fps,
+                                      crop_xywh=crop.copy())
+        roi = hand_roi if name in HAND_BOARD_FILES else reference_roi
+        if roi is not None:
+            board['image_roi_xyxy'] = roi
+        if spatial_change and name in HAND_BOARD_FILES:
+            board['image_exclude_rois_xyxy'] = []
+    if spatial_change:
+        files[PIPELINE_FILE]['green_cup']['installation_requires_calibration'] = True
     return files, spatial_change
 
 

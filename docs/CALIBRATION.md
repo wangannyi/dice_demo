@@ -1,172 +1,261 @@
-# 标定与相机移动后的校准
+# 标定指南
 
-## 1. 三种场景
+本项目采用眼在手外（eye-to-hand）标定。完整安装包含三项数据：
 
-| 场景 | 当前支持方式 |
+1. 手背板与机械臂姿态共同求得的 `T_base_camera`。
+2. 固定桌面板到机械臂基座的注册关系。
+3. 当前标定下的桌面平面。
+
+## 1. 何时执行哪种标定
+
+| 场景 | 操作 |
 | --- | --- |
-| 首次安装，或机械臂与桌面板相对位置改变 | 手动示教采样 → 手眼求解 → 注册桌面固定板 |
-| 希望重复第一次的轨迹自动采样 | 使用 `auto_collect.py` 的画框、离线规划和自动采集入口 |
-| 仅相机移动，固定板与基座相对位置不变 | 自动观察固定板 → 恢复相机到基座变换 → 更新 Pipeline 配置 |
+| 首次安装、机械臂基座移动、固定板移动 | 人工手眼标定 → 注册固定板 → 登记桌面 |
+| 相机移动，基座与固定板未动 | 观察固定板 → 恢复相机外参 → 登记桌面 |
+| 相机、基座和标定板均未动 | 可自动重采手眼数据，用于复核或替换结果 |
+| 改变彩色分辨率、裁剪或相机 | 重新人工手眼标定 |
+| 只改变帧率 | 可复用空间标定，但应重新验证采集和识别 |
 
-固定板不能凭空得到基座坐标。第一次必须通过手眼标定注册它的位置。相机移动后的恢复不需要重复手动摆动机械臂，但目前需要执行下文命令应用结果，不会在每次 Pipeline 中自动替换参数。
+## 2. 准备
 
-## 2. 环境和板配置
+在 K3 仓库根目录执行：
 
 ```bash
-cd ~/projects/dice-game/dice_demo
 source scripts/env.sh
-cd ../biaoding
+cd calibration
 ```
 
-需要预览时从 PC 使用 `ssh -Y user@<K3地址>` 登录。确保 `DISPLAY` 有值，关闭占用相机的 ffplay；不要在标定过程中改变图像参数。
+确认：
 
-手背板配置为 `config/board_hand_redcloth.json`，桌面板为 `config/board_reference_redcloth.json`。两者默认按 USB 2.0 使用 1280×720、6 FPS，并裁剪为 `crop=960:720:220:0`；程序按裁剪修正内参，不要再对采样图像进行 ffmpeg 二次裁剪。仓库根目录的 `python scripts/set_camera_profile.py usb2|usb3` 同步更新两块板与抓杯前检测的配置，USB 3.0 档位默认 1280×720、15 FPS。`--fps`、分辨率、裁剪和 ROI 用法见[顶层 README](../README.md#相机配置)；变更分辨率或裁剪后必须重新框定板并标定。
+- 相机、基座和标定板已固定。
+- 手背板与法兰刚性连接，运动中不会滑动。
+- 桌面固定板在手眼采样时被遮挡，避免同一画面出现重复 marker ID。
+- `can0` 已启动，七轴已使能，控制器允许 CAN 控制。
+- 预览窗口通过 X11 显示时，使用 `ssh -X` 登录并设置 `QT_X11_NO_MITSHM=1`。
 
-当前板为 4×5 ChArUco。手背板实测总宽 86.5 mm、总高 108 mm；其尺寸修正命令见下文。固定板必须按自身尺寸配置，不要自动套用另一块板的测量值。两块板使用相同标记 ID 时，采手背板需遮挡桌面板，采桌面板需移开或遮挡手背板。全画幅不是限制运动范围的 ROI；如果设置识别 ROI，应只用于区分板子。
+本现场使用 4×5 板，实测四格总宽 86.5 mm、五格总高 108 mm。板配置：
 
-## 3. 首次手眼标定
+```text
+手背板：calibration/config/board_hand_redcloth_cover_fixed.json
+固定板：calibration/config/board_reference_redcloth.json
+```
+
+相机默认采用 1280×720、6 FPS，裁剪 `[220,0,960,720]`。切换 USB 档位时从仓库根目录执行：
+
+```bash
+python3 scripts/set_camera_profile.py usb2
+python3 scripts/set_camera_profile.py usb3
+```
+
+## 3. 首次人工手眼标定
 
 ### 3.1 采样
 
 ```bash
 CAL_RUN="datasets/handeye_$(date +%Y%m%d_%H%M%S)"
+
 ./run_k3.sh collect \
-  --serial 346222071954 --tcp flange --channel can0 \
-  --board config/board_hand_redcloth.json \
-  --dataset "$CAL_RUN" --preview
+  --serial 346222071954 \
+  --tcp flange \
+  --channel can0 \
+  --board config/board_hand_redcloth_cover_fixed.json \
+  --dataset "$CAL_RUN" \
+  --preview
 ```
 
-手背板需与法兰保持刚性连接。人工调整机械臂，静止后按 Enter 保存，`q` 退出。采样程序只读取反馈，不移动或使能机械臂。至少 12 个有效样本，建议 20–30 个，包含不同位置以及绕不同轴的旋转；只有平移或单轴旋转不足以约束标定。
+每个姿态停稳后按 Enter 保存，按 `q` 结束。建议采集至少 15 个姿态，并覆盖画面中心、四周、远近和不同旋转角。每次采样需满足：
 
-使用 `--preview` 采样时，`teaching_frames.jsonl` 会记录**每一张预览帧**对应的七轴反馈、时间和手背板识别结果。每个有效样本的 JSON 另记录采集阶段每一帧的七轴反馈。自动重采必须有这份逐帧示教记录；旧数据集只有各姿态的终点角度，不能直接作为自动运动路径。
+- 手背板完整可见，四边留有余量。
+- 至少检测到 12 个 ChArUco 角点。
+- 机械臂保持静止。
+- 姿态与已有样本有明显平移或旋转差异。
 
-终端输出角点数和重投影误差。重投影误差小不等于手眼空间误差小。样本拒绝时不会计入有效样本。原目录继续采样：
+采样目录会保存图像、法兰姿态、每帧七轴反馈和相机参数。
 
-```bash
-./run_k3.sh collect --serial 346222071954 --tcp flange --channel can0 \
-  --board config/board_hand_redcloth.json --dataset "$CAL_RUN" --preview --resume
-```
-
-### 3.2 画出手背标定板的可见范围
-
-首次保存至少一帧后，按 `q` 暂停采样；暂停期间保持机械臂姿态不变，否则缺少运动轨迹，自动规划会拒绝。仍通过 X11 登录时执行：
+### 3.2 画自动标定可见范围
 
 ```bash
 "$CALIB_PYTHON" auto_collect.py draw-window --dataset "$CAL_RUN"
 ```
 
-在图像上拖出一个**包含所有预定采样姿态下完整手背板**的矩形，按 Enter 保存。选择覆盖预定运动区域的范围，留出画面边缘余量，不要只紧贴第一帧的板。结果保存在 `board_window.json`；继续 `collect --resume --preview` 时，青色框会显示在预览图上。完成手工采样后再次按 `q`。`teaching_poses.json` 仍保存每个有效样本的七轴姿态；连同样本、逐帧轨迹、框和标定结果一起备份。
+在第一张有效图像上框住手背板允许出现的区域。框应覆盖后续所有采样姿态，并排除画面外无关区域。结果保存在 `$CAL_RUN/board_window.json`。
 
-这里的框是**图像中的板可见范围**，不是机械臂工作空间或碰撞边界。手工示教时应保持完整板始终可见；自动规划会检查记录的每帧和帧间插值是否在框内，运行时再用相机复核。它不能代替桌面、线缆和夹具的避障检查。
-
-### 3.3 求解和实测尺寸修正
-
-普通求解：
+### 3.3 求解
 
 ```bash
-./run_k3.sh solve --dataset "$CAL_RUN" --output "$CAL_RUN/result.json"
+./run_k3.sh solve \
+  --dataset "$CAL_RUN" \
+  --output "$CAL_RUN/result.json"
 ```
 
-对当前实测手背板，使用尺寸修正工具重新处理并求解：
+若需要按实测板尺寸重新计算：
 
 ```bash
+MEASURED_RUN="${CAL_RUN}_measured"
 "$CALIB_PYTHON" tools/reprocess_dimensions.py \
-  --dataset "$CAL_RUN" --output "$CAL_RUN/dimensions_measured" \
-  --width-mm 86.5 --height-mm 108
-CALIBRATION="$CAL_RUN/dimensions_measured/result.json"
+  --dataset "$CAL_RUN" \
+  --output "$MEASURED_RUN" \
+  --width-mm 86.5 \
+  --height-mm 108
+
+CALIBRATION="$MEASURED_RUN/result.json"
 ```
 
-读取 `result.json` 和 `comparison.json` 的质量结果。工具可能写出结果后以非零状态报告质量不通过；文件存在并不代表通过验收。尺寸重处理需与采样数据兼容的 OpenCV 版本。
-
-### 3.4 自动重复采样
-
-首次人工求解完成后，在相同相机内参、裁剪、板安装和机械臂基座条件下运行。若只是相机位置改变，先按照第 5 节通过固定桌面板恢复相机外参，将恢复结果作为这里的 `CALIBRATION`。相机或板尺寸、TCP 改变则不能直接复用旧示教路径。
-
-自动重采默认沿用首次示教数据集记录的相机帧率，旧数据集不会被配置切换脚本改写。USB 2.0 下可在 `run` 增加 `--fps 6`，只切换采样帧率并保留原分辨率、裁剪和板可见区域。若更换分辨率或裁剪，必须重新建立示教数据集和板可见区域，不能复用旧路径。
+不做尺寸修正时：
 
 ```bash
-AUTO_PLAN="$CAL_RUN/auto_plan.json"
-"$CALIB_PYTHON" auto_collect.py plan \
-  --dataset "$CAL_RUN" --calibration "$CALIBRATION" \
-  --output "$AUTO_PLAN"
-AUTO_RUN="datasets/handeye_auto_$(date +%Y%m%d_%H%M%S)"
-"$CALIB_PYTHON" auto_collect.py run \
-  --plan "$AUTO_PLAN" --output "$AUTO_RUN" \
-  --channel can0 --speed-percent 10 --fps 6 --execute
-"$CALIB_PYTHON" calibrate.py solve \
-  --dataset "$AUTO_RUN" --output "$AUTO_RUN/result.json"
+CALIBRATION="$CAL_RUN/result.json"
 ```
 
-如果第一次的手眼结果质量未通过，但你已决定临时采用，在 `plan` 命令末尾显式加 `--allow-provisional`；质量标志仍保持原值。`plan` **不连接硬件**，检查真实示教帧、七轴限位余量以及帧间插值后生成路径。`run` 要求正常 CAN 控制、七轴使能、手背板当前可见且在所画框内，才会从当前位置走向第一个采样位，并逐段运动、逐帧检查、自动保存新的图像和关节反馈。任一帧识别失败、板出框、CAN 异常或关节不到位即停止后续轨迹；已经采到的新样本保留在 `AUTO_RUN`。
+检查结果中的 `quality_passed`、留出样本位置误差和角度误差。质量未通过的结果只应在明确接受误差时配合 `--allow-provisional` 使用；质量标志不会被改写。
 
-自动运动路线跟随首次预览时记录的七轴轨迹，帧间用小关节步长插值；`--max-step-deg` 默认为 2°，`--margin-px` 默认为 8 像素，`run` 默认 10% 速度且上限 20%。自动过程不验证全臂与桌面、线缆的碰撞，**首次自动运行须保持运动区域清空并现场监护**。中途停止的数据集标为 `AUTO_INCOMPLETE.json`，不能直接求解。没有手背板逐帧轨迹的旧数据集需要重新人工采集，不能从仅有的采样终点推断安全过渡路径。
+## 4. 自动重采手眼数据
 
-## 4. 注册桌面固定板
+自动重采使用人工采样记录的关节轨迹和可见范围。首次采样目录必须包含 `teaching_frames.jsonl`、`board_window.json` 和各样本的逐帧关节记录。
 
-首次手眼完成后，保持相机、基座和桌面板不动：
+### 4.1 生成计划
+
+```bash
+"$CALIB_PYTHON" auto_collect.py plan \
+  --dataset "$CAL_RUN" \
+  --calibration "$CALIBRATION" \
+  --output "$CAL_RUN/auto_plan.json" \
+  --capture-only-visibility
+```
+
+`--capture-only-visibility` 要求每个停稳采样姿态中的板完整位于框内；两个采样姿态之间的运动过程可以短暂出框。若要求整个运动过程都在框内，删除该参数。
+
+质量未通过但仍决定使用时，显式添加：
+
+```text
+--allow-provisional
+```
+
+### 4.2 自动运动和采样
+
+```bash
+AUTO_RUN="datasets/handeye_auto_$(date +%Y%m%d_%H%M%S)"
+
+"$CALIB_PYTHON" auto_collect.py run \
+  --plan "$CAL_RUN/auto_plan.json" \
+  --output "$AUTO_RUN" \
+  --channel can0 \
+  --fps 6 \
+  --speed-percent 15 \
+  --smooth-speed-deg-s 4 \
+  --smooth-acc-deg-s2 6 \
+  --show \
+  --execute
+```
+
+参数含义：
+
+| 参数 | 含义 |
+| --- | --- |
+| `--speed-percent` | SDK 运动速度百分比，范围 1–100 |
+| `--smooth-speed-deg-s` | 平滑轨迹的关节速度上限，°/s |
+| `--smooth-acc-deg-s2` | 平滑轨迹的关节加速度上限，°/s² |
+| `--fps` | 自动采样帧率，可选 6、15、30 |
+| `--show` | 通过 X11 显示每个接受的标定帧 |
+
+动作过快时先降低平滑速度和加速度；动作顿挫时避免只把 `speed-percent` 调得很低，应同时使用连续平滑轨迹。
+
+### 4.3 求解自动采样结果
+
+```bash
+"$CALIB_PYTHON" calibrate.py solve \
+  --dataset "$AUTO_RUN" \
+  --output "$AUTO_RUN/result.json"
+```
+
+## 5. 注册桌面固定板
+
+人工手眼标定完成后，露出桌面固定板并保持相机、基座和板不动。
 
 ```bash
 REF_RUN="datasets/reference_register_$(date +%Y%m%d_%H%M%S)"
+
 "$CALIB_PYTHON" reference_board.py observe \
-  --board config/board_reference_redcloth.json --serial 346222071954 \
-  --reference-id table_reference_main --frames 20 --output "$REF_RUN"
+  --board config/board_reference_redcloth.json \
+  --serial 346222071954 \
+  --reference-id table_reference_main \
+  --frames 20 \
+  --output "$REF_RUN"
+
 "$CALIB_PYTHON" reference_board.py register \
-  --calibration "$CALIBRATION" --observation "$REF_RUN/observation.json" \
+  --calibration "$CALIBRATION" \
+  --observation "$REF_RUN/observation.json" \
   --output "$REF_RUN/registration.json"
-REGISTRATION="$REF_RUN/registration.json"
 ```
 
-保存 `registration.json`。它记录固定板到基座的关系，是后续恢复外参的依据。若当前标定质量未通过、经过评估仍决定暂用，在 `register` 命令末尾显式增加 `--allow-provisional`；输出仍保留未通过质量标志，不会变成正式通过。
+临时采用质量未通过的手眼结果时，在 `register` 命令添加 `--allow-provisional`。
 
-## 5. 相机移动后的自动校准
+`registration.json` 保存固定板到机械臂基座的关系。只要基座和固定板不动，它可用于相机移动后的外参恢复。
 
-条件：板与基座相对位置没变，板尺寸、ID、相机身份及图像分辨率、裁剪和内参一致；帧率可在受支持的档位间切换。将 `$REGISTRATION` 设置为首次注册文件的实际路径。
+## 6. 相机移动后的外参恢复
+
+移动并重新固定相机后，重新观察同一块固定板：
 
 ```bash
 RESTORE_RUN="datasets/reference_restore_$(date +%Y%m%d_%H%M%S)"
+
 "$CALIB_PYTHON" reference_board.py observe \
-  --board config/board_reference_redcloth.json --serial 346222071954 \
-  --reference-id table_reference_main --frames 20 --output "$RESTORE_RUN"
+  --board config/board_reference_redcloth.json \
+  --serial 346222071954 \
+  --reference-id table_reference_main \
+  --frames 20 \
+  --output "$RESTORE_RUN"
+
 "$CALIB_PYTHON" reference_board.py restore \
-  --registration "$REGISTRATION" \
+  --registration /绝对路径/registration.json \
   --observation "$RESTORE_RUN/observation.json" \
-  --output "$RESTORE_RUN/restored_calibration.json"
-CALIBRATION="$RESTORE_RUN/restored_calibration.json"
+  --output "$RESTORE_RUN/result.json"
+
+CALIBRATION="$RESTORE_RUN/result.json"
 ```
 
-临时质量注册同样需要显式 `--allow-provisional`。相机移动后板可能不再位于原 ROI，应调整 `board_reference_redcloth.json` 的 `image_roi_xyxy`，或遮挡另一块板后使用完整裁剪图像范围 `[0,0,960,720]`。
+固定板身份、几何、相机序列号、分辨率、裁剪或内参不一致时不能恢复，应重新人工标定。
 
-## 6. 应用标定并更新桌面
+## 7. 应用结果并登记桌面
 
-停止 Pipeline 后，把结果路径写入顶层配置，再采集该标定下的桌面。以下命令接续上文，在 `../biaoding` 目录执行：
+回到仓库根目录。应用手眼结果会复制文件并将 Pipeline 标记为“等待桌面登记”，不会发送机械臂动作。
 
 ```bash
-CALIBRATION_ABS="$(realpath "$CALIBRATION")"
 cd "$DICE_ROOT"
-CFG="$DICE_ROOT/configs/green_cup.json"
-"$CALIB_PYTHON" - "$CFG" "$CALIBRATION_ABS" <<'PY'
-import json, sys
-from pathlib import Path
-p=Path(sys.argv[1]); c=json.loads(p.read_text())
-c['calibration']=sys.argv[2]
-c['green_cup']['installation_requires_calibration']=True
-p.write_text(json.dumps(c,ensure_ascii=False,indent=2)+'\n')
-PY
-RUN="$DICE_ROOT/cup_grasp_demo/datasets/green_current"
-mkdir -p "$RUN"
-python3 scripts/table_capture.py --config "$CFG" --session "$RUN" &&
-"$CALIB_PYTHON" scripts/register_home_table.py \
-  --config "$CFG" --table-scene "$RUN/planar_table_scene.json"
+
+"$CALIB_PYTHON" calibration/apply_result.py \
+  --result "$CALIBRATION" \
+  --config configs/green_cup.json
 ```
 
-上面两步都成功后，将 `configs/green_cup.json` 中的 `green_cup.installation_requires_calibration` 改为 `false`，然后先执行只读检测和 STEP：
-
-`register_home_table.py` 保存基座坐标系中的桌面点和法向，并将其绑定到当前相机标定。绿色杯配置的 `green_cup.table_plane_source=calibrated` 会在后续每次 CAPTURE 复用这张桌面平面；杯子可移动，但不再当场重新拟合红布深度。只有相机坐标变换来自当前标定，才可以将杯口和保存的桌面组合用于抓取。桌面或基座移动后需重新采集桌面；相机移动并恢复外参后，也要按本节更新标定文件与桌面绑定。
+将机械臂移到 HOME，保持桌面无遮挡，然后采集并绑定桌面平面：
 
 ```bash
-"$DICE_ROOT/cup_grasp_demo/flow/run_debug.sh" green-detect \
-  --config "$CFG" --session "$RUN" --show
-./run.sh step --until ready --show --execute
+RUN="$DICE_ROOT/cup_grasp_demo/datasets/green_current"
+
+"$DICE_VISION_PYTHON" scripts/table_capture.py \
+  --config configs/green_cup.json \
+  --session "$RUN"
+
+"$CALIB_PYTHON" scripts/register_home_table.py \
+  --config configs/green_cup.json \
+  --table-scene "$RUN/planar_table_scene.json"
 ```
 
-检查杯口定位和 TCP 对应关系后，再运行完整流程。归位桌面缓存与标定结果绑定；相机或桌面变化后，不能继续使用旧缓存。手掌 TCP 是另一项安装几何参数，手眼标定不会自动修正错误的 TCP。
+登记成功后 `green_cup.installation_requires_calibration` 自动设为 `false`。先执行不运动预览，再运行真机：
+
+```bash
+bash run.sh fast
+bash run.sh fast --execute
+```
+
+## 8. 输出文件
+
+| 文件 | 用途 |
+| --- | --- |
+| `configs/calibration/handeye_result.json` | Pipeline 当前使用的相机到基座变换 |
+| `registration.json` | 固定板到基座的注册关系 |
+| `cup_grasp_demo/flow/green_open_cup/home_table_scene.json` | 当前标定下的桌面平面 |
+| `configs/green_cup.json` | 指向上述结果并记录是否需要重新登记 |
+
+标定数据集、图像和运行日志保存在本机，不作为通用安装参数提交。新现场必须生成自己的标定结果。

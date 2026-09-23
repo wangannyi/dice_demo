@@ -6,7 +6,7 @@ import shutil
 import tarfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
-TREES=('cup_grasp_demo','vision','nero_revo2_control','configs','scripts','docs')
+TREES=('cup_grasp_demo','vision','nero_revo2_control','configs','calibration','scripts','docs')
 SKIP={'build','CMakeFiles','.pytest_cache','.ruff_cache','datasets','output','runtime','diagnostics','__pycache__','.git','.deps','.venv'}
 
 def build(destination, *, site_active=False):

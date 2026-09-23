@@ -1,159 +1,163 @@
-# K3 运行环境与依赖清单
+# K3 运行环境
 
-核对日期：2026-09-23（主 K3 部署实测，路径 `~/projects/dice-game/dice_demo`）。
+## 1. 硬件与系统
 
-> **新板部署？** 直接看 [README §2.1 新板子快速部署](../README.md#21-新板子快速部署推荐路径)——4 步搞定（5 个 apt 包 + 拷贝目录 + 验证 + 起 CAN）。本文是已部署环境的详细参考。本板不使用虚拟环境：`scripts/env.sh` 探测 `$HOME/.venv-grasp`/`$HOME/agilex-api-test` 均不存在时自动回退系统 `/usr/bin/python3` + 仓库自带依赖（`vendor-site/`、`vendor-site-deps/`）。版本代表当前安装状态，不代表所有板卡必须使用这些版本。安装入口见[顶层 README](../README.md#2-安装运行环境)。
-
-## 1. 系统与硬件运行条件
-
-| 项目 | 当前环境 | 用途 |
-| --- | --- | --- |
-| 操作系统 | Bianbu 4.0，`resolute` | Debian/Ubuntu 系包管理环境 |
-| 架构 | `riscv64` | 二进制包必须匹配 RISC-V，不能使用 PC 的 x86_64 包 |
-| 内核 | `6.18.3-gsusb` | 当前 USB CAN 驱动环境 |
-| CPU | 16 个逻辑核，SpacemiT A100/X100 | 当前 YOLO 配置指定 CPU 8、9，2 个推理线程 |
-| 系统解释器 | `/usr/bin/python3.14`，Python 3.14.4 | 两个虚拟环境的基础解释器 |
-| CAN | Linux SocketCAN；`gs_usb`；`can0`，1,000,000 bit/s | NERO 和 Revo2 通信 |
-| 相机 | Intel RealSense D435i；已在 `480M` USB 2.0 下完成 1280×720、6 FPS 采集和只读定位测试 | 当前抓杯与红布标定板默认使用该档位；切到 USB 3.0 可配置 1280×720、15 FPS |
-| 预览 | X11，经 SSH 转发到 PC | STEP/标定窗口；FAST 不要求显示窗口 |
-
-`python3` 的 Debian 元包版本为 `3.14.3-0ubuntu2`，实际解释器报告 `3.14.4`；判断 Python 扩展 ABI 时以解释器版本为准。
-
-当前内核 `6.18.3-generic-usbcan`（USB-CAN 驱动已内建，`gs_usb` 等模块齐全）。历史构建工具目录已随 2026-09-22 瘦身移除。
-
-### 系统库和工具
-
-| 依赖 | 当前包/版本 | 适用范围 |
-| --- | --- | --- |
-| USB 运行库 | `libusb-1.0-0`：`2:1.0.29-2build1` | USB 设备支持；RealSense wheel 还携带自己的动态库 |
-| C/C++ 运行库 | `libc6`、`libstdc++6`、`libgcc-s1` | Python 原生扩展、RealSense、ORT |
-| OpenMP | `libgomp1`：`16-20260226-1ubuntu1` | 数值库运行依赖 |
-| BLAS | `libopenblas0-pthread`：`0.3.32+ds-5`；`openblas-spacemit`：`0.3.32-1bb2` | 板端数值计算库 |
-| OpenCV 图形依赖 | `libgl1`：`1.7.0-3`；`libglib2.0-0t64`：`2.87.3-1` | OpenCV 导入及显示 |
-| X11/Qt 支持 | `libxkbcommon-x11-0`：`1.13.1-1`；`libxcb-xinerama0`：`1.17.0-2ubuntu1`；`xauth`：`1:1.1.2-1.1build1` | 预览窗口 |
-| SSH | `openssh-server`：`1:10.2p1-2ubuntu1` | PC 登录、X11 转发 |
-| 网络接口管理 | `iproute2`：`6.18.0-1ubuntu1` | 查询/配置 CAN 接口 |
-| USB 查询 | `usbutils`：`1:019-1` | `lsusb`、USB 链路速度检查 |
-| 相机调试 | `v4l-utils`：`1.32.0-2ubuntu1bb1`；`ffmpeg`：`7:8.0.1-3ubuntu2bb1` | 可选的 v4l2/ffplay 调试工具 |
-| 源码/构建 | Git、`build-essential`、CMake、`pkg-config` | 拉取源码及构建本机扩展；已构建运行包不需要每次编译 |
-
-`can-utils` 不在本次已安装包清单中，`candump` 也未找到。它是额外的 CAN 诊断工具，不是当前 pipeline 的运行前提。
-
-## 2. Python 环境分工
-
-统一使用系统 Python **3.14.4**（`/usr/bin/python3`）；视觉与机械臂执行共用同一解释器，差异只在 `PYTHONPATH` 注入的仓库自带依赖。
-
-| 环境 | 实际解释器 | 执行内容 |
-| --- | --- | --- |
-| 视觉/标定/执行 | `/usr/bin/python3`（env.sh 回退链终点） | pipeline 状态机、相机、YOLO、IK、标定、持久 SDK 子进程、SocketCAN、`move_js`、手指指令 |
-
-`run.sh` 会加载 `scripts/env.sh` 并显式选择解释器（探测顺序：`$HOME/.venv-grasp` → `$HOME/agilex-api-test/venv` → `/usr/bin/python3`），不要求先 `source activate`。
-
-### 依赖分布（2026-09-23 实测）
-
-| 层 | 包 | 来源 |
-| --- | --- | --- |
-| 系统 apt（/usr/lib/python3/dist-packages） | numpy 2.3.5、scipy 1.16.3、cv2 4.10（含 aruco） | `python3-numpy` / `python3-scipy` / `python3-opencv` |
-| 系统 apt（/usr/lib/python3.14/dist-packages） | onnxruntime 1.24.2+spacemit.a1、spacemit_ort 2.0.6 | `spacemit-onnxruntime` / `python3-spacemit-ort`（K3 厂商源） |
-| 仓库 vendor-site/（27MB，gitignored） | pyrealsense2 2.57.7、pyAgxArm（NERO SDK 源码）、packaging、wrapt | 已集成到当前目录，无需外部安装 |
-| 仓库 vendor-site-deps/（3MB，gitignored） | python-can 4.6.1、typing_extensions | 已集成到当前目录 |
-
-### 视觉环境的主要 Python 依赖
-
-| 包 | 当前版本 | 实际来源/用途 |
-| --- | --- | --- |
-| NumPy | `2.3.5` | apt `python3-numpy`（`/usr/lib/python3/dist-packages`）；矩阵计算 |
-| SciPy | `1.16.3` | apt `python3-scipy`；IK、优化和几何 |
-| OpenCV | 模块 `4.10.0` | apt `python3-opencv`（绑定层含 `cv2.aruco`）；图像处理 |
-| pyrealsense2 | `2.57.7` | 仓库 `vendor-site/`；D435i 采集 |
-| ONNX Runtime | `1.24.2+spacemit.a1` | `/usr/lib/python3.14/dist-packages/onnxruntime`；厂商构建 |
-| spacemit-ort | `2.0.6` | `/usr/lib/python3.14/dist-packages/spacemit_ort`；注册 SpaceMIT 推理后端 |
-| python-can | `4.6.1` | 通过 `PYTHONPATH` 优先使用 `vendor-site-deps/can`；标定反馈读取 |
-| typing_extensions | `4.16.0` | `vendor-site-deps`；SDK 兼容依赖 |
-| pyAgxArm | 包版本 `1.0.0` | 仓库 `vendor-site/pyAgxArm`；标定和 SDK API |
-
-`pyrealsense2` 不提供本次可读的模块 `__version__`，上表版本来自发行包元数据。其原生扩展为 `cpython-314-riscv64-linux-gnu.so`；`pyrealsense2.libs` 内携带 librealsense2、libusb、libudev，不能只复制一个 Python 文件或一个 `.so`。
-
-### CAN 执行环境的主要 Python 依赖
-
-| 包 | 当前版本 | 说明 |
-| --- | --- | --- |
-| python-can | `4.6.1` | SDK 环境内有安装；加载 `scripts/env.sh` 后 `.deps` 中同版本优先 |
-| typing_extensions | `4.16.0` | SDK 环境内有安装；同样可被 `.deps` 覆盖 |
-| pyAgxArm | `1.0.0` | `NERO_SDK_DIR` 的源码优先于虚拟环境内安装副本 |
-| packaging / wrapt | `26.3` / `1.17.3` | 已安装的辅助依赖 |
-
-当前 SDK 环境没有安装 NumPy、SciPy、OpenCV 或 pyrealsense2，标准 CAN 执行路径不靠它们运行。`requirements-sdk.txt` 仍列有 NumPy，它是现有安装清单中的额外项，不能据此推断板端 SDK 环境已安装。此次仅记录现状，没有修改依赖清单或安装包。
-
-## 3. 虚拟环境之外的依赖
-
-### pyAgxArm 源码
-
-- 目录：仓库内 `vendor-site/pyAgxArm`（env.sh 的 `NERO_SDK_DIR` 默认指向此处；`$HOME/agilex-api-test/pyAgxArm` 存在时优先）。
-- 实测提交：`e7aef17d54cac80cbaeb1b4110ab3d8f1337a95b`。
-- 本次 `git status --short` 无输出。
-- 两个环境都通过 `NERO_SDK_DIR` 和 `PYTHONPATH` 使用该源码。
-
-包版本 `1.0.0` 不能唯一标识源码内容；交接时还需保留该提交及与 NERO 固件匹配的 SDK。
-
-### SpacemiT ONNX Runtime
-
-已安装的系统包为 `spacemit-onnxruntime=2.0.6`、`python3-spacemit-ort=2.0.6`。Python 模块的 ORT 版本号是 `1.24.2+spacemit.a1`，与系统包版本号不同。
-
-`configs/green_cup.json` 当前配置：
-
-```json
-{
-  "ort_package_dir": "/usr/lib/python3.14/dist-packages",
-  "inference_provider": "spacemit",
-  "inference_threads": 2,
-  "inference_cpu_ids": [8, 9]
-}
-```
-
-这些字段属于 `green_cup.perception`，不是完整配置文件。推理代码先导入 `spacemit_ort` 注册后端；注册后实测提供 `SpaceMITExecutionProvider` 和 `CPUExecutionProvider`。只导入 `onnxruntime` 时可能只看到 CPU 后端。
-
-### 项目补充依赖目录
-
-`vendor-site-deps` 经 `PYTHONPATH` 注入，位于虚拟环境 `site-packages` 之前。当前有效的 `can` 和 `typing_extensions` 就来自这里。安装了同名包后，仍应检查模块 `__file__`，确认程序实际加载哪个副本。
-
-### 不是当前抓杯 pipeline 的必需项
-
-ROS 2 / MoveIt、MediaPipe、TensorFlow、PyTorch、Ultralytics Python 运行库和语音 ASR/TTS/VAD 不属于当前绿杯 ONNX pipeline 的必需运行栈。板端安装了部分 ROS/语音软件，不应把整机包列表全部当作本项目依赖。
-
-## 4. 启动脚本选择与环境变量
-
-| 变量 | 默认值/行为 |
+| 项目 | 要求 |
 | --- | --- |
-| `DICE_VISION_PYTHON` | 探测回退链终点 `/usr/bin/python3` |
-| `DICE_SDK_PYTHON` | 同上 |
-| `NERO_SDK_DIR` | `vendor-site/pyAgxArm` |
-| `CALIB_PYTHON` | 默认跟随视觉解释器 |
-| `PYTHONPATH` | 加入项目根目录、SDK 源码、`vendor-site-deps` |
-| `OPENBLAS_NUM_THREADS` | `1` |
-| `PYTHONNOUSERSITE` | `1`，不加载用户级 site-packages |
-| `QT_X11_NO_MITSHM` | `1`，用于 X11 预览兼容 |
+| 开发板 | SpacemiT K3，RISC-V 64 位 |
+| 机械臂 | AgileX NERO 七轴 |
+| 灵巧手 | 右 Revo2 |
+| 相机 | Intel RealSense D435i |
+| CAN | `can0`，1 Mbps |
+| Python | K3 系统 Python 或开发板上的兼容虚拟环境 |
 
-`../biaoding/run_k3.sh` 单独使用 `CALIB_PYTHON`，默认同样走 env.sh 回退链（本板为系统 python）。
+相机支持 USB 2.0 和 USB 3.0：
 
-## 5. 环境核验命令
+- USB 2.0 默认使用 1280×720、6 FPS。
+- USB 3.0 默认使用 1280×720、15 FPS。
 
-以下命令只读取环境，不发送机械臂动作：
+用以下命令确认设备和实际链路：
 
 ```bash
-cd ~/projects/dice-game/dice_demo
-source scripts/env.sh
-bash scripts/check_environment.sh
-"$DICE_VISION_PYTHON" --version
-"$DICE_SDK_PYTHON" --version
-uname -r
-uname -m
+uname -a
+python3 --version
+lsusb
 lsusb -t
 ip -details link show can0
 ```
 
-相机参数由仓库根目录的 `python scripts/set_camera_profile.py usb2|usb3` 统一切换；`--fps` 与 `--color-resolution`、`--depth-resolution` 可指定受支持的档位。`lsusb` 必须能列出 D435i，才能进行实拍验证；只通过环境检查或离线测试不能证明相机当前在线。完整命令及重新标定条件见[顶层 README](../README.md#相机配置)。
+`lsusb -t` 中 `480M` 表示 USB 2.0，`5000M` 表示 USB 3.0。
 
-`check_environment.sh` 验证核心包导入、ArUco、配置路径、检测模型和几何模型；不打开相机或 CAN。本次已通过。该脚本没有创建 SpaceMIT 推理会话，不能单独证明加速后端推理成功。
+## 2. 系统包
 
-模块来源可通过各解释器的 `模块.__file__` 核对。迁移时需同时保留系统厂商包、RISC-V/Python 3.14 扩展构建产物、SDK 源码、`.deps`、模型与配置；`vendor-site/` 与 `vendor-site-deps` 的包清单只是其中一部分。仓库 `requirements-vision.txt` 和 `requirements-sdk.txt` 尚不是完整可复现的版本锁文件。
+```bash
+sudo apt update
+sudo apt install python3-numpy python3-scipy python3-opencv \
+  spacemit-onnxruntime python3-spacemit-ort
+```
+
+可选工具：
+
+```bash
+sudo apt install xauth can-utils
+```
+
+`xauth` 用于 SSH X11 预览；`can-utils` 用于 `candump` 等总线诊断，不是 Pipeline 的运行依赖。
+
+## 3. Python 依赖
+
+项目按功能使用以下依赖：
+
+| 功能 | 主要依赖 |
+| --- | --- |
+| 数值与几何 | NumPy、SciPy |
+| 标定与图像处理 | OpenCV，需包含 ArUco |
+| RGB-D 相机 | `pyrealsense2` |
+| 绿杯分割 | ONNX Runtime、SpacemiT ORT |
+| CAN | `python-can` |
+| NERO/Revo2 | `pyAgxArm` 源码 |
+
+K3 是 RISC-V 架构。不要复制 PC 的 x86 虚拟环境，也不要假设 PyPI 提供所有 riscv64 轮子。交付包可携带：
+
+```text
+vendor-site/          pyrealsense2、pyAgxArm 等板端依赖
+vendor-site-deps/     python-can、typing_extensions 等补充包
+calibration/.deps/    标定工具补充依赖
+```
+
+`requirements-vision.txt` 和 `requirements-sdk.txt` 用于说明上游 Python 依赖，不是 K3 的完整安装命令。
+
+## 4. 环境变量
+
+在仓库根目录执行：
+
+```bash
+source scripts/env.sh
+```
+
+脚本设置：
+
+| 变量 | 用途 |
+| --- | --- |
+| `DICE_ROOT` | 仓库绝对路径 |
+| `DICE_VISION_PYTHON` | 相机、推理、几何和规划解释器 |
+| `DICE_SDK_PYTHON` | CAN 和灵巧手执行器解释器 |
+| `NERO_SDK_DIR` | `pyAgxArm` 源码目录 |
+| `CALIB_PYTHON` | 标定解释器 |
+| `PYTHONPATH` | 仓库、SDK 和随包依赖的加载路径 |
+
+默认探测顺序：
+
+1. 视觉：`$HOME/.venv-grasp/bin/python`，否则 `/usr/bin/python3`。
+2. SDK：`$HOME/agilex-api-test/venv/bin/python`，否则 `/usr/bin/python3`。
+3. NERO SDK：`$HOME/agilex-api-test/pyAgxArm`，否则 `vendor-site/pyAgxArm`。
+
+需要指定其他环境时，在 `source` 前设置变量：
+
+```bash
+export DICE_VISION_PYTHON=/path/to/python
+export DICE_SDK_PYTHON=/path/to/python
+export NERO_SDK_DIR=/path/to/pyAgxArm
+source scripts/env.sh
+```
+
+## 5. CAN 和 WEB 设置
+
+启动 CAN：
+
+```bash
+sudo ip link set can0 up type can bitrate 1000000
+ip -details link show can0
+```
+
+同时确认：
+
+- 急停已解除。
+- 七个机械臂关节已使能。
+- WEB 控制页已选择 Revo2 并打开灵巧手使能。
+- 控制器已开启 CAN 推送。
+- 没有其他程序持有机械臂 SDK 或 CAN 接收器。
+
+Linux 接口显示 `UP` 只表示 SocketCAN 已启动，不代表控制器已经处于 CAN 模式。
+
+## 6. 相机配置
+
+```bash
+python3 scripts/set_camera_profile.py usb2
+python3 scripts/set_camera_profile.py usb3
+python3 scripts/set_camera_profile.py usb2 --dry-run
+```
+
+配置工具同步修改抓杯和标定的相机参数。更改彩色分辨率或裁剪后需重新标定；只改变帧率时可保留空间标定，但必须重新验证相机采集和杯位。
+
+X11 预览：
+
+```bash
+ssh -X user@k3-host
+export QT_X11_NO_MITSHM=1
+echo "$DISPLAY"
+```
+
+## 7. 环境验证
+
+```bash
+source scripts/env.sh
+bash scripts/check_environment.sh
+```
+
+该脚本检查 Python 导入、ArUco、配置路径、模型和几何文件，不打开相机或 CAN。进一步检查：
+
+```bash
+# 不访问硬件
+bash run.sh fast
+python3 scripts/control_console.py --simulate
+
+# 相机检测，不移动机械臂
+source scripts/env.sh
+bash cup_grasp_demo/flow/run_debug.sh \
+  green-detect \
+  --config configs/green_cup.json \
+  --session cup_grasp_demo/datasets/green_current
+```
+
+新安装验证顺序：环境检查 → 标定 → 桌面登记 → 杯子检测 → Pipeline 预览 → 真机运行。

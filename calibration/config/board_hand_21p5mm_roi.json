@@ -1,0 +1,13 @@
+{
+  "type": "charuco",
+  "dictionary": "4x4_50",
+  "squares_x": 4,
+  "squares_y": 5,
+  "square_length_m": 0.0215,
+  "marker_length_m": 0.015,
+  "legacy_pattern": false,
+  "min_corners": 6,
+  "max_reprojection_px": 1.0,
+  "image_roi_xyxy": [0, 0, 440, 480],
+  "note": "Hand-mounted board at 640x480; exclude the fixed reference board on the right. Recheck this ROI after changing the camera view."
+}

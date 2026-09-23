@@ -24,8 +24,10 @@ export NERO_SDK_DIR="${NERO_SDK_DIR:-$_sdk_dir_default}"
 export CALIB_PYTHON="${CALIB_PYTHON:-$DICE_VISION_PYTHON}"
 _vendor_site=""
 [[ -d "$DICE_ROOT/vendor-site" ]] && _vendor_site=":$DICE_ROOT/vendor-site"
-export PYTHONPATH="$DICE_ROOT:$NERO_SDK_DIR:$DICE_ROOT/vendor-site-deps$_vendor_site${PYTHONPATH:+:$PYTHONPATH}"
-unset _vision_default _sdk_default _sdk_dir_default _vendor_site
+_calibration_site=""
+[[ -d "$DICE_ROOT/calibration/.deps" ]] && _calibration_site=":$DICE_ROOT/calibration/.deps"
+export PYTHONPATH="$DICE_ROOT:$NERO_SDK_DIR:$DICE_ROOT/vendor-site-deps$_vendor_site$_calibration_site${PYTHONPATH:+:$PYTHONPATH}"
+unset _vision_default _sdk_default _sdk_dir_default _vendor_site _calibration_site
 export OPENBLAS_NUM_THREADS=1
 export QT_X11_NO_MITSHM=1
 export PYTHONNOUSERSITE=1

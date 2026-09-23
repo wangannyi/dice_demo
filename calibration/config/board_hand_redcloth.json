@@ -1,0 +1,39 @@
+{
+  "type": "charuco",
+  "dictionary": "4x4_50",
+  "squares_x": 4,
+  "squares_y": 5,
+  "square_length_m": 0.0215,
+  "marker_length_m": 0.015,
+  "legacy_pattern": false,
+  "min_corners": 6,
+  "max_reprojection_px": 1.0,
+  "image_roi_xyxy": [
+    0,
+    0,
+    960,
+    720
+  ],
+  "note": "1280x720 RGB cropped to 960x720 at x=220,y=0. ROI verified for installation 2026-09-20. Board physical dimensions must match before final solve.",
+  "image_profile": {
+    "color_resolution": [
+      1280,
+      720
+    ],
+    "fps": 6,
+    "crop_xywh": [
+      220,
+      0,
+      960,
+      720
+    ]
+  },
+  "image_exclude_rois_xyxy": [
+    [
+      540,
+      440,
+      790,
+      700
+    ]
+  ]
+}
