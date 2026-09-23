@@ -28,11 +28,11 @@ import time
 ROOT = Path(__file__).resolve().parent.parent
 
 # 固定快捷键（常用手势与归位）；home 由常驻进程代码生成，恒可用。
-FIXED_SHORTCUTS = {"y": "yeah", "t": "thumbs-up", "e": "tie", "h": "home"}
+FIXED_SHORTCUTS = {"y": "yeah", "t": "thumbs-up", "e": "tie", "h": "home", "r": "rock"}
 GESTURE_HINTS = {"yeah": "机械臂赢", "thumbs-up": "机械臂输", "tie": "平局",
-                 "rock": "石头", "paper": "布", "scissors": "剪刀"}
+                 "rock": "拳头", "paper": "布", "scissors": "剪刀"}
 # 流程命令与固定手势键保留，动态手势不得占用。
-RESERVED_KEYS = set("0123456789aglryteh")
+RESERVED_KEYS = set("0123456789aglf") | set(FIXED_SHORTCUTS)
 
 
 def gesture_shortcuts(gestures):
@@ -71,7 +71,7 @@ def build_menu(shortcuts, gestures):
         lines.append("  其他手势（无快捷键，用 a <名字>）：" + "、".join(others))
     lines += [
         "  l  列出全部可用动作名（含别名）",
-        "  r  reload 重载手势（改完 configs/actions/gestures/ 文件后即时生效，不断连）",
+        "  f  reload 重载手势（改完 configs/actions/gestures/ 文件后即时生效，不断连）",
         "",
         "抓取流程（视觉联动复合任务）：",
         "  g  完整流程（一口气到 RETURN_HOME，结束自动回空闲）",
@@ -95,7 +95,7 @@ BASE_CHOICES = {
     "g": {"command": "advance", "until": "RETURN_HOME"},
     "6": {"command": "refresh_perception"},
     "l": {"command": "actions"},
-    "r": {"command": "reload"},
+    "f": {"command": "reload"},
     "8": {"command": "close"},
 }
 
