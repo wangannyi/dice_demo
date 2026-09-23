@@ -27,25 +27,66 @@ import time
 
 ROOT = Path(__file__).resolve().parent.parent
 
-MENU = """\
-静态手势（空闲时随意调度、随意互切；抓取流程进行中会被拒，跑完自动回空闲）：
-  y  yeah（机械臂赢）      t  thumbs-up（机械臂输）    e  tie（平局）
-  h  home 归位（张手+回 HOME）
-  a <名字>  手势库任意动作    l  列出全部可用动作名
-  r  reload 重载手势（改完 configs/actions/gestures/ 文件后即时生效，不断连）
+# 固定快捷键（常用手势与归位）；home 由常驻进程代码生成，恒可用。
+FIXED_SHORTCUTS = {"y": "yeah", "t": "thumbs-up", "e": "tie", "h": "home"}
+GESTURE_HINTS = {"yeah": "机械臂赢", "thumbs-up": "机械臂输", "tie": "平局",
+                 "rock": "石头", "paper": "布", "scissors": "剪刀"}
+# 流程命令与固定手势键保留，动态手势不得占用。
+RESERVED_KEYS = set("0123456789aglryteh")
 
-抓取流程（视觉联动复合任务）：
-  g  完整流程（一口气到 RETURN_HOME，结束自动回空闲）
-  2  单阶段推进（调试）      3  连续执行到 GRIP（闭手抓杯）
-  4  连续执行到 SHAKE（摇完停住）    5  连续执行到 RETURN_HOME
-  6  refresh_perception   退回 CAPTURE 重新识别（仅 CAPTURE 后、APPROACH 前可用）
-  1  status               8  close 释放设备并退出
-  9  仅退控制台（子进程收到 EOF 后释放设备，状态记 PAUSED）
-  0  显示本菜单
-也可直接输入一行 JSON 命令，如 {"command":"action","name":"yeah"}。
-"""
 
-CHOICES = {
+def gesture_shortcuts(gestures):
+    """固定键优先，其余手势用可用首字母；冲突的动作仅列名（a <名字> 执行）。"""
+    shortcuts = {}
+    for key, name in FIXED_SHORTCUTS.items():
+        if name == "home" or name in gestures:
+            shortcuts[key] = name
+    assigned = set(shortcuts.values())
+    for name in gestures:
+        if name in assigned:
+            continue
+        initial = name[0].lower()
+        if (len(initial) == 1 and initial.isalnum() and not initial.isdigit()
+                and initial not in RESERVED_KEYS and initial not in shortcuts):
+            shortcuts[initial] = name
+            assigned.add(name)
+    return shortcuts
+
+
+def build_menu(shortcuts, gestures):
+    entries = []
+    for key, name in shortcuts.items():
+        hint = GESTURE_HINTS.get(name)
+        if name == "home":
+            entries.append(f"{key}  home 归位（张手+回 HOME，跟随主流程配置）")
+        else:
+            entries.append(f"{key}  {name}（{hint}）" if hint else f"{key}  {name}")
+    rows = ["    ".join(entries[i:i+3]) for i in range(0, len(entries), 3)]
+    others = [name for name in gestures if name not in shortcuts.values()]
+    lines = [
+        "静态手势（空闲时随意调度、随意互切；抓取流程进行中会被拒，跑完自动回空闲）：",
+        *["  " + row for row in rows],
+    ]
+    if others:
+        lines.append("  其他手势（无快捷键，用 a <名字>）：" + "、".join(others))
+    lines += [
+        "  l  列出全部可用动作名（含别名）",
+        "  r  reload 重载手势（改完 configs/actions/gestures/ 文件后即时生效，不断连）",
+        "",
+        "抓取流程（视觉联动复合任务）：",
+        "  g  完整流程（一口气到 RETURN_HOME，结束自动回空闲）",
+        "  2  单阶段推进（调试）      3  连续执行到 GRIP（闭手抓杯）",
+        "  4  连续执行到 SHAKE（摇完停住）    5  连续执行到 RETURN_HOME",
+        "  6  refresh_perception   退回 CAPTURE 重新识别（仅 CAPTURE 后、APPROACH 前可用）",
+        "  1  status               8  close 释放设备并退出",
+        "  9  仅退控制台（子进程收到 EOF 后释放设备，状态记 PAUSED）",
+        "  0  显示本菜单",
+        "也可直接输入一行 JSON 命令，如 {\"command\":\"action\",\"name\":\"yeah\"}。",
+    ]
+    return "\n".join(lines)
+
+
+BASE_CHOICES = {
     "1": {"command": "status"},
     "2": {"command": "advance"},
     "3": {"command": "advance", "until": "GRIP"},
@@ -53,10 +94,6 @@ CHOICES = {
     "5": {"command": "advance", "until": "RETURN_HOME"},
     "g": {"command": "advance", "until": "RETURN_HOME"},
     "6": {"command": "refresh_perception"},
-    "y": {"command": "action", "name": "yeah"},
-    "t": {"command": "action", "name": "thumbs-up"},
-    "e": {"command": "action", "name": "tie"},
-    "h": {"command": "action", "name": "home"},
     "l": {"command": "actions"},
     "r": {"command": "reload"},
     "8": {"command": "close"},
@@ -85,9 +122,11 @@ def describe(event):
     parts = []
     for key, label in (("phase", "阶段"), ("next_phase", "下一阶段"), ("status", "状态"),
                        ("run", "运行序号"), ("cycle", "运行序号"), ("code", "code"),
-                       ("through", "推进到"), ("name", "动作"), ("receipt", "收据")):
+                       ("through", "推进到"), ("name", "动作"), ("receipt", "收据"),
+                       ("actions", "动作")):
         if event.get(key) is not None:
-            parts.append(f"{label}={event[key]}")
+            value = event[key]
+            parts.append(f"{label}=" + ("、".join(value) if isinstance(value, list) else str(value)))
     if event.get("names") is not None:
         parts.append("可选=" + "、".join(event["names"]))
     if event.get("elapsed_s") is not None:
@@ -138,7 +177,7 @@ class SubprocessBackend:
 class SimulateBackend:
     """演练模式：进程内跑真实 ControlSession，Workflow 换成假动作。"""
 
-    def __init__(self):
+    def __init__(self, actions):
         sys.path.insert(0, str(ROOT))
         from cup_grasp_demo.flow.green_control import ControlSession
 
@@ -155,8 +194,8 @@ class SimulateBackend:
                 time.sleep(0.4)
 
         def fake_run_action(name):
-            if name == "nope":
-                raise ValueError("未知动作：nope；可选：yeah、thumbs-up、tie、home")
+            if name not in actions:
+                raise ValueError("未知动作：" + name + "；可选：" + ", ".join(actions))
             time.sleep(0.3)
             return dict(name=name, receipt="/tmp/sim_receipt.json", elapsed_s=0.3)
 
@@ -169,10 +208,8 @@ class SimulateBackend:
             FakeFlow(), Path(self.tmp) / "green_pipeline_state.json",
             os.fdopen(read_in, "r", buffering=1),
             os.fdopen(write_out, "w", buffering=1), sys.stderr,
-            actions=("home", "yeah", "thumbs-up", "tie", "win", "lose", "draw"),
-            run_action=fake_run_action,
-            reload_actions=lambda: (("home", "yeah", "thumbs-up", "tie",
-                                     "win", "lose", "draw"), fake_run_action))
+            actions=tuple(actions), run_action=fake_run_action,
+            reload_actions=lambda: (tuple(actions), fake_run_action))
         self.thread = threading.Thread(target=self.session.serve, daemon=True)
         self.thread.start()
 
@@ -208,13 +245,30 @@ def main():
     parser.add_argument("--session", help="覆盖 DICE_RUN")
     args = parser.parse_args()
 
+    # 手势名单来自 configs/actions/gestures/ 目录注册（与常驻进程同一来源）；
+    # home 由常驻进程代码生成，恒可用。
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from scripts.action_registry import load_registry
+    registry = load_registry()
+    for message in registry.errors:
+        print(f"[gestures] {message}", file=sys.stderr)
+    gestures = registry.gesture_names()
+    gestures = list(dict.fromkeys(["home", *gestures]))
+    shortcuts = gesture_shortcuts(gestures)
+    menu = build_menu(shortcuts, gestures)
+    choices = dict(BASE_CHOICES)
+    for key, name in shortcuts.items():
+        choices[key] = {"command": "action", "name": name}
+    shortcut_keys = "/".join(shortcuts)
+
     if args.simulate:
-        backend = SimulateBackend()
+        backend = SimulateBackend(["home", *registry.names()])
         print("演练模式（--simulate）：命令语义是真的，阶段动作是假的（每阶段约 0.4s）")
     else:
         backend = SubprocessBackend(args.config, args.session)
         print("真机模式：run.sh control --execute，等待 SDK/CAN 连接、相机预热、模型加载……")
-    print(MENU)
+    print(menu)
 
     terminal_events = {"closed", "failed", "preview"}
     stop = threading.Event()
@@ -248,10 +302,10 @@ def main():
             if not raw:
                 continue
             if raw == "0":
-                print(MENU)
+                print(menu)
                 continue
-            if raw in CHOICES:
-                command = dict(CHOICES[raw])
+            if raw in choices:
+                command = dict(choices[raw])
             elif raw.startswith("a ") and raw[2:].strip():
                 command = {"command": "action", "name": raw[2:].strip()}
             elif raw.startswith("{"):
@@ -261,7 +315,8 @@ def main():
                     print("JSON 解析失败；请输入菜单指令或一行完整 JSON")
                     continue
             else:
-                print("无效指令；输入 0 显示菜单（y/t/e/h 手势、a <名字> 任意动作、g 完整抓取）")
+                print(f"无效指令；输入 0 显示菜单（手势快捷键 {shortcut_keys}、"
+                      "a <名字> 任意动作、g 完整抓取）")
                 continue
             seq += 1
             command.setdefault("id", f"c{seq}")

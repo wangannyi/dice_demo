@@ -27,6 +27,10 @@ class ActionRegistry:
             result += list(config.get("aliases", {}))
         return result
 
+    def gesture_names(self):
+        """Primary gesture names only (no aliases), for menus and shortcuts."""
+        return [name for _, config in self.groups for name in config.get("gestures", {})]
+
     def recipe(self, name):
         for _, config in self.groups:
             if name in config.get("gestures", {}) or name in config.get("aliases", {}):
