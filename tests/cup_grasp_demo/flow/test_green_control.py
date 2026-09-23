@@ -21,6 +21,26 @@ def events(stream):
 
 
 class ControlSessionTest(unittest.TestCase):
+    def test_home_action_can_overlap_without_changing_legacy_default(self):
+        for mode in (None, 'together'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
+                green = dict(home_table_scene='table.json', open_targets_0_100=[0]*6)
+                if mode is not None:
+                    green['home_execution_mode'] = mode
+                flow = SimpleNamespace(cfg=dict(green_cup=green, home='home.json', calibration='cal.json'),
+                                       root=tmp, _sdk=Mock())
+                registry = Mock(errors=[]); registry.names.return_value=[]
+                with patch('scripts.action_registry.load_registry', return_value=registry), \
+                     patch('cup_grasp_demo.flow.core.read_json', side_effect=[
+                         dict(calibration_sha256='hash', scene={}), dict(joints_deg=[0]*7)]), \
+                     patch('cup_grasp_demo.flow.core.digest', return_value='hash'), \
+                     patch('scripts.result_feedback.execute_recipe') as execute:
+                    _, run = control.build_action_runtime(flow, io.StringIO())
+                    run('home')
+                recipe = execute.call_args.args[0]
+                self.assertEqual(recipe['execution'], dict(mode=mode or 'arm_then_hand', delay_s=0.0))
+                self.assertEqual(recipe['finger_duration_s'], .25)
+
     def fake_flow(self):
         flow = Mock()
         flow.receipts = {}

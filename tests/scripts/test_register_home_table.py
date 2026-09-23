@@ -5,10 +5,25 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
+from cup_grasp_demo.flow import planar_scene
 from scripts import register_home_table
 
 
 class RegisterHomeTableTests(unittest.TestCase):
+    def test_home_scene_fits_red_depth_without_a_cup(self):
+        image = np.zeros((20, 20, 3), dtype=np.uint8)
+        image[:, :, 2] = 255
+        meta = {'intrinsics': {'frame': 'color_optical', 'fx': 100., 'fy': 100., 'cx': 10., 'cy': 10., 'height': 20, 'width': 20, 'dist_coeffs': [0.]*5},
+                'depth_scale_m': .001}
+        with patch.object(planar_scene, 'load_batch', return_value=(
+                meta, np.full((20, 20), 700.), image, [])), \
+             patch.object(planar_scene.common, 'camera_transform', return_value=(np.eye(4), False)):
+            scene, quality = planar_scene.home_scene(Path('/unused'), {'plane_tolerance_mm': 6.})
+        self.assertFalse(quality)
+        self.assertAlmostEqual(scene['cup_support_base_m'][2], .7)
+        self.assertLess(scene['table_fit']['rms_mm'], .001)
+
     def test_success_writes_bound_scene_and_clears_gate(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

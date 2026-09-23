@@ -276,11 +276,14 @@ def build_action_runtime(flow, diagnostic):
         if name == "home":
             home = read_json(ROOT / flow.cfg["home"])
             green = flow.cfg["green_cup"]
+            mode = green.get("home_execution_mode", "arm_then_hand")
+            if mode not in ("arm_then_hand", "together"):
+                raise ValueError("home_execution_mode must be arm_then_hand or together")
             recipe = dict(gesture="home", joints_deg=list(home["joints_deg"]),
                           hand_0_100=list(green["open_targets_0_100"]),
                           speed_percent=green.get("fast_speed_percent", 30),
                           finger_duration_s=green.get("fast_finger_duration_s", 0.25),
-                          execution=dict(mode="arm_then_hand", delay_s=0.0),
+                          execution=dict(mode=mode, delay_s=0.0),
                           finger_speed_mode="timed", finger_max_wait_s=0.65)
         else:
             recipe = registry.recipe(name)

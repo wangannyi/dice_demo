@@ -1,0 +1,109 @@
+{
+  "schema": 1,
+  "mode": "eye_to_hand",
+  "camera": {
+    "backend": "realsense",
+    "serial": "346222071954",
+    "frame": "color_optical",
+    "width": 960,
+    "height": 720,
+    "camera_matrix": [
+      [
+        912.6941528320312,
+        0.0,
+        429.69549560546875
+      ],
+      [
+        0.0,
+        912.8109741210938,
+        378.5689697265625
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "dist_coeffs": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "distortion_model": "distortion.inverse_brown_conrady",
+    "source_resolution": [
+      1280,
+      720
+    ],
+    "crop_xywh": [
+      220,
+      0,
+      960,
+      720
+    ],
+    "fps": 6
+  },
+  "board": {
+    "type": "charuco",
+    "dictionary": "4x4_50",
+    "squares_x": 4,
+    "squares_y": 5,
+    "square_length_m": 0.0215,
+    "marker_length_m": 0.015,
+    "legacy_pattern": false,
+    "min_corners": 6,
+    "max_reprojection_px": 1.0,
+    "image_roi_xyxy": [
+      0,
+      0,
+      960,
+      720
+    ],
+    "note": "Cover the fixed table board during hand-eye collection. The full cropped RGB image is available to the hand board.",
+    "image_profile": {
+      "color_resolution": [
+        1280,
+        720
+      ],
+      "fps": 6,
+      "crop_xywh": [
+        220,
+        0,
+        960,
+        720
+      ]
+    },
+    "image_exclude_rois_xyxy": []
+  },
+  "opencv_version": "4.13.0",
+  "tcp": "flange",
+  "T_flange_tcp": [
+    [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      1.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "sampling": "stationary bracketed observations, not hardware timestamp synchronization",
+  "created_unix_s": 1790065663.20415
+}

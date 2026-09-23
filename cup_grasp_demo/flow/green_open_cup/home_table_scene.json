@@ -1,25 +1,25 @@
 {
   "scene": {
     "cup_support_base_m": [
-      -0.04333939064605852,
-      0.34932630559730304,
-      -0.0054965440860073045
+      -0.01230508795782112,
+      0.4102977524667501,
+      -0.02759384607626314
     ],
     "cup_normal_base": [
-      0.01792898681631951,
-      -0.006151656563530633,
-      0.9998203381374399
+      -0.01711506757271352,
+      -0.04162516476036186,
+      0.9989866966685064
     ],
     "cup_envelope_radius_m": 0,
     "geometry": {
       "height_m": 0
     },
     "table_fit": {
-      "inlier_fraction": 0.8466666666666667,
-      "rms_mm": 2.328253642054111
+      "inlier_fraction": 0.884,
+      "rms_mm": 2.750024509588857
     }
   },
-  "calibration_sha256": "ab0a35287bb41a3d3d9e478ba34cf66ca8bb6f4bb3106d961e13d57d6252e3c5",
-  "source": "cup_grasp_demo/datasets/green_current/planar_table_scene.json",
+  "calibration_sha256": "e53cb85f8f9ce5eaf2903492c526a80c79456e4d38db7182b53229d3ac3a6ab3",
+  "source": "/home/test2/dice_demo_hwj/cup_grasp_demo/datasets/table_auto_20260923_184613/planar_table_scene.json",
   "requires_fixed_base_and_table": true
 }

@@ -133,6 +133,7 @@ bash run.sh fast --until place --execute  # 放杯并返回 HOME
 | `green_cup.strategy_file` | 抓取策略文件；其中包含 TCP、接触点、腕部、抬杯和手指参数 |
 | `green_cup.fast_speed_percent` | FAST 普通运动速度百分比 |
 | `green_cup.fast_phase_speed_percent` | 指定阶段的速度覆盖值 |
+| `green_cup.place_offset_base_mm` | 放杯目标相对抓取位置的基座坐标系 `[X, Y, Z]` 补偿，单位 mm |
 | `green_cup.perception` | 绿杯模型、尺寸、杯沿和推理后端 |
 | `vision/camera.json` | 彩色、深度、双目分辨率、帧率和裁剪 |
 | `green_cup.joint_test_config` | 摇晃动作配置文件 |
@@ -153,19 +154,37 @@ python3 scripts/set_camera_profile.py usb2 --dry-run
 
 [`configs/actions/joint_shake.json`](configs/actions/joint_shake.json) 配置参与关节、幅度、速度、加速度、周期和目标更新频率。`command_rate_hz` 是七轴位置目标的发送频率，不是杯子的往返频率。实际频率受行程、轨迹和控制器限制。
 
-## 6. 胜负反馈动作
+## 6. 骰子反馈与猜拳动作
 
 ```bash
+# 交互常驻：初始化一次 SDK/CAN，动作完成后返回菜单，q 退出
+bash run_feedback.sh --execute
+
+# 非交互调用，适合上层程序
 bash run_feedback.sh win --execute
 bash run_feedback.sh lose --execute
 bash run_feedback.sh draw --execute
+
+# 猜拳
+bash run_feedback.sh rock --execute
+bash run_feedback.sh paper --execute
+bash run_feedback.sh scissors --execute
+
+# 张手并返回 HOME
+bash run_feedback.sh home --execute
 ```
+
+不带 `--execute` 进入单次交互预览，不连接 CAN 或发送动作。交互执行模式只在启动时初始化一次 SDK/CAN；此后可连续切换动作。带动作名的命令仍执行一次后退出，供上层程序调用。
 
 | 结果 | 动作 |
 | --- | --- |
-| `win` | 比 V |
-| `lose` | 点赞 |
-| `draw` | 平局往返手势 |
+| `win` | 比 V；臂 100%，手最大速度 |
+| `lose` | 点赞；臂 100%，手最大速度 |
+| `draw` | 平局往返手势；臂 100%，手型每 0.5 秒切换 |
+| `rock` | 石头；四指开始闭合后 0.1 秒拇指即跟进，两段均使用最大速度 |
+| `paper` | 布；六路手指全张开 |
+| `scissors` | 剪刀；食指和中指张开 |
+| `home` | 六路手指张开，机械臂返回保存的 HOME 关节姿态 |
 
 动作定义在 [`configs/actions/gestures/`](configs/actions/gestures/)。动作执行后保持姿态，不自动回 HOME。添加动作、速度和臂手时序配置见[调试文档](docs/DEBUG.md#6-反馈动作)。
 
@@ -187,7 +206,7 @@ bash run_feedback.sh draw --execute
 run.sh                         Pipeline 入口
 run_feedback.sh                胜负反馈入口
 configs/                       系统、HOME、摇晃和手势配置
-calibration/                   手眼标定、自动重采和固定板工具
+calibration/                   手眼标定、内置自动轨迹和固定板工具
 cup_grasp_demo/flow/           Pipeline 状态机、规划和执行
 vision/                        相机、推理和几何计算
 nero_revo2_control/            NERO/Revo2 控制与模型
@@ -195,3 +214,7 @@ scripts/                       安装、环境、桌面登记和交付工具
 docs/                          标定、调试、环境和集成文档
 tests/                         回归测试
 ```
+
+## 简化标定入口
+
+在仓库根目录运行 `bash calibrate.sh first`（首次人工示教）、`bash calibrate.sh auto --execute`（自动标定）或 `bash calibrate.sh restore --execute`（固定板恢复）。参数统一编辑 `configs/calibration_workflow.json`。`bash calibrate.sh apply` 自动备份、应用结果并登记桌面；完整步骤见 [标定指南](docs/CALIBRATION.md)。 内置 20 姿态轨迹首次使用前运行 `bash calibrate.sh plan`。

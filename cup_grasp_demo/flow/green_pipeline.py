@@ -87,9 +87,12 @@ def validate(cfg):
         raise ValueError('table_plane_source must be live_depth or calibrated')
     if type(g.get("recovery_attempts", 1)) is not int or not 0 <= g.get("recovery_attempts", 1) <= 2:
         raise ValueError("recovery_attempts must be 0..2")
+    lower_attempts = g.get("lower_recovery_attempts", g.get("recovery_attempts", 1))
+    if type(lower_attempts) is not int or not 0 <= lower_attempts <= 2:
+        raise ValueError("lower_recovery_attempts must be 0..2")
     release_tolerance = g.get("place_arrival_tolerance_mm", g["place_tolerance_mm"])
-    if isinstance(release_tolerance, bool) or not isinstance(release_tolerance, (int, float)) or not math.isfinite(release_tolerance) or not 0 <= release_tolerance <= 5:
-        raise ValueError("place_arrival_tolerance_mm must be 0..5")
+    if isinstance(release_tolerance, bool) or not isinstance(release_tolerance, (int, float)) or not math.isfinite(release_tolerance) or not 0 <= release_tolerance <= 10:
+        raise ValueError("place_arrival_tolerance_mm must be 0..10")
     tolerance = g.get("shake_start_tolerance_deg", .5)
     if isinstance(tolerance, bool) or not isinstance(tolerance, (int, float)) or not math.isfinite(tolerance) or not .05 <= tolerance <= .5:
         raise ValueError("shake_start_tolerance_deg must be 0.05..0.5")
@@ -975,13 +978,14 @@ class Workflow:
             targets = self.place_targets(self.place_q)
             self.move(targets, "lower", self.held, -self.g["place_tolerance_mm"])
             before = self.kin.forward(targets[-1])[0] @ self.tcp
-            for attempt in range(self.g.get("recovery_attempts", 1) + 1):
+            lower_attempts = self.g.get("lower_recovery_attempts", self.g.get("recovery_attempts", 1))
+            for attempt in range(lower_attempts + 1):
                 after = self.kin.forward(self.snapshot())[0] @ self.tcp
                 error_mm = np.linalg.norm(after[:3, 3] - before[:3, 3]) * 1000
                 self.place_arrival_error_mm = float(error_mm)
                 if error_mm <= self.g.get("place_arrival_tolerance_mm", self.g["place_tolerance_mm"]):
                     break
-                if attempt == self.g.get("recovery_attempts", 1):
+                if attempt == lower_attempts:
                     if self.g.get('precision_error_action', 'stop') == 'record':
                         self.record_recovery(
                             "LOWER",

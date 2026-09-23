@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "serial": "346222071954",
+  "channel": "can0",
+  "tcp": "flange",
+  "hand_board": "calibration/config/board_hand_redcloth_cover_fixed.json",
+  "reference_board": "calibration/config/board_reference_redcloth.json",
+  "reference_id": "table_reference_main",
+  "reference_frames": 20,
+  "home": "configs/actions/home.json",
+  "show": true,
+  "fps": 6,
+  "motion": {
+    "speed_percent": 40,
+    "speed_deg_s": 20,
+    "acc_deg_s2": 20
+  },
+  "measurement": {
+    "width_mm": 86.5,
+    "height_mm": 108
+  },
+  "allow_provisional": true,
+  "capture_only_visibility": true,
+  "max_step_deg": 10,
+  "margin_px": 8,
+  "teaching_dataset": "calibration/trajectories/handeye_auto_teach_covered_20260922",
+  "teaching_calibration": "calibration/trajectories/handeye_auto_teach_covered_20260922/calibration_reference.json",
+  "plan": null,
+  "registration": null,
+  "dataset": null,
+  "result": null,
+  "output_root": "calibration/datasets/workflow",
+  "state_file": "calibration/datasets/workflow/state.json",
+  "pipeline_config": "configs/green_cup.json"
+}

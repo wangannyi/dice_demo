@@ -116,13 +116,19 @@ python3 scripts/set_camera_profile.py usb3
 
 ```bash
 bash run_feedback.sh --list
+bash run_feedback.sh               # 交互选择，只预览
+bash run_feedback.sh --execute     # 常驻交互执行；初始化一次，q 退出
 bash run_feedback.sh yeah
 bash run_feedback.sh yeah --execute
 bash run_feedback.sh thumbs-up --execute
 bash run_feedback.sh tie --execute
+bash run_feedback.sh rock --execute
+bash run_feedback.sh paper --execute
+bash run_feedback.sh scissors --execute
+bash run_feedback.sh home --execute
 ```
 
-`win`、`lose`、`draw` 分别是上述动作的比赛结果别名。动作完成后保持姿态，不自动回 HOME。
+`win`、`lose`、`draw` 是骰子结果动作别名；`rock`、`paper`、`scissors` 是猜拳动作；`home` 会张开六路手指并返回保存的 HOME 关节姿态。无动作名且带 `--execute` 时，程序保持常驻并复用同一个 SDK/CAN 连接；每个动作完成后返回菜单，输入 `q` 关闭连接。指定动作名时仍执行一次后退出。普通动作完成后保持姿态，不自动回 HOME。骰子反馈与猜拳动作的机械臂速度均为 100%，灵巧手使用最大速度指令，臂手同时开始。石头动作的四指目标下发后 `0.1 s` 即下发拇指闭合目标；平局手型按 `0.5 s` 间隔切换。
 
 动作定义在 `configs/actions/gestures/`。每个动作可配置：
 
@@ -149,6 +155,7 @@ bash run_feedback.sh tie --execute
 | `finger_duration_s` | `timed` 模式下的手指动作时间 |
 | `execution.mode` | `together`、`arm_then_hand` 或 `hand_then_arm` |
 | `execution.delay_s` | 两类指令之间的软件调度延迟 |
+| `hand_sequence.return_to_initial` | 多段手势是否在最后返回第一姿态；默认 `true` |
 
 修改动作文件后，常驻控制台输入 `r` 即可重载。动作名和别名必须在所有动作组中唯一。
 
@@ -200,3 +207,7 @@ configs/actions/joint_shake.json
 ```
 
 基准结果只表示模型加载和推理耗时，不包含相机、预处理、掩码解码和三维杯沿拟合。
+
+放杯到位检查：green_cup.place_arrival_tolerance_mm 范围 0–10 mm；lower_recovery_attempts 范围 0–2，未设置时沿用 recovery_attempts。设为 0 仅取消放杯到位后的纠偏重试。超差仍遵循 precision_error_action：record 记录后继续，stop 停止。路径检查和张手动作时间保持原规则。
+
+FAST 关节动作不强制目标精度时，空闲状态还需连续至少 60 ms 的新关节反馈保持在起始观测值 0.05° 范围内，才确认动作结束。防止控制器提前报告 idle 时继续下一段导致 MoveJS 起点变化；保留 0.1° 起点保护和原动作超时，不重新发送已执行的路径。

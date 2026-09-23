@@ -475,6 +475,10 @@ def stream_smooth_route(arm, route, max_speed_deg_s=4., max_acc_deg_s2=6., hz=50
     """Stream intermediate targets without stopping; caller settles at sample endpoint."""
     profile = smooth_route_profile(route, max_speed_deg_s, max_acc_deg_s2)
     robot = arm.robot
+    # HighGUI/X11 event processing can block unpredictably. Service the window
+    # while stationary, never inside the time-critical command stream.
+    if pump is not None:
+        pump()
     begin = previous_send = time.monotonic()
     last_tick = begin
     phase_elapsed = 0.
@@ -486,7 +490,8 @@ def stream_smooth_route(arm, route, max_speed_deg_s=4., max_acc_deg_s2=6., hz=50
         while True:
             now = time.monotonic()
             if tick and now - previous_send > .1:
-                raise RuntimeError('Automatic calibration command stream paused over 100 ms')
+                raise RuntimeError('Automatic calibration command stream paused over 100 ms '
+                                   f'({1000*(now-previous_send):.1f} ms)')
             # A late loop must not skip over intermediate joint targets. This
             # bounds each update while allowing the requested profile to take
             # longer if CAN or the preview window delays a send.
@@ -507,8 +512,6 @@ def stream_smooth_route(arm, route, max_speed_deg_s=4., max_acc_deg_s2=6., hz=50
                 raise RuntimeError('Joint feedback stale during automatic calibration motion')
             robot.move_js(target)
             last, previous_send = target, time.monotonic()
-            if pump is not None and tick % 10 == 0:
-                pump()
             if elapsed >= profile[2]:
                 return
             tick += 1
@@ -532,12 +535,15 @@ def capture_after_settling(arm, camera, detector, frame_check, attempts=3):
 
 
 def run_plan(plan_path, output, channel, speed_percent, fps=None,
-             smooth_speed_deg_s=4., smooth_acc_deg_s2=6., show=False):
+             smooth_speed_deg_s=4., smooth_acc_deg_s2=6., show=False,
+             start_home=False, home_path=None):
     plan = json.loads(plan_path.read_text())
     if plan.get('kind') != 'handeye_auto_collection':
         raise ValueError('Not a hand-eye automatic collection plan')
     if any(digest(path) != value for path, value in plan['source_sha256'].items()):
         raise ValueError('Teaching/calibration/window changed after planning')
+    from home_start import DEFAULT_HOME, joint_route, load_home, move_home
+    home = load_home(home_path or DEFAULT_HOME) if start_home else None
     source = Path(plan['source_dataset'])
     calibration_path = Path(plan['calibration'])
     manifest, _, calibration, box, _ = inputs(source, calibration_path)
@@ -563,12 +569,24 @@ def run_plan(plan_path, output, channel, speed_percent, fps=None,
         arm = NeroFeedback(channel)
         detector = CharucoDetector(manifest['board'])
         capture_only = plan.get('visibility_policy') == 'capture_only'
-        if not capture_only:
+        if not capture_only and not start_home:
             live_board(camera, detector, manifest, calibration, box, plan['margin_px'])
         ensure_can_control(arm)
         model = load_model()
         current = arm.read_joints()['joints_rad']
-        if capture_only:
+        home_route = None
+        if start_home:
+            # Validate both legs before sending the first HOME motion command.
+            home_route = joint_route(current, home, model, plan['max_step_deg'])
+            if capture_only:
+                entry = joint_route(home, plan['waypoints'][0]['q_rad'], model,
+                                    plan['max_step_deg'])
+                approach = [{'q_rad': q, 'capture_sample_index': None} for q in entry[1:]]
+            else:
+                approach = check_path(home, [plan['targets_rad'][0]], model,
+                                      manifest, calibration, box,
+                                      plan['max_step_deg'], plan['margin_px'])
+        elif capture_only:
             deviations = [math.degrees(max(abs(a-b) for a,b in zip(current,point['q_rad'])))
                           for point in plan['waypoints']]
             nearest = int(np.argmin(deviations))
@@ -594,6 +612,13 @@ def run_plan(plan_path, output, channel, speed_percent, fps=None,
         previous_auto_mode = robot.get_auto_set_motion_mode_enabled()
         robot.set_auto_set_motion_mode_enabled(False)
         robot.set_motion_mode('js')
+        if start_home:
+            actual = move_home(arm, home_route, smooth_speed_deg_s, smooth_acc_deg_s2, preview)
+            # Check actual settled feedback as well as the nominal HOME.
+            joint_route(actual, home, model, plan['max_step_deg'])
+            write_new(output/'home_start.json', {'home_file': str(Path(home_path or DEFAULT_HOME).resolve()),
+                                               'joints_rad': home, 'actual_joints_rad': actual,
+                                               'collision_checked': False})
         path = approach + (plan['waypoints'] if capture_only else plan['waypoints'][1:])
         count = 0
         pending = []
@@ -678,6 +703,9 @@ def main(argv=None):
     q.add_argument('--fps', type=int, choices=(6, 15, 30),
                    help='Override only the teaching frame rate; keep resolution and crop')
     q.add_argument('--show', action='store_true', help='Show each accepted calibration frame over X11')
+    q.add_argument('--start-from', choices=('home', 'current'), default='home',
+                   help='Default: settle at HOME before entering the taught route; current preserves legacy replay')
+    q.add_argument('--home', type=Path, help='HOME JSON (default: configs/actions/home.json)')
     q.add_argument('--execute', action='store_true', required=True)
     args = p.parse_args(argv)
     if args.command == 'draw-window':
@@ -696,7 +724,8 @@ def main(argv=None):
                 or args.smooth_acc_deg_s2 <= 0):
             raise ValueError('Smooth calibration speed/acceleration must be finite and positive')
         run_plan(args.plan, args.output, args.channel, args.speed_percent, args.fps,
-                 args.smooth_speed_deg_s, args.smooth_acc_deg_s2, args.show)
+                 args.smooth_speed_deg_s, args.smooth_acc_deg_s2, args.show,
+                 start_home=args.start_from == 'home', home_path=args.home)
     return 0
 
 

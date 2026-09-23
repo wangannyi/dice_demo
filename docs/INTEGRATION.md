@@ -111,23 +111,35 @@ with (session / 'controller.log').open('w') as log:
 
 每个 `advance` 都从 `next_phase` 开始顺序运行。若长时间停在 CAPTURE/PLAN 与 APPROACH 之间，杯位可能变化，先发送 `refresh_perception` 再推进到 PLAN/APPROACH。完成 GRIP 后程序不会自行张手或归位；上层应根据当前持杯状态选择后续阶段，不要在异常路径盲目重启 HOME。`control` 仅支持绿杯配置，`--until` 保持默认 `place`；阶段停靠点由 JSON 命令指定。
 
-## 3. 胜负反馈接口
+## 3. 骰子反馈与猜拳接口
 
 在已放杯、手中无物体后调用。这里的胜负均以**机械臂一方**为准，上层需先把选手角色映射为机械臂/玩家。
 
 ```bash
+# 人工调试时常驻交互选择；初始化一次，q 退出
+bash run_feedback.sh --execute
+
+# 上层应用使用固定动作名，无交互
 bash run_feedback.sh win --config configs/green_cup.json --session /tmp/dice_feedback_001 --execute
 bash run_feedback.sh lose --config configs/green_cup.json --session /tmp/dice_feedback_002 --execute
 bash run_feedback.sh draw --config configs/green_cup.json --session /tmp/dice_feedback_003 --execute
+bash run_feedback.sh rock --config configs/green_cup.json --session /tmp/rps_rock --execute
+bash run_feedback.sh paper --config configs/green_cup.json --session /tmp/rps_paper --execute
+bash run_feedback.sh scissors --config configs/green_cup.json --session /tmp/rps_scissors --execute
+bash run_feedback.sh home --config configs/green_cup.json --session /tmp/feedback_home --execute
 ```
 
 | 结果 | 别名 | 动作名 | 行为 |
 | --- | --- | --- | --- |
-| 机械臂赢 | `win` | `yeah` | 举臂并比 V |
-| 机械臂输 | `lose` | `thumbs-up` | 举臂并点赞 |
-| 平局 | `draw` | `tie` | 到指定姿态，手指两种姿态往返 3 次 |
+| 机械臂赢 | `win` | `yeah` | 臂 100%，手最大速度，举臂并比 V |
+| 机械臂输 | `lose` | `thumbs-up` | 臂 100%，手最大速度，举臂并点赞 |
+| 平局 | `draw` | `tie` | 臂 100%，手型按 0.5 秒间隔往返 3 次 |
+| 石头 |  | `rock` | 臂手同时启动；四指开始闭合后 0.1 秒拇指跟进 |
+| 布 |  | `paper` | 臂手同时启动，六路手指全张开 |
+| 剪刀 |  | `scissors` | 臂手同时启动，食指和中指张开 |
+| 归位 |  | `home` | 六路手指张开，机械臂返回保存的 HOME 关节姿态 |
 
-`--gestures` 指定手势分组目录（或单个组文件），默认 `configs/actions/gestures/`；`--list` 列出全部注册动作。不带 `--execute` 仅预览。执行后保持动作姿态，**不自动回 HOME**，也不订阅比赛事件。默认臂速度 50%，臂手同时启动，手使用最大速度指令。
+`--gestures` 指定手势分组目录（或单个组文件），默认 `configs/actions/gestures/`；`--list` 列出全部注册动作。不带 `--execute` 仅预览。无动作名的交互执行会复用一个 SDK/CAN 连接并持续返回菜单；输入 `q` 才退出。指定动作名的调用仍是单次进程接口。执行后保持动作姿态，**不自动回 HOME**，也不订阅比赛事件。骰子反馈和猜拳动作的臂速度均为 100%，臂手同时启动，手使用最大速度指令。HOME 单独保持 60%。
 
 手指六路顺序：拇指尖、拇指根、食指、中指、无名指、小指。七轴角度单位为度。新增、删除动作和调整执行时延见[调试文档](DEBUG.md#6-反馈动作)。动作内字段覆盖全局默认值；修改全局速度时注意已有动作也可能配置了覆盖值。
 
@@ -196,3 +208,5 @@ def shake_once(root: Path):
 主配置 `configs/green_cup.json`；静态配方 `configs/actions/`（`joint_shake.json`、`home.json`）；手势分组目录 `configs/actions/gestures/`（含 `result_feedback.json` 组）。完整字段与安装见[README](../README.md)，重新布置现场见[标定指南](CALIBRATION.md)。配置变更只在任务结束后进行，新的调用读取新配置。
 
 默认打包命令生成的发布包中，相机标定为参考数据，`installation_requires_calibration=true`。仓库 `main` 和 `--site-active` 包保留当前 K3 的现场配置，只适用于这套固定安装。接收方先完成本机标定与桌面注册，不能直接用开发现场的坐标启动动作。运行记录留在本机，不提交到源码仓库。
+
+CONTROL 的 `action home`（包括裁决后的 reset_home）使用 green_cup.home_execution_mode：together 在首个机械臂运动 tick 同步下发张手；arm_then_hand 保持串行，未配置时沿用串行。张手沿用 fast_finger_duration_s（当前 0.5 秒）。共用 SDK/CAN 线程，完成时等待两种动作各自的完成条件；手指按指令时长判定，不声称位置反馈确认。修改后须重启常驻 CONTROL。

@@ -1,5 +1,5 @@
 {
-  "speed_percent": 50,
+  "speed_percent": 100,
   "finger_duration_s": 0.5,
   "gestures": {
     "yeah": {
@@ -20,7 +20,7 @@
         100,
         100
       ],
-      "speed_percent": 50,
+      "speed_percent": 100,
       "finger_duration_s": 0.5,
       "execution": {
         "mode": "together",
@@ -47,7 +47,7 @@
         100,
         100
       ],
-      "speed_percent": 50,
+      "speed_percent": 100,
       "finger_duration_s": 0.5,
       "execution": {
         "mode": "together",
@@ -74,7 +74,7 @@
         0,
         0
       ],
-      "speed_percent": 50,
+      "speed_percent": 100,
       "finger_duration_s": 0.5,
       "execution": {
         "mode": "together",
@@ -102,8 +102,139 @@
           ]
         ],
         "cycles": 3,
-        "interval_s": 0.65
+        "interval_s": 0.5
       }
+    },
+    "rock": {
+      "joints_deg": [
+        40.117,
+        -90.324,
+        -90.391,
+        79.804,
+        -9.524,
+        -5.203,
+        4.942
+      ],
+      "speed_percent": 100,
+      "finger_duration_s": 0.5,
+      "execution": {
+        "mode": "together",
+        "delay_s": 0.0
+      },
+      "finger_speed_mode": "max",
+      "finger_max_wait_s": 0.65,
+      "hand_0_100": [
+        0,
+        0,
+        100,
+        100,
+        100,
+        100
+      ],
+      "hand_sequence": {
+        "poses": [
+          [
+            0,
+            0,
+            100,
+            100,
+            100,
+            100
+          ],
+          [
+            100,
+            100,
+            100,
+            100,
+            100,
+            100
+          ]
+        ],
+        "cycles": 1,
+        "interval_s": 0.1,
+        "return_to_initial": false
+      }
+    },
+    "paper": {
+      "joints_deg": [
+        40.117,
+        -90.324,
+        -90.391,
+        79.804,
+        -9.524,
+        -5.203,
+        4.942
+      ],
+      "speed_percent": 100,
+      "finger_duration_s": 0.5,
+      "execution": {
+        "mode": "together",
+        "delay_s": 0.0
+      },
+      "finger_speed_mode": "max",
+      "finger_max_wait_s": 0.65,
+      "hand_0_100": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "scissors": {
+      "joints_deg": [
+        40.117,
+        -90.324,
+        -90.391,
+        79.804,
+        -9.524,
+        -5.203,
+        4.942
+      ],
+      "speed_percent": 100,
+      "finger_duration_s": 0.5,
+      "execution": {
+        "mode": "together",
+        "delay_s": 0.0
+      },
+      "finger_speed_mode": "max",
+      "finger_max_wait_s": 0.65,
+      "hand_0_100": [
+        100,
+        100,
+        0,
+        0,
+        100,
+        100
+      ]
+    },
+    "home": {
+      "joints_deg": [
+        0,
+        -70,
+        -90,
+        100,
+        -10,
+        -5,
+        5
+      ],
+      "hand_0_100": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "speed_percent": 60,
+      "finger_duration_s": 0.5,
+      "execution": {
+        "mode": "together",
+        "delay_s": 0.0
+      },
+      "finger_speed_mode": "max",
+      "finger_max_wait_s": 0.65
     }
   },
   "aliases": {

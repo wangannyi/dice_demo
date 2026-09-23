@@ -12,6 +12,39 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 DEFAULT_SYSTEM = ROOT / 'configs/green_cup.json'
+INTERACTIVE_ACTIONS = (
+    ('win', '骰子：机械臂赢（V 手势）'),
+    ('lose', '骰子：机械臂输（点赞）'),
+    ('draw', '骰子：平局'),
+    ('rock', '猜拳：石头'),
+    ('paper', '猜拳：布'),
+    ('scissors', '猜拳：剪刀'),
+    ('home', '归位：HOME（六路手指张开）'),
+)
+
+
+def choose_action(registry, input_fn=input):
+    """Choose one public game action; q/EOF leaves without hardware access."""
+    registered = set(registry.names())
+    actions = [(name, label) for name, label in INTERACTIVE_ACTIONS if name in registered]
+    if not actions:
+        raise ValueError('没有可供交互选择的游戏动作')
+    print('\n请选择动作：')
+    for index, (name, label) in enumerate(actions, 1):
+        print(f'  {index}. {label}  [{name}]')
+    print('  q. 退出')
+    while True:
+        try:
+            value = input_fn('输入编号或动作名：').strip()
+        except EOFError:
+            return None
+        if value.lower() in ('q', 'quit', 'exit'):
+            return None
+        if value.isdigit() and 1 <= int(value) <= len(actions):
+            return actions[int(value)-1][0]
+        if value in {name for name, _ in actions}:
+            return value
+        print('无效选择，请重新输入。')
 
 
 def recipe_for(config, action):
@@ -121,6 +154,23 @@ def execute_recipe(recipe, cfg, scene, directory, client, planner):
                note='机械臂动作及手指指令/观察时间完成；手指姿态未实测确认；保持当前姿态'))
 
 
+def interactive_execute(registry, cfg, scene, session, client, planner, new_run_fn):
+    """Reuse one initialized SDK connection until the operator explicitly exits."""
+    completed = 0
+    print('动作控制已初始化；完成动作后会返回菜单，输入 q 关闭连接并退出。', flush=True)
+    while True:
+        action = choose_action(registry)
+        if action is None:
+            print('常驻动作会话已退出。', flush=True)
+            return completed
+        recipe = registry.recipe(action)
+        directory = new_run_fn(session, recipe['gesture'])
+        print(f'执行动作：{action} [{recipe["gesture"]}]', flush=True)
+        execute_recipe(recipe, cfg, scene, directory, client, planner)
+        completed += 1
+        print(f'动作完成，保持当前姿态；记录：{directory / "receipt.json"}', flush=True)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', nargs='?', help='配置中的动作名或别名')
@@ -139,9 +189,31 @@ def main(argv=None):
         for name in registry.names():
             print(name)
         return 0
-    if args.action is None:
-        parser.error('请指定动作名，或使用 --list')
-    recipe = registry.recipe(args.action)
+    interactive = args.action is None
+    if interactive and args.execute:
+        from cup_grasp_demo.flow.core import load_config, read_json, digest
+        from cup_grasp_demo.flow.debug import new_run
+        from cup_grasp_demo.flow.green_runtime import SDKClient
+        from cup_grasp_demo.flow.green_cup_planning import arm_plan
+        from cup_grasp_demo.flow.session_storage import session_lock
+        cfg = load_config(args.config)
+        table = read_json(ROOT / cfg['green_cup']['home_table_scene'])
+        if table['calibration_sha256'] != digest(cfg['calibration']):
+            raise ValueError('桌面记录与当前标定不一致，请更新桌面记录')
+        with session_lock(args.session):
+            controller_directory = new_run(args.session, 'feedback_control')
+            client = SDKClient(cfg, controller_directory)
+            try:
+                interactive_execute(registry, cfg, table['scene'], args.session,
+                                    client, arm_plan, new_run)
+            finally:
+                client.close()
+        return 0
+    action = args.action if args.action is not None else choose_action(registry)
+    if action is None:
+        print('已退出，未发送指令。')
+        return 0
+    recipe = registry.recipe(action)
     print(json.dumps(recipe, ensure_ascii=False, indent=2), flush=True)
     if not args.execute:
         print('仅预览，未连接 CAN、相机或发送指令。加 --execute 执行。')

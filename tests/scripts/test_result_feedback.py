@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 from scripts import result_feedback as feedback
 
 
@@ -21,6 +21,10 @@ class FeedbackTests(unittest.TestCase):
         self.assertEqual(lose['joints_deg'], [0.110,-80.329,-90.385,100.029,80.136,-4.995,5.064])
         self.assertEqual(win['hand_0_100'], [100,100,0,0,100,100])
         self.assertEqual(lose['hand_0_100'], [0,0,100,100,100,100])
+        self.assertEqual(win['speed_percent'], 100)
+        self.assertEqual(lose['speed_percent'], 100)
+        self.assertEqual(win['finger_speed_mode'], 'max')
+        self.assertEqual(lose['finger_speed_mode'], 'max')
 
     def test_tie_user_pose_and_sequence(self):
         recipe=feedback.recipe_for(self.config,'draw')
@@ -29,10 +33,75 @@ class FeedbackTests(unittest.TestCase):
         self.assertEqual(recipe['hand_sequence']['poses'],[[0]*6,[0,0,40,40,40,40]])
         self.assertEqual(recipe['finger_speed_mode'],'max')
         self.assertEqual(recipe['execution'],dict(mode='together',delay_s=0))
+        self.assertEqual(recipe['speed_percent'], 100)
+        self.assertEqual(recipe['hand_sequence']['interval_s'], .5)
+
+    def test_rock_paper_scissors_recipes(self):
+        joints = [40.117, -90.324, -90.391, 79.804, -9.524, -5.203, 4.942]
+        rock = feedback.recipe_for(self.config, 'rock')
+        paper = feedback.recipe_for(self.config, 'paper')
+        scissors = feedback.recipe_for(self.config, 'scissors')
+        for recipe in (rock, paper, scissors):
+            self.assertEqual(recipe['joints_deg'], joints)
+            self.assertEqual(recipe['speed_percent'], 100)
+            self.assertEqual(recipe['finger_speed_mode'], 'max')
+            self.assertEqual(recipe['execution'], dict(mode='together', delay_s=0))
+        self.assertEqual(rock['hand_0_100'], [0, 0, 100, 100, 100, 100])
+        self.assertFalse(rock['hand_sequence']['return_to_initial'])
+        self.assertEqual(rock['hand_sequence']['interval_s'], .1)
+        self.assertEqual(paper['hand_0_100'], [0] * 6)
+        self.assertEqual(scissors['hand_0_100'], [100, 100, 0, 0, 100, 100])
+
+    def test_home_recipe_opens_hand_and_returns_to_saved_pose(self):
+        home = feedback.recipe_for(self.config, 'home')
+        self.assertEqual(home['joints_deg'], [0, -70, -90, 100, -10, -5, 5])
+        self.assertEqual(home['hand_0_100'], [0] * 6)
+        self.assertEqual(home['execution'], dict(mode='together', delay_s=0))
+        self.assertEqual(home['finger_speed_mode'], 'max')
 
     def test_preview_without_runtime(self):
         with redirect_stdout(io.StringIO()):
             self.assertEqual(feedback.main(['yeah', '--config', '/nonexistent']), 0)
+
+    def test_interactive_menu_selects_action_for_preview(self):
+        with patch.object(feedback, 'choose_action', return_value='paper') as choose:
+            with redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(feedback.main([]), 0)
+        choose.assert_called_once()
+        self.assertIn('"gesture": "paper"', output.getvalue())
+        self.assertIn('仅预览', output.getvalue())
+
+    def test_interactive_menu_number_name_and_quit(self):
+        from scripts.action_registry import load_registry
+        registry = load_registry(feedback.ROOT / 'configs/actions/gestures')
+        for entered, expected in [('1', 'win'), ('paper', 'paper'), ('q', None)]:
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(feedback.choose_action(registry, lambda _: entered), expected)
+
+    def test_interactive_execute_reuses_connection_and_returns_to_menu(self):
+        from scripts.action_registry import load_registry
+        registry = load_registry(feedback.ROOT / 'configs/actions/gestures')
+        client, planner = Mock(), Mock()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            created = []
+            def new_run(session, gesture):
+                directory = root / f'{len(created)}_{gesture}'
+                directory.mkdir()
+                created.append((session, gesture, directory))
+                return directory
+            with patch.object(feedback, 'choose_action', side_effect=['rock', 'paper', None]), \
+                    patch.object(feedback, 'execute_recipe') as execute, \
+                    redirect_stdout(io.StringIO()) as output:
+                completed = feedback.interactive_execute(
+                    registry, {'green_cup': {}}, {}, root, client, planner, new_run)
+        self.assertEqual(completed, 2)
+        self.assertEqual(execute.call_count, 2)
+        self.assertEqual([call.args[0]['gesture'] for call in execute.call_args_list],
+                         ['rock', 'paper'])
+        self.assertTrue(all(call.args[4] is client for call in execute.call_args_list))
+        self.assertEqual([entry[1] for entry in created], ['rock', 'paper'])
+        self.assertIn('常驻动作会话已退出', output.getvalue())
 
     def test_invalid_recipes(self):
         for key, value in [('speed_percent', 101), ('finger_duration_s', float('nan'))]:

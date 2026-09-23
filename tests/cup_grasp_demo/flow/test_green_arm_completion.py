@@ -25,6 +25,36 @@ class CompletionTest(unittest.TestCase):
             robot=FakeRobot();setattr(robot,attr,value)
             with self.subTest(attr=attr),self.assertRaises(error):self.wait(robot,False)
 
+    def test_idle_status_does_not_complete_while_joints_are_coasting(self):
+        robot = FakeRobot()
+        clock = SimulatedClock()
+        original = robot.get_joint_angles
+        def joints():
+            robot.joints = [math.radians(min(clock.now, .2)*20)]*7
+            return original()
+        robot.get_joint_angles = joints
+        with patch.object(demo.time, 'monotonic', clock.monotonic), \
+             patch.object(demo.time, 'sleep', clock.sleep), patch.object(demo, 'emit'):
+            demo.wait_for_arm_target(robot, 'move-j', [0]*7, 1,
+                                     require_joint_position=False,
+                                     completion_samples=2, completion_poll_s=.01)
+        self.assertGreaterEqual(clock.now, .26)
+        self.assertLess(clock.now, .35)
+
+    def test_continuous_drift_with_idle_status_times_out(self):
+        robot = FakeRobot(); clock = SimulatedClock()
+        original = robot.get_joint_angles
+        def joints():
+            robot.joints = [math.radians(clock.now*20)]*7
+            return original()
+        robot.get_joint_angles = joints
+        with patch.object(demo.time, 'monotonic', clock.monotonic), \
+             patch.object(demo.time, 'sleep', clock.sleep), patch.object(demo, 'emit'):
+            with self.assertRaises(TimeoutError):
+                demo.wait_for_arm_target(robot, 'move-j', [0]*7, .5,
+                                         require_joint_position=False,
+                                         completion_samples=2, completion_poll_s=.01)
+
     def test_legacy_default_remains_enabled(self):
         cfg=dict(timeout_s=40,green_cup=dict(require_arm_position=False))
         stage=dict(target_q_rad=[0]*7)

@@ -1,12 +1,17 @@
-# 手眼标定与固定板外参恢复
+# 标定工具
 
-`collect --preview` 人工采集法兰姿态、手背板图像及每帧七轴反馈；`solve` 求解手眼变换。`auto_collect.py draw-window` 画手背板的可见范围，`plan` 离线检查示教路径，`run --execute` 自动移动机械臂并重采图像。`reference_board.py` 注册桌面板，并在相机移动后恢复外参。具体命令和限制见 [标定文档](../docs/CALIBRATION.md)。
+在仓库根目录使用统一入口，参数编辑 `configs/calibration_workflow.json`：
 
-红布场景默认使用 USB 2.0 的 1280×720、6 FPS。仓库根目录的 `python scripts/set_camera_profile.py usb2|usb3` 同步修改手背板、固定板及抓杯检测配置；自动重采旧示教数据集时，可用 `auto_collect.py run --fps 6` 只改采样帧率。更改分辨率或裁剪后需要重新示教和标定。
+```bash
+bash calibrate.sh first
+bash calibrate.sh auto --execute
+bash calibrate.sh restore --execute
+```
 
-## 使用入口
+分别用于首次人工示教标定、HOME 后自动重采标定、HOME 后通过固定板恢复外参。首次示教仍由现场人工操作机械臂。
 
-- [项目安装和运行](../README.md)
-- [分步调试](../docs/DEBUG.md)
-- [标定](../docs/CALIBRATION.md)
-- [应用接入](../docs/INTEGRATION.md)
+仓库内置的 20 姿态示教轨迹位于 [`trajectories/handeye_auto_teach_covered_20260922`](trajectories/handeye_auto_teach_covered_20260922/)。配置已指向该轨迹；首次运行 `bash calibrate.sh plan` 生成与当前机器路径及文件哈希绑定的新计划。
+
+`bash calibrate.sh apply` 备份并应用最近结果，重新采集和登记桌面；`status` 查看最近数据；`--dry-run` 仅预览。详细步骤、固定板登记、质量门槛和回滚见 [标定指南](../docs/CALIBRATION.md)。
+
+`calibrate.py`、`auto_collect.py`、`reference_board.py` 等底层入口保持兼容，参见 [底层命令](../docs/CALIBRATION_ADVANCED.md)。

@@ -130,6 +130,18 @@ class RecoverPlacementTest(unittest.TestCase):
         self.assertAlmostEqual(wf.place_arrival_error_mm,10)
         self.assertIn('record 模式继续',wf.recovery_events[-1]['reason'])
 
+    def test_lower_retries_can_be_disabled_independently(self):
+        wf=object.__new__(flow.Workflow);wf.place_q=[0]*7;wf.tcp=np.eye(4);wf.held={}
+        wf.g=dict(place_tolerance_mm=3,place_arrival_tolerance_mm=8,
+                  recovery_attempts=2,lower_recovery_attempts=0,precision_error_action='record')
+        wf.move=Mock();wf.snapshot=Mock(return_value=[0]*7);wf.kin=Mock()
+        wrong=np.eye(4);wrong[2,3]=.01
+        wf.kin.forward.side_effect=[(np.eye(4),None),(wrong,None)]
+        wf.perform('LOWER')
+        wf.move.assert_called_once_with([wf.place_q],'lower',wf.held,-3)
+        self.assertEqual(wf.g['recovery_attempts'],2)
+        self.assertIn('record 模式继续',wf.recovery_events[-1]['reason'])
+
     def test_direct_return_home_has_no_vertical_retreat(self):
         wf=object.__new__(flow.Workflow);wf.args=SimpleNamespace(mode="step");wf.g={'direct_return_home':True};wf.home=[0]*7
         wf.move=Mock();wf.vertical=Mock();wf.snapshot=Mock()

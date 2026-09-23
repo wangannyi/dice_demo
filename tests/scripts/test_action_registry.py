@@ -90,6 +90,7 @@ class RegistryTests(unittest.TestCase):
         registry = load_registry(GESTURES_DIR)
         self.assertIn('yeah', registry.names())
         self.assertIn('win', registry.names())
+        self.assertIn('home', registry.names())
         self.assertEqual(registry.errors, [])
 
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Observe/register a fixed table board and restore extrinsics. Never opens CAN."""
+"""Observe/register a fixed board. Only restore-auto --execute moves the arm."""
 import argparse
 import copy
 import hashlib
@@ -159,6 +159,34 @@ def observe(board_path, serial, reference_id, output, frame_count):
             camera.close()
 
 
+def restore_auto(registration_path, board_path, serial, reference_id, output,
+                 frame_count=20, allow_provisional=False, home_path=None,
+                 channel='can0', speed_percent=15, speed_deg_s=4., acc_deg_s2=6.):
+    """HOME -> new fixed-board observation -> restored extrinsics, without applying them."""
+    from home_start import DEFAULT_HOME, return_home
+    registration, origin = load_source(registration_path)
+    if registration.get('mode') != 'fixed_reference_registration' or registration.get('schema') != 1:
+        raise ValueError('Expected a fixed-reference registration')
+    require_quality(registration['source_calibration'], allow_provisional)
+    board, _ = load_source(board_path)
+    if (reference_id != registration['reference_id']
+            or any(board[k] != registration['board'][k] for k in GEOMETRY_KEYS)):
+        raise ValueError('Reference identity/geometry changed; register again')
+    if (serial != registration['camera_at_registration']['serial']
+            or board.get('image_roi_xyxy') is None or not 10 <= frame_count <= 120):
+        raise ValueError('Invalid camera identity, board ROI or frame count')
+    if output.exists():
+        raise ValueError('Automatic restore output directory already exists')
+    home_feedback = return_home(home_path or DEFAULT_HOME, channel, speed_percent,
+                                speed_deg_s, acc_deg_s2)
+    observation = observe(board_path, serial, reference_id, output, frame_count)
+    result = restore(registration, observation, allow_provisional)
+    result['sources'] = {'registration': origin, 'observation': str((output/'observation.json').resolve())}
+    result['home_start'] = {'joints_rad': home_feedback, 'collision_checked': False}
+    write_new(output/'restored_calibration.json', result)
+    return result
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
@@ -174,8 +202,29 @@ def main(argv=None):
         p.add_argument('--observation', type=Path, required=True)
         p.add_argument('--output', type=Path, required=True, help='New output JSON')
         p.add_argument('--allow-provisional', action='store_true')
+    auto = sub.add_parser('restore-auto', help='Move to HOME, observe fixed board, then restore extrinsics')
+    auto.add_argument('--registration', type=Path, required=True)
+    auto.add_argument('--board', type=Path, required=True)
+    auto.add_argument('--serial', required=True)
+    auto.add_argument('--reference-id', required=True)
+    auto.add_argument('--output', type=Path, required=True, help='New output directory')
+    auto.add_argument('--frames', type=int, default=20)
+    auto.add_argument('--allow-provisional', action='store_true')
+    auto.add_argument('--home', type=Path)
+    auto.add_argument('--channel', default='can0')
+    auto.add_argument('--speed-percent', type=int, default=15)
+    auto.add_argument('--smooth-speed-deg-s', type=float, default=4.)
+    auto.add_argument('--smooth-acc-deg-s2', type=float, default=6.)
+    auto.add_argument('--execute', action='store_true', required=True)
     args = parser.parse_args(argv)
-    if args.command == 'observe':
+    if args.command == 'restore-auto':
+        result = restore_auto(args.registration, args.board, args.serial, args.reference_id,
+                              args.output, args.frames, args.allow_provisional, args.home,
+                              args.channel, args.speed_percent, args.smooth_speed_deg_s,
+                              args.smooth_acc_deg_s2)
+        print(json.dumps({'output': str(args.output/'restored_calibration.json'),
+                          'quality_passed': result['quality_passed']}))
+    elif args.command == 'observe':
         record = observe(args.board, args.serial, args.reference_id, args.output, args.frames)
         print(json.dumps({'output': str(args.output), **record['quality']}))
     else:

@@ -3,6 +3,10 @@ from pathlib import Path
 import json
 import time
 
+import cv2
+from vision.capture.frame_io import load_batch
+from vision.geometry.table_plane import Config, _plane, deproject
+
 from cup_grasp_demo.flow import debug as common
 from cup_grasp_demo.flow.core import configured_tcp, digest, load_config, read_json
 

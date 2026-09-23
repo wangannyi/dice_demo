@@ -2,12 +2,12 @@
   "schema": 1,
   "serial": "346222071954",
   "channel": "can0",
-  "home": "configs/actions/home.json",
+  "home": "/home/test2/dice_demo_hwj/configs/actions/home.json",
   "home_open_hand": true,
-  "calibration": "configs/calibration/handeye_result.json",
-  "orientation_reference": "cup_grasp_demo/flow/green_open_cup/grasp_reference.json",
-  "tcp_candidate": "cup_grasp_demo/flow/green_open_cup/tcp_candidate.json",
-  "grasp_config": "cup_grasp_demo/flow/green_open_cup/CURRENT_GRASP.json",
+  "calibration": "/home/test2/dice_demo_hwj/configs/calibration/handeye_result.json",
+  "orientation_reference": "/home/test2/dice_demo_hwj/cup_grasp_demo/flow/green_open_cup/grasp_reference.json",
+  "tcp_candidate": "/home/test2/dice_demo_hwj/cup_grasp_demo/flow/green_open_cup/tcp_candidate.json",
+  "grasp_config": "/home/test2/dice_demo_hwj/cup_grasp_demo/flow/green_open_cup/CURRENT_GRASP.json",
   "allow_provisional_calibration": true,
   "plane_tolerance_mm": 6.0,
   "contact_height_fraction": 0.9090909090909091,
@@ -84,16 +84,16 @@
     "auto_reduce_frequency": true
   },
   "cup_perception": {
-    "backend": "yolo_seg_onnx",
-    "model": "cup_grasp_demo/models/cup_yolov8n_seg_20260918/best.q.onnx",
     "confidence": 0.35,
     "iou_threshold": 0.45,
     "mask_threshold": 0.5,
-    "mask_erode_px": 1,
     "min_workspace_fraction": 0.9,
     "min_valid_depth_fraction": 0.5,
+    "mask_erode_px": 1,
+    "section_half_band_mm": 2.0,
     "ort_package_dir": "/usr/lib/python3.14/dist-packages",
-    "section_half_band_mm": 2.0
+    "backend": "yolo_seg_onnx",
+    "model": "cup_grasp_demo/models/cup_yolov8n_seg_20260918/best.q.onnx"
   },
   "fast_record_shake_video": false,
   "fast_capture_reuse_max_age_s": 120,
@@ -212,10 +212,10 @@
     "persistent_runtime": true,
     "installation_requires_calibration": false,
     "read_hand_feedback": false,
-    "place_arrival_tolerance_mm": 5.0,
+    "place_arrival_tolerance_mm": 8.0,
     "place_offset_base_mm": [
       0,
-      10,
+      0,
       0
     ],
     "direct_return_home": true,
@@ -235,6 +235,9 @@
     "fast_dogbox_ik": true,
     "fast_motion_profile": "trapezoid",
     "fast_minimize_lift_travel": true,
-    "strategy_file": "vision/strategy/green_cup.json"
+    "strategy_file": "vision/strategy/green_cup.json",
+    "lower_recovery_attempts": 0,
+    "home_execution_mode": "together",
+    "fast_finger_duration_s": 0.5
   }
 }

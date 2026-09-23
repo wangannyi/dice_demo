@@ -58,7 +58,7 @@ def execute(plan, cfg, robot, hand, demo, result, arm_step, motion_robot):
         raise ValueError('Feedback overlap requires one arm stage')
     if len(target) != 6 or any(type(x) is not int or not 0 <= x <= 100 for x in target):
         raise ValueError('Invalid feedback hand target')
-    for value, low, high in ((delay, 0, 30), (duration, .65 if maximum else .5, 5 if maximum else 2.55)):
+    for value, low, high in ((delay, 0, 30), (duration, .65 if maximum else .25, 5 if maximum else 2.55)):
         if type(value) not in (int, float) or not math.isfinite(value) or not low <= value <= high:
             raise ValueError('Invalid feedback timing')
     from cup_grasp_demo.flow.feedback_sequence import sequence_values
@@ -86,7 +86,14 @@ def execute(plan, cfg, robot, hand, demo, result, arm_step, motion_robot):
     previous = motion_robot.on_motion_tick
     motion_robot.on_motion_tick = schedule.tick
     try:
-        arm_step(plan['stages'][0], cfg['speed_percent'])
+        stage = plan['stages'][0]
+        stationary = max(abs(a-b) for a, b in
+                         zip(stage['current_q_rad'], stage['target_q_rad'])) <= math.radians(.01)
+        if stationary:
+            schedule.tick()
+            result['arm_already_at_target'] = True
+        else:
+            arm_step(stage, cfg['speed_percent'])
         if schedule.started is None:
             raise RuntimeError('No arm stream command; hand not dispatched')
         while not schedule.complete():

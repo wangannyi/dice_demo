@@ -115,6 +115,40 @@ class AutoCollectionTests(unittest.TestCase):
         np.testing.assert_allclose(sent[-1], route[-1])
         self.assertLess(np.degrees(np.max(np.abs(np.diff(sent, axis=0)))), .5)
 
+    def test_slow_window_is_serviced_before_motion_only(self):
+        clock = [0.]
+        sent = []
+        robot = Mock()
+        robot.has_comm_error.return_value = False
+        robot.get_joint_angles.side_effect = lambda: SimpleNamespace(
+            timestamp=clock[0], msg=sent[-1] if sent else [0.]*7)
+        robot.move_js.side_effect = lambda q: sent.append(q)
+        def slow_window():
+            self.assertEqual(sent, [])
+            clock[0] += .25
+        pump = Mock(side_effect=slow_window)
+        route = [[0.]*7, [np.deg2rad(2.)]+[0.]*6]
+        with patch('auto_collect.time.monotonic', side_effect=lambda: clock[0]), \
+             patch('auto_collect.time.sleep', side_effect=lambda seconds: clock.__setitem__(0, clock[0]+seconds)):
+            stream_smooth_route(SimpleNamespace(robot=robot), route, 20., 20., pump=pump)
+        pump.assert_called_once()
+        np.testing.assert_allclose(sent[-1], route[-1])
+
+    def test_actual_stream_pause_still_stops_and_holds_feedback(self):
+        clock = [0.]
+        robot = Mock()
+        robot.has_comm_error.return_value = False
+        feedback = [.001]*7
+        robot.get_joint_angles.side_effect = lambda: SimpleNamespace(
+            timestamp=clock[0], msg=feedback)
+        route = [[0.]*7, [np.deg2rad(2.)]+[0.]*6]
+        with patch('auto_collect.time.monotonic', side_effect=lambda: clock[0]), \
+             patch('auto_collect.time.sleep', side_effect=lambda seconds: clock.__setitem__(0, clock[0]+.15)):
+            with self.assertRaisesRegex(RuntimeError, 'paused over 100 ms'):
+                stream_smooth_route(SimpleNamespace(robot=robot), route, 20., 20.)
+        self.assertEqual(robot.move_js.call_count, 2)
+        robot.move_js.assert_called_with(feedback)
+
     def test_requested_fast_calibration_settings_are_accepted(self):
         command = ['run', '--plan', 'plan.json', '--output', 'automatic',
                    '--speed-percent', '40', '--smooth-speed-deg-s', '20',
@@ -122,7 +156,7 @@ class AutoCollectionTests(unittest.TestCase):
         with patch('auto_collect.run_plan') as run:
             self.assertEqual(main(command), 0)
             run.assert_called_once_with(Path('plan.json'), Path('automatic'), 'can0',
-                                        40, None, 20., 20., True)
+                                        40, None, 20., 20., True, start_home=True, home_path=None)
         with self.assertRaisesRegex(ValueError, '1..100%'):
             main(command[:6] + ['101'] + command[7:])
 
@@ -345,6 +379,57 @@ class AutoCollectionTests(unittest.TestCase):
             self.assertTrue(all(call.kwargs['watch_board'] is False
                                 for call in move.call_args_list))
             self.assertEqual(len(list(output.glob('sample_*.json'))), 8)
+
+    def test_home_start_precedes_capture_and_failure_aborts_sampling(self):
+        for home_failed in (False, True):
+            with self.subTest(home_failed=home_failed), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                source, calibration = self.make_taught_session(root)
+                plan_path, output = root/'plan.json', root/'automatic'
+                with patch('auto_collect.load_model', return_value=FakeModel()):
+                    make_plan(source, calibration, plan_path, capture_only_visibility=True)
+                home_path = root/'home.json'
+                home_path.write_text(json.dumps({'joints_rad': [0.]*7}))
+                camera, arm = Mock(), Mock()
+                camera.info = self.camera
+                # Starting far from every taught waypoint used to reject this run.
+                arm.read_joints.return_value = {'joints_rad': [.5]+[0.]*6}
+                frame = np.zeros((10, 10, 3), dtype=np.uint8)
+                sample = {'T_base_flange': np.eye(4).tolist(),
+                          'T_camera_board': self.pose(.5).tolist(),
+                          'quality': {'corners': 12, 'reprojection_rms_px': .1}}
+                events = []
+                def home(*args):
+                    events.append('HOME')
+                    if home_failed:
+                        raise RuntimeError('HOME failed')
+                    arm.read_joints.return_value = {'joints_rad': [0.]*7}
+                    return [0.]*7
+                def capture(*args, **kwargs):
+                    self.assertEqual(events[0], 'HOME')
+                    events.append('capture')
+                    return sample, frame, frame
+                with patch('auto_collect.RealSenseCamera', return_value=camera), \
+                     patch('auto_collect.NeroFeedback', return_value=arm), \
+                     patch('auto_collect.CharucoDetector'), \
+                     patch('auto_collect.load_model', return_value=FakeModel()), \
+                     patch('auto_collect.ensure_can_control'), \
+                     patch('auto_collect.live_board'), \
+                     patch('auto_collect.move_and_watch'), \
+                     patch('auto_collect.stream_smooth_route'), \
+                     patch('home_start.move_home', side_effect=home), \
+                     patch('auto_collect.capture_sample', side_effect=capture):
+                    if home_failed:
+                        with self.assertRaisesRegex(RuntimeError, 'HOME failed'):
+                            run_plan(plan_path, output, 'can0', 10, start_home=True, home_path=home_path)
+                        self.assertEqual(events, ['HOME'])
+                        self.assertTrue((output/'AUTO_INCOMPLETE.json').exists())
+                    else:
+                        self.assertEqual(run_plan(plan_path, output, 'can0', 10,
+                                                  start_home=True, home_path=home_path), 8)
+                        self.assertTrue((output/'home_start.json').exists())
+                arm.close.assert_called_once()
+                camera.close.assert_called_once()
 
     def test_replay_fps_override_keeps_teaching_geometry(self):
         with tempfile.TemporaryDirectory() as tmp:

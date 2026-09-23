@@ -757,6 +757,8 @@ def wait_for_arm_target(
     deadline = time.monotonic() + timeout
     transition_deadline = time.monotonic() + 1.0
     stable = 0
+    idle_anchor = None
+    idle_since = None
     last_report = 0.0
     ik_reported = False
     joint_motion = command in ("move-j", "home")
@@ -827,7 +829,21 @@ def wait_for_arm_target(
         if now - last_report >= 1.0:
             emit("arm_progress", joints_rad=list(joints.msg), **error_fields)
             last_report = now
-        completed = stable >= completion_samples and (joint_motion or ik_reported)
+        settled = True
+        if joint_motion and not require_joint_position:
+            # JS mode may report idle while the physical joints still coast.
+            # Observe a bounded joint span before accepting this endpoint;
+            # never rebase the next stream or weaken its 0.1-degree guard.
+            if not reached or motion_status != 0:
+                idle_anchor = idle_since = None
+                settled = False
+            else:
+                if (idle_anchor is None or
+                        max(abs(a-b) for a, b in zip(joints.msg, idle_anchor)) > math.radians(.05)):
+                    idle_anchor = list(joints.msg)
+                    idle_since = now
+                settled = now - idle_since >= .06
+        completed = stable >= completion_samples and settled and (joint_motion or ik_reported)
         if completed:
             emit(
                 "arm_target_reached" if not joint_motion or require_joint_position else "arm_motion_idle",
