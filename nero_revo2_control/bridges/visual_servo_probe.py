@@ -203,13 +203,14 @@ def validate_target(values, limits):
     return values
 
 
-def fresh_feedback(session, *, previous=None, monotonic=time.monotonic,
+def fresh_feedback(session, *, previous=None, joint_max_age_s=.1, monotonic=time.monotonic,
                    wallclock=time.time, sleep=time.sleep, _refresh_remaining=2):
     snapshot = session.snapshot()
     q = numbers(snapshot['q_rad'], 7, 'joint feedback')
     fk = numbers(snapshot['fk_flange_pose_m_rad'], 6, 'flange FK')
-    if max(snapshot['packet_ages_s'].values()) > .1:
-        raise RuntimeError('Joint feedback exceeds 100 ms freshness limit')
+    if max(snapshot['packet_ages_s'].values()) > joint_max_age_s:
+        raise RuntimeError(
+            f'Joint feedback exceeds {joint_max_age_s * 1000:g} ms freshness limit')
     deadline = monotonic()+2
     while monotonic() < deadline:
         message = session.robot.get_arm_status()
@@ -244,12 +245,12 @@ def fresh_feedback(session, *, previous=None, monotonic=time.monotonic,
         raise RuntimeError('Seven joint enable states unavailable')
     # Waiting for the first enable packets must not publish an old joint/FK
     # snapshot. Refresh all four joint packets, then recheck all timestamps.
-    if (max(wallclock()-stamp for stamp in snapshot['packet_timestamps_after_epoch_s'].values()) > .1
+    if (max(wallclock()-stamp for stamp in snapshot['packet_timestamps_after_epoch_s'].values()) > joint_max_age_s
             or wallclock()-message.timestamp > .25):
         if _refresh_remaining <= 0:
             raise RuntimeError('Could not obtain simultaneous fresh joint/status/enable feedback')
-        return fresh_feedback(session, previous=previous, monotonic=monotonic,
-                              wallclock=wallclock, sleep=sleep,
+        return fresh_feedback(session, previous=previous, joint_max_age_s=joint_max_age_s,
+                              monotonic=monotonic, wallclock=wallclock, sleep=sleep,
                               _refresh_remaining=_refresh_remaining-1)
     snapshot.update(q_rad=q, fk_flange_pose_m_rad=fk, tx_attempts=session.guard.report()['tx_attempts'],
                     actual_tx_count=session.guard.report()['actual_tx_count'],

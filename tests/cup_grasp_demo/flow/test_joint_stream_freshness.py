@@ -1,5 +1,6 @@
 """Feedback age policy stays strict by default and is configurable for held-cup shake."""
 
+import time
 import unittest
 
 from cup_grasp_demo.flow import joint_execution
@@ -58,6 +59,43 @@ class FeedbackFreshnessTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(RuntimeError, '300 ms'):
             reader.latest(10.0)
+
+    def test_configured_limit_reaches_the_inner_sdk_read(self):
+        # Regression: the inner fresh_feedback used to re-impose a hard-coded
+        # 100 ms gate, voiding the configured budget before latest() ever ran.
+        # fresh_feedback binds monotonic/wallclock defaults at import time, so
+        # the mock must stamp with the real clock; only the packet ages (0.2 s)
+        # simulate the aged feedback stream seen after a first shake round.
+        from types import SimpleNamespace
+        from nero_revo2_control.bridges import visual_servo_probe as probe
+
+        def snapshot():
+            return {'q_rad': [0.]*7, 'fk_flange_pose_m_rad': [0.]*6,
+                    'packet_ages_s': {k: .2 for k in probe.PACKETS},
+                    'packet_timestamps_after_epoch_s': {k: time.time() for k in probe.PACKETS}}
+
+        robot = SimpleNamespace(
+            get_arm_status=lambda: SimpleNamespace(timestamp=time.time(), msg=SimpleNamespace(
+                arm_status=0, ctrl_mode=1, motion_status=0)),
+            get_driver_states=lambda joint_index: SimpleNamespace(timestamp=time.time()),
+            get_joints_enable_status_list=lambda: [True]*7)
+        session = SimpleNamespace(snapshot=snapshot, robot=robot,
+                                  guard=SimpleNamespace(
+                                      report=lambda: {'tx_attempts': 0, 'actual_tx_count': 0},
+                                      allowed=False))
+        reader = FeedbackReader(
+            lambda **kwargs: probe.fresh_feedback(session, **kwargs), None,
+            joint_max_age_s=.3, state_max_age_s=.3).start()
+        try:
+            deadline = time.monotonic() + 2
+            while reader.row is None and reader.error is None:
+                self.assertLess(time.monotonic(), deadline, 'inner read never produced a row')
+                time.sleep(.01)
+            self.assertIsNone(reader.error, reader.error)
+            row = reader.latest(time.time())
+            self.assertEqual(len(row['q_rad']), 7)
+        finally:
+            reader.close()
 
 
 if __name__ == '__main__':

@@ -255,6 +255,35 @@ class ProbeTests(unittest.TestCase):
                                  wallclock=lambda: clock.now, sleep=sleep)
         self.assertLess(clock.now, 3.1)
 
+    def test_joint_age_limit_is_configurable_and_default_stays_strict(self):
+        # The held-cup pipeline raises the freshness budget to 0.3 s; the
+        # inner read must honour it, not re-impose a hard-coded 0.1 s.
+        def session_with_age(age):
+            clock = SimpleNamespace(now=1.)
+            robot = SimpleNamespace(
+                get_arm_status=lambda: SimpleNamespace(timestamp=clock.now, msg=SimpleNamespace(
+                    arm_status=0, ctrl_mode=1, motion_status=0)),
+                get_driver_states=lambda joint_index: SimpleNamespace(timestamp=clock.now),
+                get_joints_enable_status_list=lambda: [True]*7)
+            snapshot = {'q_rad': [0.]*7, 'fk_flange_pose_m_rad': [0.]*6,
+                        'packet_ages_s': {k: age for k in probe.PACKETS},
+                        'packet_timestamps_after_epoch_s': {k: clock.now for k in probe.PACKETS}}
+            return clock, SimpleNamespace(snapshot=lambda: snapshot, robot=robot,
+                                          guard=SimpleNamespace(
+                                              report=lambda: {'tx_attempts': 0, 'actual_tx_count': 0},
+                                              allowed=False))
+        def sleep_noop(t):
+            pass
+        clock, session = session_with_age(.2)
+        with self.assertRaisesRegex(RuntimeError, '100 ms'):
+            probe.fresh_feedback(session, monotonic=lambda: clock.now,
+                                 wallclock=lambda: clock.now, sleep=sleep_noop)
+        clock, session = session_with_age(.2)
+        row = probe.fresh_feedback(session, joint_max_age_s=.3,
+                                   monotonic=lambda: clock.now,
+                                   wallclock=lambda: clock.now, sleep=sleep_noop)
+        self.assertEqual(len(row['q_rad']), 7)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -55,7 +55,8 @@ class FeedbackReader:
         previous = self.row
         try:
             while not self.stop.is_set():
-                row = self.read(previous=previous, sleep=self._sleep)
+                row = self.read(previous=previous, sleep=self._sleep,
+                                joint_max_age_s=self.joint_max_age_s)
                 if self.stop.is_set():
                     break
                 with self.lock:
