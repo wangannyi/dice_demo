@@ -32,6 +32,7 @@ MENU = """\
   y  yeah（机械臂赢）      t  thumbs-up（机械臂输）    e  tie（平局）
   h  home 归位（张手+回 HOME）
   a <名字>  手势库任意动作    l  列出全部可用动作名
+  r  reload 重载手势（改完 configs/actions/gestures/ 文件后即时生效，不断连）
 
 抓取流程（视觉联动复合任务）：
   g  完整流程（一口气到 RETURN_HOME，结束自动回空闲）
@@ -57,6 +58,7 @@ CHOICES = {
     "e": {"command": "action", "name": "tie"},
     "h": {"command": "action", "name": "home"},
     "l": {"command": "actions"},
+    "r": {"command": "reload"},
     "8": {"command": "close"},
 }
 
@@ -69,6 +71,7 @@ HINTS = {
     "action_started": "静态动作开始",
     "action_completed": "静态动作完成（保持姿态）",
     "actions": "可用动作名",
+    "actions_reloaded": "手势表已重新加载（拒载明细见常驻进程 stderr 日志）",
     "status": "当前状态",
     "perception_reset": "已退回 CAPTURE：下次 advance 会重新识别与规划",
     "rejected": "命令被拒绝",
@@ -167,7 +170,9 @@ class SimulateBackend:
             os.fdopen(read_in, "r", buffering=1),
             os.fdopen(write_out, "w", buffering=1), sys.stderr,
             actions=("home", "yeah", "thumbs-up", "tie", "win", "lose", "draw"),
-            run_action=fake_run_action)
+            run_action=fake_run_action,
+            reload_actions=lambda: (("home", "yeah", "thumbs-up", "tie",
+                                     "win", "lose", "draw"), fake_run_action))
         self.thread = threading.Thread(target=self.session.serve, daemon=True)
         self.thread.start()
 

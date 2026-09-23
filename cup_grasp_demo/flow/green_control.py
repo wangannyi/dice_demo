@@ -29,7 +29,7 @@ class ControlSession:
     """Advance a single state machine; reject skips and duplicate command IDs."""
 
     def __init__(self, flow, state_path, incoming, outgoing, diagnostic,
-                 actions=(), run_action=None):
+                 actions=(), run_action=None, reload_actions=None):
         self.flow = flow
         self.state_path = Path(state_path)
         self.incoming = incoming
@@ -37,6 +37,7 @@ class ControlSession:
         self.diagnostic = diagnostic
         self.actions = tuple(actions)
         self.run_action = run_action
+        self.reload_actions = reload_actions
         self.next_index = 0
         self.cycle = 1
         self.seen_ids = set()
@@ -175,6 +176,24 @@ class ControlSession:
         if command == "actions":
             self._reply("actions", request_id, names=sorted(set(self.actions)))
             return True
+        if command == "reload":
+            if self.next_index != 0:
+                self._reject(request_id, "flow_in_progress",
+                             f"抓取流程进行中（下一阶段 {self._next_phase()}），跑完后再重载手势")
+                return True
+            if self.reload_actions is None:
+                self._reject(request_id, "no_actions", "本会话未接入动作注册器")
+                return True
+            try:
+                actions, run_action = self.reload_actions()
+            except Exception as exc:
+                # Keep the old table on any failure; swap is atomic below.
+                self._reject(request_id, "reload_failed", f"{type(exc).__name__}: {exc}")
+                return True
+            self.actions = tuple(actions)
+            self.run_action = run_action
+            self._reply("actions_reloaded", request_id, names=sorted(set(self.actions)))
+            return True
         if command == "action":
             name = request.get("name")
             if self.run_action is None:
@@ -209,7 +228,7 @@ class ControlSession:
                 return True
             return self._advance(request_id, target_index)
         self._reject(request_id, "invalid_command",
-                     "command 必须是 status、advance、refresh_perception、action、actions 或 close")
+                     "command 必须是 status、advance、refresh_perception、action、actions、reload 或 close")
         return True
 
     def serve(self):
@@ -240,12 +259,15 @@ def build_action_runtime(flow, diagnostic):
     Returns (names, run_action).  Raises on unusable config/table; the caller
     decides whether to degrade to a no-action session.
     """
-    from scripts.result_feedback import execute_recipe, recipe_for
+    from scripts.action_registry import load_registry
+    from scripts.result_feedback import execute_recipe
     from cup_grasp_demo.flow.core import ROOT, read_json, digest
     from cup_grasp_demo.flow.debug import new_run
     from cup_grasp_demo.flow.green_cup_planning import arm_plan
 
-    gestures_config = json.loads((ROOT / "configs/actions/result_feedback.json").read_text())
+    registry = load_registry()
+    for message in registry.errors:
+        diagnostic.write(f"[actions] {message}\n")
     table = read_json(ROOT / flow.cfg["green_cup"]["home_table_scene"])
     if table.get("calibration_sha256") != digest(flow.cfg["calibration"]):
         raise ValueError("桌面记录与当前标定不一致，请更新桌面记录")
@@ -261,7 +283,7 @@ def build_action_runtime(flow, diagnostic):
                           execution=dict(mode="arm_then_hand", delay_s=0.0),
                           finger_speed_mode="timed", finger_max_wait_s=0.65)
         else:
-            recipe = recipe_for(gestures_config, name)
+            recipe = registry.recipe(name)
         directory = new_run(Path(flow.root), "green_action_" + recipe["gesture"])
         started = time.perf_counter()
         execute_recipe(recipe, flow.cfg, table["scene"], directory,
@@ -269,7 +291,7 @@ def build_action_runtime(flow, diagnostic):
         return dict(name=recipe["gesture"], receipt=str(directory / "receipt.json"),
                     elapsed_s=round(time.perf_counter() - started, 3))
 
-    names = ["home", *gestures_config["gestures"], *gestures_config.get("aliases", {})]
+    names = ["home", *registry.names()]
     return names, run_action
 
 
@@ -312,7 +334,8 @@ def run(args, incoming=None, outgoing=None, diagnostic=None):
                     actions, run_action = (), None
                 server = ControlSession(flow, args.session / "green_pipeline_state.json",
                                         incoming, outgoing, diagnostic,
-                                        actions=actions, run_action=run_action)
+                                        actions=actions, run_action=run_action,
+                                        reload_actions=lambda: build_action_runtime(flow, diagnostic))
                 return server.serve()
             finally:
                 if flow is not None:

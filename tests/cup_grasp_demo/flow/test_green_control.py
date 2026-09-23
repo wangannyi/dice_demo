@@ -161,6 +161,66 @@ class ControlSessionTest(unittest.TestCase):
             rejected = [x for x in events(outgoing) if x['event'] == 'rejected']
             self.assertEqual(rejected[0]['code'], 'no_actions')
 
+    def test_reload_swaps_action_table_only_when_idle(self):
+        def fresh_actions():
+            return ['home', 'wave'], Mock()
+
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            outgoing = io.StringIO()
+            server = control.ControlSession(
+                flow, Path(directory) / 'state.json', commands(
+                    dict(command='reload'),
+                    dict(command='actions'),
+                    dict(command='close')),
+                outgoing, io.StringIO(),
+                actions=['home', 'yeah'], run_action=Mock(),
+                reload_actions=fresh_actions)
+            self.assertEqual(server.serve(), 0)
+            reports = events(outgoing)
+            reloaded = next(x for x in reports if x['event'] == 'actions_reloaded')
+            self.assertEqual(reloaded['names'], ['home', 'wave'])
+            listed = next(x for x in reports if x['event'] == 'actions')
+            self.assertEqual(listed['names'], ['home', 'wave'])
+
+    def test_reload_rejected_while_flow_in_progress(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            outgoing = io.StringIO()
+            server = control.ControlSession(
+                flow, Path(directory) / 'state.json', commands(
+                    dict(command='advance', until='GRIP'),
+                    dict(command='reload'),
+                    dict(command='close')),
+                outgoing, io.StringIO(),
+                reload_actions=lambda: (['home'], Mock()))
+            self.assertEqual(server.serve(), 0)
+            rejected = [x for x in events(outgoing)
+                        if x['event'] == 'rejected']
+            self.assertEqual(rejected[0]['code'], 'flow_in_progress')
+
+    def test_reload_failure_keeps_previous_table(self):
+        def broken():
+            raise RuntimeError('gesture directory missing')
+
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            outgoing = io.StringIO()
+            server = control.ControlSession(
+                flow, Path(directory) / 'state.json', commands(
+                    dict(command='reload'),
+                    dict(command='actions'),
+                    dict(command='close')),
+                outgoing, io.StringIO(),
+                actions=['home', 'yeah'], run_action=Mock(),
+                reload_actions=broken)
+            self.assertEqual(server.serve(), 0)
+            reports = events(outgoing)
+            rejected = next(x for x in reports if x['event'] == 'rejected')
+            self.assertEqual(rejected['code'], 'reload_failed')
+            listed = next(x for x in reports if x['event'] == 'actions')
+            self.assertEqual(listed['names'], ['home', 'yeah'])
+
     def test_failure_stops_following_phases(self):
         with tempfile.TemporaryDirectory() as directory:
             flow = self.fake_flow()

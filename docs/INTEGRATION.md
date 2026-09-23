@@ -50,8 +50,9 @@ bash run.sh control --execute
 | `{"id":"3","command":"advance","until":"GRIP"}` | 顺序执行到 GRIP 并停下；不会跳过中间阶段 |
 | `{"id":"4","command":"advance","until":"RETURN_HOME"}` | 完成剩余放杯和归位阶段 |
 | `{"id":"5","command":"refresh_perception"}` | CAPTURE 后、APPROACH 前退回 CAPTURE，重新识别和规划；杯位可能变化或计划过期时使用 |
-| `{"id":"6","command":"action","name":"yeah"}` | 空闲时执行静态动作（手势/归位）。名字可用 `home`、`result_feedback.json` 的 gestures 与别名；执行完保持姿态 |
+| `{"id":"6","command":"action","name":"yeah"}` | 空闲时执行静态动作（手势/归位）。名字可用 `home`、`configs/actions/gestures/` 各组文件的 gestures 与别名；执行完保持姿态 |
 | `{"id":"7","command":"actions"}` | 列出全部可用动作名（含 `home` 与别名） |
+| `{"id":"9","command":"reload"}` | 空闲时重扫 `configs/actions/gestures/` 并原子替换动作表（设备连接不断开）；流程进行中拒绝，失败保留旧表 |
 | `{"id":"8","command":"close"}` | 释放 SDK/相机并退出；未完成流程记为 `PAUSED` |
 | ~~`new_cycle`~~ | **已移除**：轮次概念取消，RETURN_HOME 完成自动复位回空闲，直接 `advance` 即下一轮 |
 
@@ -127,7 +128,7 @@ bash run_feedback.sh draw --config configs/green_cup.json --session /tmp/dice_fe
 | 机械臂输 | `lose` | `thumbs-up` | 举臂并点赞 |
 | 平局 | `draw` | `tie` | 到指定姿态，手指两种姿态往返 3 次 |
 
-`--gestures` 指定动作配置，默认 `configs/actions/result_feedback.json`；`--list` 列出动作。不带 `--execute` 仅预览。执行后保持动作姿态，**不自动回 HOME**，也不订阅比赛事件。默认臂速度 50%，臂手同时启动，手使用最大速度指令。
+`--gestures` 指定手势分组目录（或单个组文件），默认 `configs/actions/gestures/`；`--list` 列出全部注册动作。不带 `--execute` 仅预览。执行后保持动作姿态，**不自动回 HOME**，也不订阅比赛事件。默认臂速度 50%，臂手同时启动，手使用最大速度指令。
 
 手指六路顺序：拇指尖、拇指根、食指、中指、无名指、小指。七轴角度单位为度。新增、删除动作和调整执行时延见[调试文档](DEBUG.md#8-比大小后的反馈手势)。动作内字段覆盖全局默认值；修改全局速度时注意已有动作也可能配置了覆盖值。
 
@@ -193,6 +194,6 @@ def shake_once(root: Path):
 
 ## 7. 配置部署
 
-主配置 `configs/green_cup.json`；摇晃与反馈等静态动作 `configs/actions/`（`joint_shake.json`、`result_feedback.json`、`home.json`）。完整字段与安装见[README](../README.md)，重新布置现场见[标定指南](CALIBRATION.md)。配置变更只在任务结束后进行，新的调用读取新配置。
+主配置 `configs/green_cup.json`；静态配方 `configs/actions/`（`joint_shake.json`、`home.json`）；手势分组目录 `configs/actions/gestures/`（含 `result_feedback.json` 组）。完整字段与安装见[README](../README.md)，重新布置现场见[标定指南](CALIBRATION.md)。配置变更只在任务结束后进行，新的调用读取新配置。
 
 默认打包命令生成的发布包中，相机标定为参考数据，`installation_requires_calibration=true`。仓库 `main` 和 `--site-active` 包保留当前 K3 的现场配置，只适用于这套固定安装。接收方先完成本机标定与桌面注册，不能直接用开发现场的坐标启动动作。运行记录留在本机，不提交到源码仓库。

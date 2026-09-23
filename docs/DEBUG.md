@@ -139,7 +139,7 @@ bash run_feedback.sh thumbs-up --execute  # 机械臂输了
 
 也可使用 `win` / `lose`，胜负均以机械臂为视角。此脚本未自动订阅比大小结果；上层程序在最终结果确定、杯子放回后调用一次即可。
 
-配置：`configs/actions/result_feedback.json`。
+配置：`configs/actions/gestures/` 分组目录，胜负反馈组为其中 `result_feedback.json`。
 
 | 参数 | 含义 |
 | --- | --- |
@@ -148,11 +148,11 @@ bash run_feedback.sh thumbs-up --execute  # 机械臂输了
 | `gestures.<名称>.joints_deg` | J1–J7 的绝对角度，单位度 |
 | `gestures.<名称>.hand_0_100` | 拇指尖、拇指根、食指、中指、无名指、小指六路目标 |
 
-`--gestures <文件>` 可指定手势配置；`--config <文件>` 可指定系统配置，默认使用 `configs/green_cup.json`。`--session <目录>` 指定记录目录，默认 `cup_grasp_demo/datasets/result_feedback`。每次执行保留请求、反馈与收据；程序退出码为 0 表示指令流程完成，2 表示失败，130 表示用户中断。手指完成按指令时间计，收据不代表已实测手指姿态。
+`--gestures <目录或文件>` 可指定手势分组目录（或单个组文件）；`--config <文件>` 可指定系统配置，默认使用 `configs/green_cup.json`。`--session <目录>` 指定记录目录，默认 `cup_grasp_demo/datasets/result_feedback`。每次执行保留请求、反馈与收据；程序退出码为 0 表示指令流程完成，2 表示失败，130 表示用户中断。手指完成按指令时间计，收据不代表已实测手指姿态。
 
 ### 增删动作、单动作速度与执行时延
 
-动作名称直接读取 `configs/actions/result_feedback.json` 的 `gestures`，无须修改 Python。复制一个动作并改名即可新增，删除对应键即可删除。动作名使用英文字母、数字、下划线或连字符；`aliases` 定义别名，删除动作时也应删除或更新指向它的别名。
+动作按组存放在 `configs/actions/gestures/` 目录：每个 JSON 文件一组（顶层默认值只对本组生效），无须修改 Python。组内复制一个动作并改名即可新增，删除对应键即可删除；新增一组 = 放一个新文件。动作名使用英文字母、数字、下划线或连字符；`aliases` 只能指向本组动作，删除动作时也应删除或更新指向它的别名。同名动作或参数非法的组文件在启动/reload 时整组拒载，其余组不受影响。常驻控制台空闲时按 `r`（或发 `{"command":"reload"}`）即时重载，无需重启进程。
 
 每个动作可覆盖顶层的 `speed_percent`、`finger_duration_s` 和 `execution`。未填写的参数继承顶层默认值。两个内置动作已显式填写速度与时序，调整它们时请修改各自动作中的参数。
 

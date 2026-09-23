@@ -240,7 +240,7 @@ AI 推理通过 `SpaceMITExecutionProvider` 创建 CPU 8、9 上的计算线程�
 run.sh / run_feedback.sh      一键入口：绿杯抓取流程 / 胜负反馈手势
 configs/
   green_cup.json              绿杯主配置：动态抓取（视觉联动）参数
-  actions/                    静态动作库：home.json、joint_shake.json、result_feedback.json
+  actions/                    静态配方 home.json、joint_shake.json；gestures/ 手势分组目录
   installation/               相机安装档案
 cup_grasp_demo/
   flow/                       绿杯主流程（阶段机/常驻统一调度器/相机运行时/感知/摇晃运动/入口 CLI）
@@ -261,7 +261,7 @@ docs/                         调试、标定、接入、环境文档
 
 ### 动作的两类组织
 
-- **静态动作**（纯机械臂运动，改 JSON 即改动作）：集中在 `configs/actions/`——`home.json`（HOME 七轴角度）、`joint_shake.json`（摇晃配方）、`result_feedback.json`（胜负反馈手势，直接在文件里增删动作）。
+- **静态动作**（纯机械臂运动，改 JSON 即改动作）：`configs/actions/` 下的 `home.json`（HOME 七轴角度）、`joint_shake.json`（摇晃配方）；按名字调度的手势集中在 `configs/actions/gestures/` 分组目录——每个 JSON 一组（组内默认值独立），新增/修改组文件后常驻会话按 `r` reload 即时生效。
 - **动态动作**（视觉联动抓取）：参数在 `configs/green_cup.json`（TCP 偏移、抬杯高度、手指目标、阶段速度），流程逻辑在 `cup_grasp_demo/flow/`，杯位由相机识别实时给出。
 
 2026-09-22 瘦身与重组：移除 rgb_hand_tracking 历史视觉实验源码（三个被复用的桥接模块保留，并入 `nero_revo2_control/bridges/`）、agx_arm_urdf 的 Piper 系四型臂与左手/视觉网格（几何并入 `nero_revo2_control/models/hand_geometry/`）、cup_grasp_demo 顶层旧银杯流程、dice_cup_localization 旧入口、kernel_usbcan 构建工件；`calibration_debug/` 更名 `flow/`；静态动作库集中 `configs/actions/`。
@@ -279,7 +279,7 @@ bash run_feedback.sh thumbs-up --execute  # 机械臂输
 bash run_feedback.sh tie --execute        # 平局：手指往返 3 次
 ```
 
-去掉 `--execute` 仅预览。`bash run_feedback.sh --list` 查看动作列表。可在 `configs/actions/result_feedback.json` 增删动作，分别设置机械臂速度、手指动作时间、先后/同时执行与启动时延；[参数与调试说明](docs/DEBUG.md#8-比大小后的反馈手势)。此独立脚本由上层程序在比大小后调用，不自动订阅比赛结果。
+去掉 `--execute` 仅预览。`bash run_feedback.sh --list` 查看动作列表。手势按组存放在 `configs/actions/gestures/` 目录：每个 JSON 是一组动作（顶层默认值只对本组生效），新增一组 = 放一个新文件，常驻控制台按 `r` 或发 `{"command":"reload"}` 即时生效（仅空闲态，设备连接不断开）；同名动作或参数非法的组文件整组拒载，明细见常驻进程 stderr。在组文件内增删动作，分别设置机械臂速度、手指动作时间、先后/同时执行与启动时延；[参数与调试说明](docs/DEBUG.md#8-比大小后的反馈手势)。此独立脚本由上层程序在比大小后调用，不自动订阅比赛结果。
 
 反馈手势的灵巧手已默认使用 `finger_speed_mode: "max"`（目标位置＋时间 0）；机械臂为 50%。`finger_max_wait_s: 0.65` 是指令后的观察时间，不是限速参数。
 
