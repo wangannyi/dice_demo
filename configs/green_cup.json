@@ -215,7 +215,7 @@
     "place_arrival_tolerance_mm": 5.0,
     "place_offset_base_mm": [
       0,
-      0,
+      10,
       0
     ],
     "direct_return_home": true,
