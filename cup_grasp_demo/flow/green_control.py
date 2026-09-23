@@ -275,7 +275,10 @@ def build_action_runtime(flow, diagnostic):
     def run_action(name):
         if name == "home":
             home = read_json(ROOT / flow.cfg["home"])
-            green = flow.cfg["green_cup"]
+            # flow.cfg holds the raw JSON (strategy not merged); open_targets_0_100
+            # lives in the strategy file since the strategy split and reaches the
+            # validated view flow.g. Prefer g, fall back to raw config for mocks.
+            green = getattr(flow, "g", None) or flow.cfg["green_cup"]
             mode = green.get("home_execution_mode", "arm_then_hand")
             if mode not in ("arm_then_hand", "together"):
                 raise ValueError("home_execution_mode must be arm_then_hand or together")
