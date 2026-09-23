@@ -178,9 +178,14 @@ FAST 复用 SDK/CAN、相机和模型，复用可用的预计算轨迹；只在�
 | `green_cup.fast_dogbox_ik` | true | FAST 使用 dogbox 求解抓取 IK；仍验证位置、朝向与路径，无合格解时回退原求解器 |
 | `green_cup.fast_parallel_startup` | `true` | FAST 执行时，SDK 连接、相机预热及模型加载与 CLI 模块加载并行；初始化不发送运动或手指指令 |
 | `green_cup.persistent_runtime` | `true` | CONTROL 和 FAST 在同一进程内保持 SDK 与相机连接；上层集成时同一时刻只能有一个任务占用设备 |
+| `green_cup.shake_start_tolerance_deg` | `0.5` | LIFT→SHAKE 起点及短时残余运动容差；超出时先重新采样并重规划，不直接退出 |
+| `green_cup.shake_feedback_freshness_limit_s` | `0.3` | 持杯摇晃允许的瞬时关节/状态反馈年龄；独立关节测试仍使用 0.1 秒 |
+| `green_cup.recovery_attempts` | `2` | 尚未发送摇晃动作时，起点变化可自动重新规划的次数 |
+| `green_cup.hand_start_tolerance_deg` | `1.0` | 张手或闭手前允许的机械臂起点偏差，度 |
 | `green_cup.table_plane_source` | `calibrated` | 从 `home_table_scene` 读取标定阶段保存的基座桌面平面；`live_depth` 恢复每次 CAPTURE 拟合桌面 |
 | `green_cup.perception.height_mode` | `fixed` | `fixed` 已知杯高；`measured` 双目测高 |
 | `green_cup.perception.fixed_height_mm` | 65 | 固定模式杯高，mm |
+| `green_cup.perception.stereo_rim.ambiguity_score_margin_px` | 0.1 | 仅当备选圆与最佳圆的双目边缘误差相差小于此值时判为歧义；分差更大时采用误差更小的圆 |
 | `green_cup.perception.inference_provider` | `spacemit` | K3 AI 后端；`cpu` 使用普通 CPU 后端 |
 | `green_cup.perception.inference_threads` | 2 | AI 后端计算线程数；CPU 后端时为 CPU 推理线程数 |
 | `green_cup.perception.inference_cpu_ids` | `[8,9]` | 两个 A100 AI 核；CPU 后端设为 `[]` |
@@ -225,8 +230,11 @@ FAST 的 HOME/CAPTURE 阶段耗时不包含 CLI 模块加载。`green_pipeline_s
 | `cycles` | 6 | 完整往返周期，另有渐入和回中心 |
 | `phase_delay_deg` | 省略或 `null` | 按 `joints` 顺序设置各轴相位滞后，0～360°；90° 表示晚四分之一周期开始 |
 | `controller_speed_percent` | 100 | 摇晃执行速度百分比 |
+| `command_lag_s` | 0.2 | 发送线程允许的单次调度滞后上限，秒；达到校验允许的最大值 |
+| `command_mode` | `blended` | `smooth_profile` 为逐点平滑轨迹，`fixed_endpoints` 重复发送当前固定端点，`blended` 在两者之间插值 |
+| `endpoint_blend` | `0.5` | 仅用于 `blended`：`0` 等同平滑轨迹，`1` 等同固定端点；数值越大响应越直接、换向越明显 |
 
-当前 `stereo_config.json` 开发入口使用 `cup_grasp_demo/flow/joint_test_config.json`：`joints=[1,4,5,6,7]`、`amplitude_deg=[4,4,-4,4,4]`、`phase_delay_deg=null`、`cycles=6`。负号使 J5 反向运动。顶层 `configs/actions/joint_shake.json` 是主流程配方，当前幅度为各轴 2.5°；两套配方按用途分别调整。关闭相位延迟推荐使用 `null`，增减关节时不必修改该字段；使用列表时必须与 `joints` 一一对应。当前五轴若设为 `[0,0,0,0,90]`，J7 相对 J6 滞后四分之一周期；每轴均从中心静止启动，完成自身周期后回中心，整体时长增加最大相位延迟。pipeline 在 HOME 之前校验摇晃参数，配置错误时不会先移动再报错。修改后重新生成计划，不执行旧计划。
+当前 `stereo_config.json` 开发入口使用 `cup_grasp_demo/flow/joint_test_config.json`：`joints=[1,4,5,6,7]`、`amplitude_deg=[4,4,-4,4,4]`、`phase_delay_deg=null`、`cycles=6`。负号使 J5 反向运动。顶层 `configs/actions/joint_shake.json` 是主流程配方，当前幅度为各轴 2°，并使用 `endpoint_blend=0.5` 的折衷模式；两套配方按用途分别调整。关闭相位延迟推荐使用 `null`，增减关节时不必修改该字段；使用列表时必须与 `joints` 一一对应。当前五轴若设为 `[0,0,0,0,90]`，J7 相对 J6 滞后四分之一周期；每轴均从中心静止启动，完成自身周期后回中心，整体时长增加最大相位延迟。pipeline 在 HOME 之前校验摇晃参数，配置错误时不会先移动再报错。修改后重新生成计划，不执行旧计划。
 
 速度预算不是实际到达速度；最终轨迹仍受关节行程及控制器限值约束。配置里的控制器加速度目标不代表每次 pipeline 都写入硬件参数。
 

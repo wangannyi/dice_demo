@@ -32,6 +32,7 @@ class EdgeRecoveryTest(unittest.TestCase):
         root = Path(__file__).resolve().parents[3]
         raw = json.loads((root/'configs/green_cup.json').read_text())
         quality = quality_options(raw['green_cup']['perception']['stereo_rim'])
+        self.assertEqual(quality['ambiguity_score_margin_px'], .1)
         errors = np.full((2,120), .5)
         errors[0,:15] = 2.1
         errors[1,:3] = 2.1

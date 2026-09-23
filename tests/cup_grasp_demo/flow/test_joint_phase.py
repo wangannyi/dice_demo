@@ -70,3 +70,53 @@ class PhaseTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'phase_delay_deg'):
                 flow.Workflow(SimpleNamespace(config='unused',mode='fast'))
             kin.assert_not_called();bridge.assert_not_called()
+
+    def test_fixed_endpoint_commands_hold_each_destination(self):
+        plan = self.plan()
+        plan['parameters']['command_mode'] = 'fixed_endpoints'
+        first = plan['segments'][0]
+        full = plan['segments'][1]
+        plus = [q + a for q, a in zip(plan['start_q_rad'], plan['amplitude_rad'])]
+        minus = [q - a for q, a in zip(plan['start_q_rad'], plan['amplitude_rad'])]
+        self.assertEqual(p.command_values(plan, 0), plus)
+        self.assertEqual(p.command_values(plan, first['duration_s'] / 2), plus)
+        self.assertEqual(
+            p.command_values(plan, first['duration_s'] + full['duration_s'] / 2),
+            minus,
+        )
+        self.assertEqual(p.command_values(plan, plan['duration_s']), plan['start_q_rad'])
+
+    def test_fixed_endpoint_mode_is_explicit_and_validated(self):
+        raw = dict(
+            joints=[1], amplitude_deg=[2], velocity_deg_s=[170],
+            acceleration_deg_s2=[277.8845], cycles=1,
+            command_mode='fixed_endpoints',
+        )
+        self.assertEqual(p.options(raw)['command_mode'], 'fixed_endpoints')
+        raw['command_mode'] = 'unknown'
+        with self.assertRaisesRegex(ValueError, 'command_mode'):
+            p.options(raw)
+
+    def test_blended_commands_interpolate_between_smooth_and_endpoint(self):
+        plan = self.plan()
+        plan['parameters'].update(command_mode='blended', endpoint_blend=.5)
+        t = plan['segments'][0]['duration_s'] / 2
+        smooth = p.joint_values(plan, t)
+        fixed = list(plan['start_q_rad'])
+        u = p.endpoint_value(plan['segments'], t)
+        fixed = [q + a * u for q, a in zip(fixed, plan['amplitude_rad'])]
+        expected = [(a + b) / 2 for a, b in zip(smooth, fixed)]
+        self.assertEqual(p.command_values(plan, t), expected)
+        plan['parameters']['endpoint_blend'] = 0
+        self.assertEqual(p.command_values(plan, t), smooth)
+        plan['parameters']['endpoint_blend'] = 1
+        self.assertEqual(p.command_values(plan, t), fixed)
+
+    def test_blend_range_is_validated(self):
+        base = dict(
+            joints=[1], amplitude_deg=[2], velocity_deg_s=[170],
+            acceleration_deg_s2=[277.8845], cycles=1, command_mode='blended',
+        )
+        for value in (-.01, 1.01, True, float('nan')):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                p.options(dict(base, endpoint_blend=value))

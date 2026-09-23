@@ -17,6 +17,8 @@ class FastOverheadTest(unittest.TestCase):
         self.assertEqual(flow.g['finger_duration_s'],flow.g.get('fast_finger_duration_s',flow.g['finger_duration_s']))
         # 配置文件原值保持不变，运行时覆盖不写回。
         self.assertGreater(g.read_json(cfg)['green_cup']['finger_duration_s'],flow.g['finger_duration_s'])
+        self.assertEqual(flow.g['shake_feedback_freshness_limit_s'], .3)
+        self.assertEqual(flow.g['recovery_attempts'], 2)
 
     def test_fresh_receipt_is_reused(self):
         for age,reads in [(0,0),(2,1)]:

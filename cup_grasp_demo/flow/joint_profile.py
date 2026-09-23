@@ -25,6 +25,8 @@ DEFAULTS = dict(
     command_step_deg=3.0,
     command_lag_s=0.15,
     command_rate_hz=None,
+    command_mode="smooth_profile",
+    endpoint_blend=0.5,
 )
 
 
@@ -32,6 +34,11 @@ def options(raw):
     if not isinstance(raw, dict) or set(raw) - set(DEFAULTS):
         raise ValueError("Unknown joint-test configuration fields")
     result = dict(DEFAULTS, **raw)
+    if result["command_mode"] not in ("smooth_profile", "blended", "fixed_endpoints"):
+        raise ValueError("command_mode must be smooth_profile, blended or fixed_endpoints")
+    result["endpoint_blend"] = number(
+        result["endpoint_blend"], "endpoint_blend", 0, 1
+    )
     if result["command_rate_hz"] is not None:
         result["command_rate_hz"] = number(result["command_rate_hz"], "command_rate_hz", 20, 200, True)
     targets = result["controller_acceleration_rad_s2"]
@@ -172,6 +179,44 @@ def joint_values(plan, t):
             for i, (q, a) in enumerate(zip(plan['start_q_rad'], plan['amplitude_rad']))]
 
 
+def endpoint_value(segments, t):
+    """Return the fixed destination of the active half-cycle."""
+    if t < 0:
+        return 0.0
+    for item in segments:
+        if t < item["start_s"] + item["duration_s"]:
+            return item["end"]
+    return 0.0
+
+
+def command_values(plan, t):
+    """Return the target sent to MoveJS for the selected command strategy."""
+    cfg = plan["parameters"]
+    mode = cfg.get("command_mode", "smooth_profile")
+    smooth = joint_values(plan, t)
+    if mode == "smooth_profile":
+        return smooth
+    phases = cfg.get("phase_delay_deg")
+    if not phases or not any(phases):
+        u = endpoint_value(plan["segments"], t)
+        endpoint = [
+            q + a * u for q, a in zip(plan["start_q_rad"], plan["amplitude_rad"])
+        ]
+    else:
+        delays = dict(zip(cfg["joints"], phases))
+        period = 2 * plan["segments"][1]["duration_s"]
+        endpoint = [
+            q + a * endpoint_value(
+                plan["segments"], t - period * delays.get(i + 1, 0) / 360
+            )
+            for i, (q, a) in enumerate(zip(plan["start_q_rad"], plan["amplitude_rad"]))
+        ]
+    if mode == "fixed_endpoints":
+        return endpoint
+    blend = cfg["endpoint_blend"]
+    return [a + blend * (b - a) for a, b in zip(smooth, endpoint)]
+
+
 def make_plan(feedback, raw, model_limits):
     cfg, segments, duration = trajectory(raw)
     duration += max(cfg.get('phase_delay_deg') or [0]) / 360 * 2 * segments[1]['duration_s']
@@ -253,7 +298,7 @@ def make_plan(feedback, raw, model_limits):
 
 
 def reference_errors(row, plan, elapsed, delay=0.0):
-    target = joint_values(plan, max(0.0, min(elapsed - delay, plan['duration_s'])))
+    target = command_values(plan, max(0.0, min(elapsed - delay, plan['duration_s'])))
     return [math.degrees(q - expected) for q, expected in zip(row['q_rad'], target)]
 
 

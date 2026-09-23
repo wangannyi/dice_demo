@@ -39,6 +39,7 @@ def apply_open_reference(report, reference, names):
 
 def execute(plan, cfg, robot, hand, demo, result, arm_step=None):
     options = cfg["green_cup"]
+    arm_tolerance_deg = options.get('hand_start_tolerance_deg', .5)
     read_feedback = options.get('read_hand_feedback', True)
     if type(read_feedback) is not bool or (not read_feedback and options.get('require_hand_position', True)):
         raise ValueError('Cannot require hand position while disabling hand feedback')
@@ -66,7 +67,9 @@ def execute(plan, cfg, robot, hand, demo, result, arm_step=None):
             or robot.get_joints_enable_status_list() != [True] * 7
         ):
             raise RuntimeError("Hand command requires healthy CAN control")
-        if not combined and max(abs(a - b) for a, b in zip(q, plan["start_q_rad"])) > math.radians(0.5):
+        if (not combined
+                and max(abs(a - b) for a, b in zip(q, plan["start_q_rad"]))
+                > math.radians(arm_tolerance_deg)):
             raise RuntimeError("Arm moved during hand command")
         return status
 

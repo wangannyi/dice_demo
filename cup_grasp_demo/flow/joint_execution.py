@@ -18,8 +18,7 @@ from cup_grasp_demo.flow.joint_profile import (
     KIND,
     options,
     make_plan,
-    at,
-    joint_values,
+    command_values,
     feedback_check,
     reference_errors,
     tracking_exceedances,
@@ -77,6 +76,17 @@ def start_tolerance(request):
     return value
 
 
+def feedback_freshness_limit(request):
+    """Keep standalone tests strict; tolerate short CAN scheduling gaps in-pipeline."""
+    value = request.get('feedback_freshness_limit_s', .1)
+    if (isinstance(value, bool) or not isinstance(value, (float, int))
+            or not math.isfinite(value) or not .1 <= value <= .5):
+        raise ValueError('feedback_freshness_limit_s must be 0.1..0.5')
+    if request.get('load_context') != 'green_cup_held' and value != .1:
+        raise ValueError('Expanded feedback freshness is only for green held-cup pipeline')
+    return float(value)
+
+
 def check_start_rows(request, rows, report):
     plan = request["plan"]
     tolerance = start_tolerance(request)
@@ -92,6 +102,53 @@ def check_start_rows(request, rows, report):
         ) > math.radians(tolerance):
             report['failure_code'] = 'start_position_changed'
             raise RuntimeError(f"当前姿态或控制状态与计划不同；最大起点误差 {report['start_max_error_deg']:.4f}°，容差 {tolerance}°；重新 plan，不自动移动到旧起点")
+
+
+def persistent_stopped_window(request, session, report, *, max_windows=10):
+    """Allow the preceding lift to settle without a fixed inter-phase delay.
+
+    A persistent workflow starts SHAKE immediately after LIFT.  Two packets can
+    therefore straddle the tail of the lift even though the controller already
+    reports idle.  Reuse the held-cup start tolerance and keep sampling fresh
+    packets; only an arm that stays outside that bound is returned through the
+    existing no-motion replan path.
+    """
+    tolerance_deg = start_tolerance(request)
+    tolerance_rad = math.radians(tolerance_deg)
+    previous = None
+    windows = []
+    rows = []
+    for attempt in range(1, max_windows + 1):
+        first = core.fresh_feedback(session, previous=previous)
+        second = core.fresh_feedback(session, previous=first)
+        rows = [first, second]
+        previous = second
+        spans = [abs(a - b) for a, b in zip(first['q_rad'], second['q_rad'])]
+        span_deg = [math.degrees(value) for value in spans]
+        windows.append(dict(attempt=attempt, joint_spans_deg=span_deg))
+        if max(spans) <= tolerance_rad:
+            report['stationarity'] = dict(
+                fresh_samples=attempt * 2,
+                attempts=attempt,
+                tolerance_deg=tolerance_deg,
+                joint_spans_deg=span_deg,
+                passed=True,
+                windows=windows,
+            )
+            return rows
+    report['stationarity'] = dict(
+        fresh_samples=max_windows * 2,
+        attempts=max_windows,
+        tolerance_deg=tolerance_deg,
+        joint_spans_deg=windows[-1]['joint_spans_deg'],
+        passed=False,
+        windows=windows,
+    )
+    report['failure_code'] = 'start_position_changed'
+    raise RuntimeError(
+        f"Persistent shake start did not settle within {tolerance_deg}°; "
+        f"last maximum change {max(windows[-1]['joint_spans_deg']):.4f}°"
+    )
 
 
 def prepare_control(request, session, baseline, report, *, persistent=False):
@@ -114,6 +171,7 @@ def prepare_control(request, session, baseline, report, *, persistent=False):
 
 def validate_request(request, now):
     start_tolerance(request)
+    feedback_freshness_limit(request)
     if type(request.get('require_center_position', True)) is not bool:
         raise ValueError('require_center_position must be boolean')
     if request.get('require_center_position') is False and request.get('load_context') != 'green_cup_held':
@@ -212,12 +270,7 @@ def run(request, *, connected=None, connection_evidence=None):
             session.robot = connected
             session.started = True
             report["sdk_runtime"] = {"reused_connection": True}
-            rows = [core.fresh_feedback(session)]
-            rows.append(core.fresh_feedback(session, previous=rows[-1]))
-            spans = [abs(a-b) for a,b in zip(rows[0]['q_rad'], rows[1]['q_rad'])]
-            if max(spans) > core.TOLERANCE_RAD:
-                raise RuntimeError('Persistent shake start is not stationary')
-            report["stationarity"] = {"fresh_samples": 2, "joint_spans_deg": [math.degrees(v) for v in spans]}
+            rows = persistent_stopped_window(request, session, report)
         check_start_rows(request, rows, report)
         limits = core.joint_limits(session.robot)
         for sample in plan["samples"]:
@@ -261,8 +314,13 @@ def run(request, *, connected=None, connection_evidence=None):
             from cup_grasp_demo.flow.joint_stream import (
                 DeadlineClock, FeedbackReader, stream_statistics)
             clock = DeadlineClock(rate, start, monotonic=time.monotonic, sleep=time.sleep)
+            freshness = feedback_freshness_limit(request)
+            report['feedback_freshness_limit_s'] = freshness
             reader = FeedbackReader(
-                lambda **kwargs: core.fresh_feedback(session, **kwargs), previous).start()
+                lambda **kwargs: core.fresh_feedback(session, **kwargs), previous,
+                joint_max_age_s=freshness,
+                state_max_age_s=max(.25, freshness),
+            ).start()
         try:
             while True:
                 if reader is not None:
@@ -294,11 +352,13 @@ def run(request, *, connected=None, connection_evidence=None):
                     report["feedback"].append(observation)
                     feedback_check(row, plan, observed_elapsed)
                     observation["tracking_check_passed"] = not observation["tracking_threshold_exceeded"]
-                target = joint_values(plan, min(elapsed, plan['duration_s']))
+                target = command_values(plan, min(elapsed, plan['duration_s']))
                 if elapsed >= plan["duration_s"]:
                     target = list(plan["start_q_rad"])
-                if max(abs(a - b) for a, b in zip(target, last_q)) > math.radians(
-                    cfg["command_step_deg"]
+                if (
+                    cfg.get("command_mode", "smooth_profile") == "smooth_profile"
+                    and max(abs(a - b) for a, b in zip(target, last_q))
+                    > math.radians(cfg["command_step_deg"])
                 ):
                     raise RuntimeError("相邻指令角度变化超限")
                 if not session.robot.get_joint_limits_enabled():

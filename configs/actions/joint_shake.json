@@ -33,7 +33,7 @@
   "tracking_error_deg": 5.0,
   "inactive_error_deg": 0.5,
   "command_step_deg": 3.0,
-  "command_lag_s": 0.15,
+  "command_lag_s": 0.2,
   "feedback_reference_delay_s": 0.1,
   "measurement_window_s": 0.12,
   "tracking_error_action": "record",
@@ -48,5 +48,7 @@
     5.0
   ],
   "phase_delay_deg": null,
-  "command_rate_hz": 200
+  "command_rate_hz": 200,
+  "command_mode": "blended",
+  "endpoint_blend": 0.5
 }

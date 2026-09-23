@@ -37,9 +37,11 @@ class _ReaderStopped(Exception):
 
 class FeedbackReader:
     """Only this worker reads snapshots; only the calling thread sends targets."""
-    def __init__(self, read, initial):
+    def __init__(self, read, initial, *, joint_max_age_s=.1, state_max_age_s=.25):
         self.read = read
         self.row = initial
+        self.joint_max_age_s = joint_max_age_s
+        self.state_max_age_s = state_max_age_s
         self.error = None
         self.lock = threading.Lock()
         self.stop = threading.Event()
@@ -74,13 +76,16 @@ class FeedbackReader:
             row, error = self.row, self.error
         if error is not None:
             raise RuntimeError('Shake feedback reader failed: ' + str(error)) from error
-        # Preserve the existing 100 ms joint and 250 ms status/enable freshness.
         stamps = row['sdk_snapshot']['packet_timestamps_after_epoch_s'].values()
-        if any(not 0 <= now_epoch - stamp <= .1 for stamp in stamps):
-            raise RuntimeError('Shake joint feedback exceeds 100 ms freshness limit')
-        if any(not 0 <= now_epoch - stamp <= .25 for stamp in
+        if any(not 0 <= now_epoch - stamp <= self.joint_max_age_s for stamp in stamps):
+            raise RuntimeError(
+                f'Shake joint feedback exceeds {self.joint_max_age_s * 1000:g} ms freshness limit'
+            )
+        if any(not 0 <= now_epoch - stamp <= self.state_max_age_s for stamp in
                [row['status_timestamp_epoch_s'], *row['enable_feedback_timestamps_epoch_s']]):
-            raise RuntimeError('Shake status/enable feedback is stale')
+            raise RuntimeError(
+                f'Shake status/enable feedback exceeds {self.state_max_age_s * 1000:g} ms freshness limit'
+            )
         return row
 
     def close(self):

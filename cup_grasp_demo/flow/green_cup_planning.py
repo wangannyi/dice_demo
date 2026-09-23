@@ -8,7 +8,14 @@ from scipy.spatial.transform import Rotation
 from cup_grasp_demo.flow.shake import Kinematics
 from cup_grasp_demo.flow.core import Screen
 
-_ROTATION_ASSUME_VALID = 'assume_valid' in inspect.signature(Rotation.from_matrix).parameters
+try:
+    _ROTATION_ASSUME_VALID = (
+        'assume_valid' in inspect.signature(Rotation.from_matrix).parameters
+    )
+except (TypeError, ValueError):
+    # Older scipy releases expose this as a built-in without a Python
+    # signature and do not support assume_valid.
+    _ROTATION_ASSUME_VALID = False
 
 
 def proper_rotation_vector(matrix):

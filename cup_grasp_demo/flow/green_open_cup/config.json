@@ -222,11 +222,14 @@
     "require_arm_position": false,
     "fast_speed_percent": 30,
     "shake_start_tolerance_deg": 0.5,
-    "recovery_attempts": 1,
+    "shake_feedback_freshness_limit_s": 0.3,
+    "recovery_attempts": 2,
     "persistent_runtime": true,
     "installation_requires_calibration": false,
     "read_hand_feedback": false,
     "place_arrival_tolerance_mm": 5.0,
-    "direct_return_home": true
+    "direct_return_home": true,
+    "settled_joint_delta_deg": 0.5,
+    "hand_start_tolerance_deg": 1.0
   }
 }

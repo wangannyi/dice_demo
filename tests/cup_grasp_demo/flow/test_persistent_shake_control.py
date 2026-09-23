@@ -41,6 +41,34 @@ class PersistentControlTests(unittest.TestCase):
         _, handoff = self.prepare(self.baseline, persistent=False)
         handoff.assert_called_once()
 
+    def test_persistent_start_waits_for_lift_residual_to_settle(self):
+        moving = dict(self.baseline, q_rad=[math.radians(.7)] + [0.] * 6)
+        origin = dict(self.baseline, q_rad=[0.] * 7)
+        settling = dict(self.baseline, q_rad=[math.radians(.2)] + [0.] * 6)
+        report = {}
+        with patch.object(execution.core, 'fresh_feedback',
+                          side_effect=[origin, moving, moving, settling]):
+            rows = execution.persistent_stopped_window(self.request, self.session, report)
+        self.assertEqual(rows, [moving, settling])
+        self.assertTrue(report['stationarity']['passed'])
+        self.assertEqual(report['stationarity']['attempts'], 2)
+        self.assertEqual(report['stationarity']['tolerance_deg'], .5)
+
+    def test_persistent_start_uses_retryable_failure_after_bounded_wait(self):
+        rows = []
+        for index in range(4):
+            rows.extend([
+                dict(self.baseline, q_rad=[0.] * 7),
+                dict(self.baseline, q_rad=[math.radians(.6)] + [0.] * 6),
+            ])
+        report = {}
+        with patch.object(execution.core, 'fresh_feedback', side_effect=rows), \
+             self.assertRaisesRegex(RuntimeError, 'did not settle'):
+            execution.persistent_stopped_window(
+                self.request, self.session, report, max_windows=4)
+        self.assertEqual(report['failure_code'], 'start_position_changed')
+        self.assertFalse(report['stationarity']['passed'])
+
 
 if __name__ == '__main__':
     unittest.main()

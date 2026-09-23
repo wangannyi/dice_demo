@@ -92,6 +92,10 @@ def validate(cfg):
     tolerance = g.get("shake_start_tolerance_deg", .5)
     if isinstance(tolerance, bool) or not isinstance(tolerance, (int, float)) or not math.isfinite(tolerance) or not .05 <= tolerance <= .5:
         raise ValueError("shake_start_tolerance_deg must be 0.05..0.5")
+    freshness = g.get("shake_feedback_freshness_limit_s", .1)
+    if (isinstance(freshness, bool) or not isinstance(freshness, (int, float))
+            or not math.isfinite(freshness) or not .1 <= freshness <= .5):
+        raise ValueError("shake_feedback_freshness_limit_s must be 0.1..0.5")
     if type(g.get("fast_speed_percent", 100)) is not int or not 1 <= g.get("fast_speed_percent", 100) <= 100:
         raise ValueError("fast_speed_percent must be 1..100")
     phase_speeds = g.get('fast_phase_speed_percent', {})
@@ -823,6 +827,7 @@ class Workflow:
             authorized_epoch_s=time.time(),
             load_context="green_cup_held",
             start_tolerance_deg=self.g.get("shake_start_tolerance_deg", .5),
+            feedback_freshness_limit_s=self.g.get("shake_feedback_freshness_limit_s", .1),
             require_center_position=self.g.get("require_arm_position", True),
             grasp_receipt_path=receipt,
             grip_targets_0_100=self.g["grip_targets_0_100"],
@@ -944,6 +949,12 @@ class Workflow:
                 if error_mm <= self.g.get("place_arrival_tolerance_mm", self.g["place_tolerance_mm"]):
                     break
                 if attempt == self.g.get("recovery_attempts", 1):
+                    if self.g.get('precision_error_action', 'stop') == 'record':
+                        self.record_recovery(
+                            "LOWER",
+                            f"放杯偏差 {error_mm:.2f} mm；record 模式继续张手归位",
+                        )
+                        break
                     raise RuntimeError(f"放杯修正后偏差仍为 {error_mm:.2f} mm，保持闭手")
                 self.record_recovery("LOWER", f"放杯偏差 {error_mm:.2f} mm，重新规划到原放杯位置")
                 self.move([self.place_q], "lower_correct", self.held, -self.g["place_tolerance_mm"])
