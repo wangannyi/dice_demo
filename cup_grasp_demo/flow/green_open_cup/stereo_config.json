@@ -248,6 +248,11 @@
     "installation_requires_calibration": false,
     "read_hand_feedback": false,
     "place_arrival_tolerance_mm": 5.0,
+    "place_offset_base_mm": [
+      0,
+      0,
+      0
+    ],
     "direct_return_home": true,
     "fast_finger_duration_s": 0.25,
     "fast_phase_speed_percent": {

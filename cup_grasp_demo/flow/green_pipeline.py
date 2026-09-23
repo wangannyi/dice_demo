@@ -25,6 +25,7 @@ from vision.inference.detector import infer, runtime_settings
 from cup_grasp_demo.flow.green_cup_planning import (
     arm_plan,
     held_cup_clearance,
+    offset_target,
     solve,
     vertical_targets,
 )
@@ -117,6 +118,7 @@ def validate(cfg):
         raise ValueError("HOME/PLACE require open hand")
     g.setdefault("retreat_clearance_mm",
                  g["approach_clearance_mm"] if g.get("approach_via_above", True) else 50)
+    g.setdefault("place_offset_base_mm", [0, 0, 0])
     for key, bounds in {
         "lift_mm": (10, 100),
         "retreat_clearance_mm": (20, 150),
@@ -136,6 +138,7 @@ def validate(cfg):
             raise ValueError(key)
     for key in (
         "contact_offset_base_mm",
+        "place_offset_base_mm",
         "tcp_offset_flange_mm",
         "wrist_reference_deg",
     ):
@@ -143,6 +146,8 @@ def validate(cfg):
             raise ValueError(key)
     if np.linalg.norm(g["contact_offset_base_mm"]) > 100:
         raise ValueError("Contact offset >100 mm")
+    if np.linalg.norm(g["place_offset_base_mm"]) > 100:
+        raise ValueError("Place offset >100 mm")
     p = g["perception"]
     runtime_settings(p)
     for key in ("confidence", "iou_threshold", "mask_threshold"):
@@ -669,16 +674,24 @@ class Workflow:
             fast_options['minimize_travel'] = True
         lift = vertical_targets(start, self.tcp, self.g['lift_mm'] / 1000,
                                 self.g['wrist_reference_deg'], single_target=True, **fast_options)
+        place = offset_target(
+            start,
+            self.tcp,
+            np.asarray(self.g.get('place_offset_base_mm', [0, 0, 0])) / 1000,
+            self.g['wrist_reference_deg'],
+            **fast_options,
+        )
         retreat = [] if self.g.get("direct_return_home", False) else vertical_targets(
             start, self.tcp, self.g["retreat_clearance_mm"] / 1000,
             self.g["wrist_reference_deg"], single_target=True, **fast_options)
         prepared.put_vertical('lift', start, lift)
+        prepared.put_vertical('place', start, [place])
         prepared.put_vertical('retreat', start, retreat)
         margin = -self.g['place_tolerance_mm']
         for label, source, targets, load, clearance in (
             ('lift', start, lift, held, margin),
-            ('lower', lift[-1], [start], held, margin),
-            ('return_home', start, [*retreat, self.home], None, 0),
+            ('lower', lift[-1], [place], held, margin),
+            ('return_home', place, [*retreat, self.home], None, 0),
         ):
             route = arm_plan(source, targets, self.scene, self.cfg, held=load, cup_margin_mm=clearance)
             if route['blockers']:
@@ -730,6 +743,25 @@ class Workflow:
             start, self.tcp, dz, self.g['wrist_reference_deg'], single_target=single_target,
             **({'minimize_travel': True} if self.g.get('fast_minimize_lift_travel', False) else {}),
             **({'fast_fk': True} if self.g.get('fast_batched_ik_rotations', False) else {}))
+
+    def place_targets(self, start):
+        offset_mm = np.asarray(self.g.get('place_offset_base_mm', [0, 0, 0]), dtype=float)
+        if np.array_equal(offset_mm, np.zeros(3)):
+            return [list(start)]
+        prepared = getattr(self, '_prepared', None)
+        targets = prepared.take_vertical('place', start, self.kin) if prepared else None
+        if targets is not None:
+            return targets
+        options = {'fast_fk': True} if self.g.get('fast_batched_ik_rotations', False) else {}
+        if self.g.get('fast_minimize_lift_travel', False):
+            options['minimize_travel'] = True
+        return [offset_target(
+            start,
+            self.tcp,
+            offset_mm / 1000,
+            self.g['wrist_reference_deg'],
+            **options,
+        )]
 
     def record_recovery(self, phase, reason):
         if not hasattr(self, 'recovery_events'):
@@ -938,10 +970,11 @@ class Workflow:
         elif phase == "SHAKE":
             self.shake()
         elif phase == "LOWER":
-            # Replan from fresh feedback to the saved pre-lift placement pose.
-            # This avoids accumulating shake residuals or lift tracking error.
-            self.move([self.place_q], "lower", self.held, -self.g["place_tolerance_mm"])
-            before = self.kin.forward(self.place_q)[0] @ self.tcp
+            # Replan from fresh feedback to the configured base-frame place
+            # offset. Zero offset preserves the original grasp pose exactly.
+            targets = self.place_targets(self.place_q)
+            self.move(targets, "lower", self.held, -self.g["place_tolerance_mm"])
+            before = self.kin.forward(targets[-1])[0] @ self.tcp
             for attempt in range(self.g.get("recovery_attempts", 1) + 1):
                 after = self.kin.forward(self.snapshot())[0] @ self.tcp
                 error_mm = np.linalg.norm(after[:3, 3] - before[:3, 3]) * 1000
@@ -957,7 +990,7 @@ class Workflow:
                         break
                     raise RuntimeError(f"放杯修正后偏差仍为 {error_mm:.2f} mm，保持闭手")
                 self.record_recovery("LOWER", f"放杯偏差 {error_mm:.2f} mm，重新规划到原放杯位置")
-                self.move([self.place_q], "lower_correct", self.held, -self.g["place_tolerance_mm"])
+                self.move(targets, "lower_correct", self.held, -self.g["place_tolerance_mm"])
         elif phase == "OPEN":
             self.hand(self.g["open_targets_0_100"], "release")
         elif phase == "RETURN_HOME":

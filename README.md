@@ -165,12 +165,13 @@ FAST 复用 SDK/CAN、相机和模型，复用可用的预计算轨迹；只在�
 | `speed_percent` | 20 | 普通运动百分比兜底；FAST/CONTROL 运行时被 `green_cup.fast_speed_percent` 覆盖 |
 | `green_cup.fast_speed_percent` | 30 | FAST 普通运动百分比 |
 | `green_cup.fast_phase_speed_percent` | approach、return_home 均 60 | 两段单独速度百分比 |
-| `green_cup.contact_offset_base_mm` | `[0,0,30]` | 杯口圆心在基座坐标系中的 TCP 目标偏移，mm |
+| `green_cup.contact_offset_base_mm` | `[0,0,35]` | 杯口圆心在基座坐标系中的 TCP 目标偏移，mm；来自当前 K3 现场参数 |
+| `green_cup.place_offset_base_mm` | `[0,0,0]` | 放杯位置相对抓取位置的基座坐标系 `[X,Y,Z]` 补偿，mm；向 `-Y` 偏时将 Y 设为正值 |
 | `green_cup.tcp_offset_flange_mm` | `[30,15,0]` | 在 TCP 文件基础上、沿法兰坐标轴追加的偏移，mm |
-| `green_cup.wrist_reference_deg` | `[15,-13,5]` | J5/J6/J7 的 IK 偏好，不是固定锁定 |
+| `green_cup.wrist_reference_deg` | `[0,-13,5]` | J5/J6/J7 的 IK 偏好，不是固定锁定；来自当前 K3 现场参数 |
 | `green_cup.lift_mm` | 50 | 抬杯高度，mm |
 | `green_cup.open_targets_0_100` | `[0,0,0,0,0,0]` | 张手目标 |
-| `green_cup.grip_targets_0_100` | `[0,100,40,40,40,100]` | 闭手目标 |
+| `green_cup.grip_targets_0_100` | `[0,80,40,40,40,100]` | 闭手目标；来自当前 K3 现场参数 |
 | `green_cup.finger_duration_s` | 1 | 常规手指动作时间，秒 |
 | `green_cup.fast_finger_duration_s` | 0.25 | FAST 手指指令动作时间，秒；不代表实测抓牢 |
 | `green_cup.fast_minimize_lift_travel` | true | FAST 抬杯重新分配七轴位移，保持 TCP 终点和朝向；优化失败回退原解，仍检查持杯路径 |

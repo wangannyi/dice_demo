@@ -39,6 +39,22 @@ class FastReuseTest(unittest.TestCase):
                 ik.assert_called_once()
             finally:w._route_pool.shutdown()
 
+    def test_following_routes_use_configured_place_offset_target(self):
+        w=self.workflow();w.g['place_offset_base_mm']=[0,6,-2]
+        held={'radius_m':.04}
+        calls=[]
+        def route(start,targets,*a,**kw):
+            calls.append((list(start),targets))
+            return dict(start_q_rad=list(start),stages=[dict(target_q_rad=t) for t in targets],blockers=[])
+        with patch.object(f,'vertical_targets',return_value=[[.2]*7]), \
+                patch.object(f,'offset_target',return_value=[.3]*7) as place, \
+                patch.object(f,'arm_plan',side_effect=route):
+            prepared=w.build_following([.1]*7,held)
+        np.testing.assert_allclose(place.call_args.args[2],[0,.006,-.002])
+        self.assertEqual(calls[1],([.2]*7,[[.3]*7]))
+        self.assertEqual(calls[2],([.3]*7,[[0]*7]))
+        self.assertEqual(prepared.vertical['place'][1],[[.3]*7])
+
     def test_background_routes_inherit_geometry_cache(self):
         from cup_grasp_demo.flow.core import cached_screen_geometry, _screen_cache
         w=self.workflow()

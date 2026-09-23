@@ -8,6 +8,14 @@ import numpy as np
 from cup_grasp_demo.flow import green_pipeline as flow
 
 class DirectApproachTest(unittest.TestCase):
+    def test_place_offset_is_three_base_frame_millimeter_values(self):
+        cfg=flow.load_config(flow.ROOT/'configs/green_cup.json')
+        cfg['green_cup']['place_offset_base_mm']=[0,6,-2]
+        self.assertEqual(flow.validate(cfg)['place_offset_base_mm'],[0,6,-2])
+        cfg['green_cup']['place_offset_base_mm']=[0,1]
+        with self.assertRaisesRegex(ValueError,'place_offset_base_mm'):
+            flow.validate(cfg)
+
     def test_zero_approach_does_not_remove_retreat(self):
         import copy
         cfg=flow.load_config(flow.ROOT/'cup_grasp_demo/flow/green_open_cup/stereo_config.json')
@@ -62,6 +70,18 @@ class PlacementTest(unittest.TestCase):
         shifted=np.eye(4);shifted[2,3]=.01
         wf.kin.forward.side_effect=[(np.eye(4),None),(shifted,None),(shifted,None)]
         with self.assertRaisesRegex(RuntimeError,'保持闭手'):wf.perform('LOWER')
+
+    def test_place_offset_retargets_tcp_in_base_frame(self):
+        wf=object.__new__(flow.Workflow);wf.args=SimpleNamespace(mode="step")
+        wf.place_q=[.1]*7;wf.tcp=np.eye(4);wf.held={};wf._prepared=None
+        wf.g=dict(place_tolerance_mm=3,place_offset_base_mm=[0,6,-2],
+                  wrist_reference_deg=[20,-13,5],recovery_attempts=0)
+        wf.move=Mock();wf.snapshot=Mock(return_value=[.2]*7)
+        wf.kin=Mock();wf.kin.forward.return_value=(np.eye(4),None)
+        with patch.object(flow,'offset_target',return_value=[.2]*7) as target:
+            wf.perform('LOWER')
+        np.testing.assert_allclose(target.call_args.args[2],[0,.006,-.002])
+        wf.move.assert_called_once_with([[.2]*7],'lower',wf.held,-3)
 
     def test_idle_completion_keeps_fault_checks_and_legacy_tolerance(self):
         from cup_grasp_demo.flow import shake_execution as execution

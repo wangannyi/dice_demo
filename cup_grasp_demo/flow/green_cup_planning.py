@@ -235,3 +235,26 @@ def vertical_targets(start, tcp, dz, wrist_deg, *, single_target=False, fast_fk=
             q = minimize_joint_travel(previous, q, flange_target)
         targets.append(q.tolist())
     return targets
+
+
+def offset_target(start, tcp, offset_base_m, wrist_deg, *, fast_fk=False, minimize_travel=False):
+    """Move the TCP by a base-frame XYZ offset while preserving orientation."""
+    offset = np.asarray(offset_base_m, dtype=float)
+    if offset.shape != (3,) or not np.isfinite(offset).all():
+        raise ValueError("TCP offset must contain three finite base-frame values")
+    if np.array_equal(offset, np.zeros(3)):
+        return np.asarray(start, dtype=float).tolist()
+    kin = Kinematics()
+    flange, _ = kin.forward(start)
+    target_tcp = flange @ tcp
+    target_tcp[:3, 3] += offset
+    target_flange = target_tcp @ np.linalg.inv(tcp)
+    result = solve(
+        target_flange,
+        start,
+        wrist_deg,
+        **({"fast_fk": True} if fast_fk else {}),
+    )
+    if minimize_travel:
+        result = minimize_joint_travel(start, result, target_flange)
+    return np.asarray(result, dtype=float).tolist()
