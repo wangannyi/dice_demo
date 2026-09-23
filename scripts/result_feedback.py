@@ -125,19 +125,23 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', nargs='?', help='配置中的动作名或别名')
     parser.add_argument('--list', action='store_true', help='list configured actions without hardware')
-    parser.add_argument('--gestures', type=Path, default=ROOT / 'configs/actions/result_feedback.json')
+    parser.add_argument('--gestures', type=Path, default=ROOT / 'configs/actions/gestures',
+                        help='手势分组目录，或单个组文件路径（调试用）')
     parser.add_argument('--config', type=Path, default=DEFAULT_SYSTEM)
     parser.add_argument('--session', type=Path, default=ROOT / 'cup_grasp_demo/datasets/result_feedback')
     parser.add_argument('--execute', action='store_true', help='execute immediately without another prompt')
     args = parser.parse_args(argv)
-    config = json.loads(args.gestures.read_text())
+    from scripts.action_registry import load_registry
+    registry = load_registry(args.gestures)
+    for message in registry.errors:
+        print(f'[gestures] {message}', file=sys.stderr, flush=True)
     if args.list:
-        for name in config['gestures']:
+        for name in registry.names():
             print(name)
         return 0
     if args.action is None:
         parser.error('请指定动作名，或使用 --list')
-    recipe = recipe_for(config, args.action)
+    recipe = registry.recipe(args.action)
     print(json.dumps(recipe, ensure_ascii=False, indent=2), flush=True)
     if not args.execute:
         print('仅预览，未连接 CAN、相机或发送指令。加 --execute 执行。')
