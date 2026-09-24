@@ -8,9 +8,9 @@
 
 ---
 
-## 🔴 P1 —— 必须修（3 条，均已亲自验证坐实）
+## 🔴 P1 —— 必须修（4 条，均已亲自验证坐实；P1-1 已修 8034cc8）
 
-### [ ] P1-1 失败保命链第四处 0.1s 硬编码：`fresh_js_hold`
+### [x] P1-1 失败保命链第四处 0.1s 硬编码：`fresh_js_hold` ✅ 已修（8034cc8，2026-09-24）
 
 - **位置**：`cup_grasp_demo/flow/joint_delivery.py:307`（裸调 `core.fresh_feedback(session)`）
 - **调用点**：`joint_execution.py:406`、`shake_execution.py:424`
@@ -59,6 +59,27 @@
   不回写锚定视图。
 - **测试补**：不 mock `verify` 的用例，断言登记后 5 个路径键仍为相对路径。
   （现有 `tests/scripts/test_register_home_table.py:38-39` 用 patch 绕过了真实 load_config，零覆盖。）
+
+---
+
+### [ ] P1-4 LOWER 放杯直接死因：`batched_limits` 0.5s 硬编码超时且无重试
+
+> 2026-09-24 另一窗口（dice_game）报障 ①，核实后录入；当天 17:05:54 现场 LOWER 整局失败。
+
+- **位置**：`cup_grasp_demo/flow/batched_limits.py:13`（`deadline = monotonic() + .5` 写死）
+- **问题**：14 个 CAN 查询（7 关节 × 角度/速度 + 加速度）连发后轮询，deadline 写死
+  0.5s，没收齐直接抛 `TimeoutError` 放弃整个动作，无重试。
+- **现场实证**（`game_20260924_165900_e5085e96/runs/20260924_170554_green_lower_36ed0a/actual.json`）：
+  下行动作 `sent_count: 0`（一个包没发），error 为
+  `Missing live controller limits: J5 acceleration, J6 angle/velocity, J6 acceleration,
+  J7 angle/velocity, J7 acceleration`；**同一秒内保命 hold 动作 85ms 就读全全部
+  limits**（`limits_read_s: 0.0855`）——总线只是忙了一瞬，不是坏。
+- **危害**：与已修的反馈新鲜度病根同族（CAN 忙时超时假设不成立），但位置在
+  `joint_delivery.py:169` 的 `read_limits`（MoveJS 交付前），一发即整局 FAILED。
+- **修法**：deadline 提为参数并接到配置（如 `joint_delivery.limits_read_timeout_s`，
+  默认仍 .5 现场可放宽）；超时后有限重试一轮（limits 是只读查询，重发无副作用，
+  与运动指令不同）；`motion_attempted` 语义顺带核对（该回执记 True 但实际 0 包发出——
+  见 P2-11/P3 一族）。
 
 ---
 
@@ -386,6 +407,13 @@
   不 close（被 Startup future + atexit 持有到进程退出）。
 - [ ] **P3-22** `fast_feedback.py:11`：缓存复用门限写死 0.1（有新鲜读回退兜底，
   仅性能项）。
+- [ ] **P3-23** CAPTURE 瞬态重试只有 1 次且写死（dice_game 报障 ③，评估后录入）。
+  `green_pipeline.py:439` `for attempt in range(2)`——RimEdgeQualityError/
+  红区无杯等瞬态判据重拍 1 次不达标即整局 FAILED。16:56 现场两次失败均属边缘
+  抖动（重摆杯子后连过 5 局）。**评估结论：设计/调参项而非 bug**——重试走
+  "复用运行中的流、不重启"，每次成本约一拍采集；rim 质量边缘时第 2 次重试
+  有翻盘概率（历史 retry 文件全是 retry:1 后即放弃）。修法：重试次数提为配置
+  键（如 `capture_transient_retries`，默认 1 保持现行为，现场可调 2）。
 
 ---
 
@@ -404,14 +432,16 @@
 
 ## 建议修复顺序
 
-1. **P1-1 + P2-5/6/7/8 新鲜度剩余接线**（同病根一次收干净；P1-1 在现场踩过的失败链上）
-2. **P1-2**（游戏程序马上要用 rounds 协议）
-3. **P1-3 + P3-5**（绝对路径写读两侧一起堵）
-4. **P2-1/2/3/4 SDK 自愈与连跑**（既然做了就要真的能用）
-5. **P2-10/11/12 摇骰热路径与清理**
-6. **P2-13..17 入口健壮性**（手误即崩类）
-7. **P2-18..22 视觉采集**
-8. P3 按主题批量
+1. ~~**P1-1**~~ ✅ 已修（8034cc8）+ **P2-5/6/7/8 新鲜度剩余接线**（同病根一次收干净）
+2. **P1-4**（LOWER 整局失败当天现场踩过；P1-1 修复后它成为该失败链上仅剩的硬编码时限）
+3. **P1-2**（游戏程序马上要用 rounds 协议）
+4. **P1-3 + P3-5**（绝对路径写读两侧一起堵）
+5. **P2-1/2/3/4 SDK 自愈与连跑**（既然做了就要真的能用）
+6. **P2-10/11/12 摇骰热路径与清理**（P2-11 顺带核 P1-4 回执的 motion_attempted 失真）
+7. **P2-13..17 入口健壮性**（手误即崩类）
+8. **P2-18..22 视觉采集**
+9. P3 按主题批量
 
 ---
-*产出：2026-09-24 全项目深挖（4 路并行审计 + P1 逐条人工复核）。基线 5d6f4c1。*
+*产出：2026-09-24 全项目深挖（4 路并行审计 + P1 逐条人工复核；P1-4/P3-23 来自
+dice_game 窗口报障核实）。基线 5d6f4c1。*
