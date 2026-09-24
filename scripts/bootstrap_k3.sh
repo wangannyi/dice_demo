@@ -87,3 +87,4 @@ PY
 PYTHONNOUSERSITE=1 DICE_PYTHON=/usr/bin/python3 \
   bash "$ROOT/scripts/check_environment.sh"
 echo "K3 system Python installation completed."
+echo "Activate it in this shell with: source '$ROOT/scripts/env.sh' --system"

@@ -11,11 +11,11 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class EnvironmentScriptTests(unittest.TestCase):
-    def source(self, extra=None):
+    def source(self, extra=None, arguments=''):
         env = {'PATH': os.environ['PATH'], 'HOME': '/home/should-not-be-used'}
         env.update(extra or {})
         command = (
-            f'source "{ROOT}/scripts/env.sh"; '
+            f'source "{ROOT}/scripts/env.sh" {arguments}; '
             'printf "%s\\n" "$DICE_ROOT" "$DICE_PYTHON" "$DICE_VISION_PYTHON" '
             '"$DICE_SDK_PYTHON" "$NERO_SDK_DIR" "$PYTHONPATH"'
         )
@@ -43,6 +43,23 @@ class EnvironmentScriptTests(unittest.TestCase):
                                   'DICE_PYTHON_EXTRA': '/opt/deployment/python'})
             self.assertEqual(values[1:4], [str(python)] * 3)
             self.assertIn('/opt/deployment/python', values[5].split(':'))
+
+    def test_system_mode_discards_stale_virtualenv_overrides(self):
+        venv = '/home/old/.venv-' + 'grasp'
+        sdk = '/home/old/agilex-' + 'api-test/pyAgxArm'
+        stale = venv + '/bin/python'
+        values = self.source({
+            'DICE_PYTHON': stale,
+            'DICE_VISION_PYTHON': stale,
+            'DICE_SDK_PYTHON': stale,
+            'CALIB_PYTHON': stale,
+            'NERO_SDK_DIR': sdk,
+            'DICE_PYTHON_EXTRA': venv + '/site-packages',
+            'PYTHONPATH': venv + '/site-packages',
+        }, '--system')
+        self.assertEqual(values[1:4], ['/usr/bin/python3'] * 3)
+        self.assertEqual(values[4], str(ROOT / 'third_party/pyAgxArm'))
+        self.assertNotIn('/home/old', values[5])
 
     def test_bundled_k3_realsense_wheel_matches_manifest(self):
         directory = ROOT / 'third_party/wheels/k3-cp314'

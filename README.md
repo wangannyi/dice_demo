@@ -40,11 +40,11 @@ sudo bash scripts/bootstrap_k3.sh
 脚本通过 Bianbu 安装 NumPy、SciPy、OpenCV、ONNX Runtime、python-can 等系统包，并安装仓库附带且经过校验的 K3/CPython 3.14 RealSense wheel。项目默认使用系统 `python3`；NERO SDK 固定在 `third_party/pyAgxArm/`。不要复制其他机器的虚拟环境。
 
 ```bash
-source scripts/env.sh
+source scripts/env.sh --system
 bash scripts/check_environment.sh
 ```
 
-脚本不依赖仓库所在的绝对路径，也不会搜索用户主目录中的虚拟环境。需要使用非默认解释器时，显式设置 `DICE_PYTHON`。
+脚本不依赖仓库所在的绝对路径，也不会搜索用户主目录中的虚拟环境。`--system` 会清除当前终端遗留的旧虚拟环境配置。需要使用非默认解释器时，显式设置 `DICE_PYTHON` 并省略 `--system`。
 
 完整依赖和环境变量见[运行环境文档](docs/ENVIRONMENT.md)。
 

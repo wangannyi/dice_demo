@@ -27,7 +27,7 @@ ip -details link show can0
 
 ```bash
 sudo bash scripts/bootstrap_k3.sh
-source scripts/env.sh
+source scripts/env.sh --system
 bash scripts/check_environment.sh
 ```
 
@@ -61,10 +61,10 @@ NERO/Revo2 的 `pyAgxArm` 已固定在仓库的 `third_party/pyAgxArm/`，不需
 可以从任意目录加载：
 
 ```bash
-source /path/to/dice_demo/scripts/env.sh
+source /path/to/dice_demo/scripts/env.sh --system
 ```
 
-脚本根据自身位置计算仓库根目录，不包含安装机器的绝对路径。默认设置如下：
+脚本根据自身位置计算仓库根目录，不包含安装机器的绝对路径。`--system` 会退出当前虚拟环境、清除遗留的 `DICE_*`/`PYTHONPATH` 覆盖，并明确选择 `/usr/bin/python3`。默认设置如下：
 
 | 变量 | 默认值 |
 | --- | --- |
@@ -89,7 +89,7 @@ source scripts/env.sh
 ## 5. 环境验证
 
 ```bash
-source scripts/env.sh
+source scripts/env.sh --system
 bash scripts/check_environment.sh
 ```
 

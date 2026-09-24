@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
 # Source this file from any directory; do not modify shell HOME.
+# `source scripts/env.sh --system` discards stale project/virtualenv overrides.
+_dice_system_reset=0
+if [[ "${1:-}" == "--system" ]]; then
+    if type deactivate >/dev/null 2>&1; then
+        deactivate
+    fi
+    unset DICE_PYTHON DICE_VISION_PYTHON DICE_SDK_PYTHON CALIB_PYTHON
+    unset NERO_SDK_DIR DICE_PYTHON_EXTRA PYTHONPATH PYTHONHOME
+    _dice_system_reset=1
+fi
 if [ -n "${ZSH_VERSION:-}" ]; then
     DICE_ENV_SOURCE="${(%):-%x}"
 else
@@ -10,7 +20,11 @@ unset DICE_ENV_SOURCE
 export DICE_ROOT
 # Use the host's Python by default.  A deployment can override DICE_PYTHON,
 # but the repository never searches user-specific virtualenv locations.
-_python_default="$(command -v python3 || true)"
+if [[ "$_dice_system_reset" == 1 && -x /usr/bin/python3 ]]; then
+    _python_default=/usr/bin/python3
+else
+    _python_default="$(command -v python3 || true)"
+fi
 if [[ -z "$_python_default" ]]; then
     echo "python3 was not found in PATH" >&2
     return 1 2>/dev/null || exit 1
@@ -25,7 +39,7 @@ _python_paths=("$DICE_ROOT" "$NERO_SDK_DIR")
 [[ -n "${DICE_PYTHON_EXTRA:-}" ]] && _python_paths+=("$DICE_PYTHON_EXTRA")
 _joined_path="$(IFS=:; echo "${_python_paths[*]}")"
 export PYTHONPATH="$_joined_path${PYTHONPATH:+:$PYTHONPATH}"
-unset _python_default _python_paths _joined_path
+unset _dice_system_reset _python_default _python_paths _joined_path
 export OPENBLAS_NUM_THREADS=1
 export QT_X11_NO_MITSHM=1
 export PYTHONNOUSERSITE=1
