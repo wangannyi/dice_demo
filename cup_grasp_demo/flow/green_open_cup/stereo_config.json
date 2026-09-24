@@ -83,18 +83,6 @@
     ],
     "auto_reduce_frequency": true
   },
-  "cup_perception": {
-    "backend": "yolo_seg_onnx",
-    "model": "cup_grasp_demo/models/cup_yolov8n_seg_20260918/best.q.onnx",
-    "confidence": 0.35,
-    "iou_threshold": 0.45,
-    "mask_threshold": 0.5,
-    "mask_erode_px": 1,
-    "min_workspace_fraction": 0.9,
-    "min_valid_depth_fraction": 0.5,
-    "ort_package_dir": "/usr/lib/python3.14/dist-packages",
-    "section_half_band_mm": 2.0
-  },
   "fast_record_shake_video": false,
   "fast_capture_reuse_max_age_s": 120,
   "shake_study": {

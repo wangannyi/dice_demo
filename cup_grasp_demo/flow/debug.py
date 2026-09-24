@@ -23,13 +23,10 @@ import cv2  # noqa: E402
 import numpy as np  # noqa: E402
 
 from cup_grasp_demo.flow.core import (  # noqa: E402
-    Screen, configured_tcp, digest, load_config, make_plan, measured_offset, read_json, write_json,
+    digest, load_config, read_json, write_json,
 )
 from cup_grasp_demo.flow.contact_geometry import contact_direction  # noqa: E402
-from cup_grasp_demo.flow.session_storage import (  # noqa: E402
-    CAPTURE_PENDING, dispatch, prepare_plan, reset_capture,
-)
-from cup_grasp_demo.hand_geometry import RightRevo2Model  # noqa: E402
+from cup_grasp_demo.flow.session_storage import dispatch  # noqa: E402
 from cup_grasp_demo.planning import load_calibration  # noqa: E402
 from vision.capture.frame_io import load_batch  # noqa: E402
 from vision.geometry.table_plane import Config, _plane, deproject  # noqa: E402
@@ -119,36 +116,6 @@ def show(path, enabled, *, timeout_s=None):
                     raise RuntimeError(f'图像窗口清理失败：{exc}') from exc
 
 
-def target_overlay(image_path, output, session, point, snapshot, hand_state='unknown'):
-    """Draw the current feedback-derived TCP separately from the frozen target."""
-    image, report = draw_tcp(cv2.imread(str(image_path)), session, snapshot, point, hand_state)
-    if not cv2.imwrite(str(output), image):
-        raise OSError('Could not write TCP overlay')
-    write_json(Path(output).with_suffix('.json'), report)
-
-
-def capture_with_feedback(output, cfg, *, bridge_fn=None, capture_fn=None):
-    """Bracket the camera batch with read-only joint feedback; require a stopped arm."""
-    bridge_fn = bridge if bridge_fn is None else bridge_fn
-    capture_fn = capture_rgbd if capture_fn is None else capture_fn
-    before = bridge_fn('snapshot', output.with_name(output.name + '_before.json'), cfg)
-    ready(before)
-    capture_fn(output, cfg)
-    after = bridge_fn('snapshot', output.with_name(output.name + '_after.json'), cfg)
-    ready(after)
-    q0, q1 = np.asarray(before['joints_rad']), np.asarray(after['joints_rad'])
-    if (q0.shape != (7,) or q1.shape != (7,) or not np.isfinite([q0, q1]).all()
-            or np.max(np.abs(q1 - q0)) > math.radians(.2)):
-        raise ValueError('采样时关节反馈无效或机械臂发生运动，不能标注当前 TCP')
-    return after
-
-
-def check_overlay_camera(image_path, session):
-    meta = read_json(Path(image_path).with_suffix('.json'))
-    if meta['serial'] != session['config']['serial'] or meta['intrinsics'] != session['intrinsics']:
-        raise ValueError('当前相机或内参与冻结会话不同，不能投影 TCP')
-
-
 def camera_transform(meta, cfg):
     if meta['serial'] != cfg['serial']:
         raise ValueError('Wrong camera serial')
@@ -161,44 +128,6 @@ def camera_transform(meta, cfg):
             or not np.allclose(k, camera['camera_matrix'], atol=1e-4, rtol=0)):
         raise ValueError('Camera intrinsics differ from calibration')
     return matrix(calibration['T_base_camera']), calibration['quality_passed']
-
-
-def source_hashes(cfg):
-    from cup_grasp_demo.flow.cup_perception import model_path
-    hand = RightRevo2Model()
-    paths = [Path(cfg[key]) for key in ('home', 'calibration', 'tcp_candidate', 'orientation_reference', 'grasp_config')]
-    paths += [Path(x['path']) for x in hand.provenance['model_sources']]
-    paths += [item[-1] for item in hand.collision.values()]
-    description = ROOT / 'nero_revo2_control/models/hand_geometry/nero'
-    paths += list((description / 'meshes').glob('link*.stl'))
-    paths += [description / 'meshes/revo2_flange.stl', description / 'urdf/nero_description.urdf']
-    paths += [ROOT / 'nero_revo2_control/models/nero_description.urdf']
-    cup_model = model_path(cfg)
-    if cup_model is not None:
-        paths.append(cup_model)
-    return {str(path.relative_to(ROOT)): digest(path) for path in paths}
-
-
-def verify_session(directory):
-    if (directory / CAPTURE_PENDING).exists():
-        raise ValueError('本 RUN 最新采集尚未成功，请重新 capture 后再规划')
-    session = read_json(directory / 'session.json')
-    for filename, expected in session['source_hashes'].items():
-        if digest(ROOT / filename) != expected:
-            raise ValueError(f'参数/模型已变更，请重新 capture：{filename}')
-    for filename, expected in session['capture_hashes'].items():
-        if digest(directory / filename) != expected:
-            raise ValueError(f'采样数据已变更：{filename}')
-    cfg = dict(session['config'])
-    for key in ('home', 'calibration', 'tcp_candidate', 'orientation_reference', 'grasp_config'):
-        cfg[key] = str(ROOT / cfg[key])
-    return session, cfg
-
-
-def summarize(plan):
-    print(json.dumps({k: plan[k] for k in ('frame', 'gap_mm', 'comparison_point_base_m',
-                                          'T_base_flange_target', 'blockers')}, indent=2))
-    print(f"轨迹分段：{len(plan['stages'])}；screen_passed={plan['screen_passed']}；速度由会话配置决定")
 
 
 def validate_plan(plan, session_dir, cfg, now=None):
