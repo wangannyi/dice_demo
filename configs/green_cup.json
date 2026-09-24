@@ -102,7 +102,8 @@
     "tracking_error_deg": 5.0,
     "tracking_error_action": "record",
     "envelope_margin_deg": 5.0,
-    "velocity_cap_deg_s": null
+    "velocity_cap_deg_s": null,
+    "feedback_freshness_limit_s": 0.3
   },
   "fast_single_capture": true,
   "fast_reuse_table": true,

@@ -8,7 +8,8 @@ def delivery_options(raw=None):
     """Keep legacy defaults; the release config explicitly selects full budget."""
     options = dict(limit_utilization=.97, acceleration_cap_rad_s2=5.,
                    tracking_error_deg=5., tracking_error_action='stop',
-                   envelope_margin_deg=5., velocity_cap_deg_s=50., profile='quintic')
+                   envelope_margin_deg=5., velocity_cap_deg_s=50., profile='quintic',
+                   feedback_freshness_limit_s=.1)
     raw = raw or {}
     if not isinstance(raw, dict) or set(raw) - set(options):
         raise ValueError('Invalid joint_delivery options')
@@ -18,7 +19,8 @@ def delivery_options(raw=None):
     for name, low, high in (('limit_utilization', .1, 1.),
                             ('acceleration_cap_rad_s2', .1, 5.),
                             ('tracking_error_deg', .1, 10.),
-                            ('envelope_margin_deg', .1, 10.)):
+                            ('envelope_margin_deg', .1, 10.),
+                            ('feedback_freshness_limit_s', .1, .5)):
         value = options[name]
         if isinstance(value, bool) or not isinstance(value, (float, int)) or not math.isfinite(value) or not low <= value <= high:
             raise ValueError(f'joint_delivery.{name} must be {low}..{high}')
@@ -111,12 +113,21 @@ class ServoJointRobot:
     def check_feedback(self, status=None):
         status = status if status is not None else self.robot.get_arm_status()
         joints = self.robot.get_joint_angles()
-        for label, feedback in [("status", status), ("joints", joints)]:
+        limit = self.options['feedback_freshness_limit_s']
+        fresh = True
+        for label, feedback in (("status", status), ("joints", joints)):
             stamp = self.demo.feedback_stamp(feedback)
-            if stamp is None or not 0 <= self.wallclock() - stamp <= 0.1:
-                raise RuntimeError(f"MoveJS delivery: stale {label} feedback")
+            if stamp is None or not 0 <= self.wallclock() - stamp <= limit:
+                fresh = False
+                break
+        if fresh:
+            state, joint_values = status.msg, list(joints.msg)
+        else:
+            # Cached readers (fast_cached_feedback) can lag the CAN feedback
+            # stream. One bounded fresh read—the fast_feedback.arm_snapshot
+            # fallback pattern—before declaring delivery failure.
+            joint_values, _, state = self.demo.arm_snapshot(self.robot)
         self.demo.check_comm(self.robot)
-        state = status.msg
         if (
             state.arm_status != 0
             or state.ctrl_mode != 1
@@ -127,9 +138,9 @@ class ServoJointRobot:
             raise RuntimeError(
                 "MoveJS delivery: require NORMAL/CAN joint mode and seven enabled joints"
             )
-        if len(joints.msg) != 7 or not all(math.isfinite(x) for x in joints.msg):
+        if len(joint_values) != 7 or not all(math.isfinite(x) for x in joint_values):
             raise RuntimeError("MoveJS delivery: invalid joint feedback")
-        return list(joints.msg)
+        return list(joint_values)
 
     def move_js(self, target):
         target = tuple(float(x) for x in target)
