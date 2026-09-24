@@ -403,7 +403,8 @@ def run(request, *, connected=None, connection_evidence=None):
             report["motion_elapsed_s"] = time.monotonic() - start
         if controlled and limits is not None:
             try:
-                report["failure_hold"] = fresh_js_hold(core, session, limits)
+                report["failure_hold"] = fresh_js_hold(
+                    core, session, limits, joint_max_age_s=freshness_limit)
                 report["hold_feedback"] = []
                 shared.verify_stop(
                     session,

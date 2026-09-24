@@ -303,8 +303,8 @@ def take_js_control(core, session, baseline, *, timeout_s):
         session.robot = original
 
 
-def fresh_js_hold(core, session, limits):
-    feedback = core.fresh_feedback(session)
+def fresh_js_hold(core, session, limits, *, joint_max_age_s=.1):
+    feedback = core.fresh_feedback(session, joint_max_age_s=joint_max_age_s)
     if (
         feedback["status"]["arm_status"] != 0
         or feedback["status"]["ctrl_mode"] != 1

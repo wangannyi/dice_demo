@@ -141,3 +141,58 @@ class VerifyStopFreshnessTests(unittest.TestCase):
         session = self._stopped_session(.2)
         with self.assertRaisesRegex(RuntimeError, 'freshness'):
             verify_stop(session, [0.]*7, [], stable_samples=3, poll_s=0.0)
+
+
+class FreshJsHoldFreshnessTests(unittest.TestCase):
+    """The failure-path hold must honour the same budget as the motion loop.
+
+    Field evidence (game_20260924_163812, run ..._green_joint_shake_d47d58):
+    the shake loop ran with 0.3s, then a busy CAN bus made the hold's default
+    0.1s gate fail, so hold_verified never landed and the speed was not
+    restored (restored_speed_percent = None).
+    """
+
+    def _hold_session(self, max_age):
+        """A fake session whose every read returns max_age-old packets."""
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        from nero_revo2_control.bridges import visual_servo_probe as probe
+        age = max_age
+
+        def snapshot():
+            return {'q_rad': [0.]*7, 'fk_flange_pose_m_rad': [0.]*6,
+                    'packet_ages_s': {k: age for k in probe.PACKETS},
+                    'packet_timestamps_after_epoch_s': {k: time.time() for k in probe.PACKETS}}
+
+        robot = SimpleNamespace(
+            get_arm_status=lambda: SimpleNamespace(timestamp=time.time(), msg=SimpleNamespace(
+                arm_status=0, ctrl_mode=1, motion_status=0)),
+            get_driver_states=lambda joint_index: SimpleNamespace(timestamp=time.time()),
+            get_joints_enable_status_list=lambda: [True]*7,
+            set_joint_limits_enabled=Mock(),
+            move_js=Mock())
+        session = SimpleNamespace(snapshot=snapshot, robot=robot,
+                                  guard=SimpleNamespace(
+                                      report=lambda: {'tx_attempts': 0, 'actual_tx_count': 0},
+                                      allowed=False))
+        return session
+
+    def _limits(self):
+        return [(-1., 1.)] * 7
+
+    def test_configured_limit_lets_failure_hold_accept_aged_feedback(self):
+        from cup_grasp_demo.flow.joint_delivery import fresh_js_hold
+        from nero_revo2_control.bridges import visual_servo_probe as probe
+        session = self._hold_session(.2)
+        result = fresh_js_hold(probe, session, self._limits(),
+                               joint_max_age_s=.3)
+        self.assertTrue(result['requested'])
+        session.robot.move_js.assert_called_once()
+
+    def test_default_stays_strict_in_failure_hold(self):
+        from cup_grasp_demo.flow.joint_delivery import fresh_js_hold
+        from nero_revo2_control.bridges import visual_servo_probe as probe
+        session = self._hold_session(.2)
+        with self.assertRaisesRegex(RuntimeError, 'freshness'):
+            fresh_js_hold(probe, session, self._limits())
+        session.robot.move_js.assert_not_called()

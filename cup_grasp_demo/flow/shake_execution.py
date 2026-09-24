@@ -421,7 +421,8 @@ def run(request):
         report["error"] = type(error).__name__ + ": " + str(error)
         if controlled and limits is not None:
             try:
-                report["failure_hold"] = fresh_js_hold(core, session, limits)
+                report["failure_hold"] = fresh_js_hold(
+                    core, session, limits, joint_max_age_s=freshness_limit)
                 report["hold_feedback"] = []
                 verify_stop(
                     session,
