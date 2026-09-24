@@ -227,7 +227,7 @@
         0,
         0
       ],
-      "speed_percent": 60,
+      "speed_percent": 100,
       "finger_duration_s": 0.5,
       "execution": {
         "mode": "together",
