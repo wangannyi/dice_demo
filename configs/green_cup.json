@@ -227,6 +227,6 @@
     "strategy_file": "vision/strategy/green_cup.json",
     "lower_recovery_attempts": 0,
     "home_execution_mode": "together",
-    "fast_finger_duration_s": 0.5
+    "fast_finger_duration_s": 0.3
   }
 }
