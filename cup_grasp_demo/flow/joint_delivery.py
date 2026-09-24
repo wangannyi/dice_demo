@@ -9,7 +9,7 @@ def delivery_options(raw=None):
     options = dict(limit_utilization=.97, acceleration_cap_rad_s2=5.,
                    tracking_error_deg=5., tracking_error_action='stop',
                    envelope_margin_deg=5., velocity_cap_deg_s=50., profile='quintic',
-                   feedback_freshness_limit_s=.1)
+                   feedback_freshness_limit_s=.1, limits_read_timeout_s=.5)
     raw = raw or {}
     if not isinstance(raw, dict) or set(raw) - set(options):
         raise ValueError('Invalid joint_delivery options')
@@ -20,7 +20,8 @@ def delivery_options(raw=None):
                             ('acceleration_cap_rad_s2', .1, 5.),
                             ('tracking_error_deg', .1, 10.),
                             ('envelope_margin_deg', .1, 10.),
-                            ('feedback_freshness_limit_s', .1, .5)):
+                            ('feedback_freshness_limit_s', .1, .5),
+                            ('limits_read_timeout_s', .1, 5.)):
         value = options[name]
         if isinstance(value, bool) or not isinstance(value, (float, int)) or not math.isfinite(value) or not low <= value <= high:
             raise ValueError(f'joint_delivery.{name} must be {low}..{high}')
@@ -166,13 +167,17 @@ class ServoJointRobot:
             limit_started = self.monotonic()
             if self.batch_limits:
                 from cup_grasp_demo.flow.batched_limits import read_limits
-                pairs = read_limits(self.robot, sleep=self.sleep, monotonic=self.monotonic)
+                pairs = read_limits(self.robot,
+                                    timeout_s=self.options['limits_read_timeout_s'],
+                                    sleep=self.sleep, monotonic=self.monotonic)
             else:
                 pairs = None
             for i in range(7):
                 if pairs is None:
-                    v = self.robot.get_joint_angle_vel_limits(i + 1, timeout=0.5, min_interval=0)
-                    a = self.robot.get_joint_acc_limits(i + 1, timeout=0.5, min_interval=0)
+                    v = self.robot.get_joint_angle_vel_limits(
+                        i + 1, timeout=self.options['limits_read_timeout_s'], min_interval=0)
+                    a = self.robot.get_joint_acc_limits(
+                        i + 1, timeout=self.options['limits_read_timeout_s'], min_interval=0)
                 else:
                     v, a = pairs[i]
                 if v is None or a is None:

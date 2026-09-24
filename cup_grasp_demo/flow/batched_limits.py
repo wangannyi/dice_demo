@@ -2,7 +2,7 @@
 import time
 
 
-def read_limits(robot, *, sleep=time.sleep, monotonic=time.monotonic):
+def read_limits(robot, *, timeout_s=.5, sleep=time.sleep, monotonic=time.monotonic):
     readers = [(getter, joint) for joint in range(1, 8)
                for getter in (robot.get_joint_angle_vel_limits, robot.get_joint_acc_limits)]
     values = [None] * len(readers)
@@ -10,7 +10,11 @@ def read_limits(robot, *, sleep=time.sleep, monotonic=time.monotonic):
     for index, (getter, joint) in enumerate(readers):
         values[index] = getter(joint, timeout=0., min_interval=0.)
         sleep(.001)
-    deadline = monotonic() + .5
+    # The queries are read-only, so one fresh deadline after the first expires
+    # is safe: a busy CAN bus recovers within tens of milliseconds (field run
+    # 20260924_170554: the failure hold re-read all limits in 85 ms).
+    deadline = monotonic() + timeout_s
+    retried = False
     while any(value is None for value in values):
         for index, (getter, joint) in enumerate(readers):
             if values[index] is None:
@@ -19,8 +23,13 @@ def read_limits(robot, *, sleep=time.sleep, monotonic=time.monotonic):
         if all(value is not None for value in values):
             break
         if monotonic() >= deadline:
+            if not retried:
+                retried = True
+                deadline = monotonic() + timeout_s
+                continue
             missing = [f'J{i//2+1} {"angle/velocity" if i%2 == 0 else "acceleration"}'
                        for i, value in enumerate(values) if value is None]
-            raise TimeoutError('Missing live controller limits: ' + ', '.join(missing))
+            raise TimeoutError('Missing live controller limits (after one retry): '
+                               + ', '.join(missing))
         sleep(.001)
     return list(zip(values[::2], values[1::2]))
