@@ -22,25 +22,70 @@ def events(stream):
 
 
 class ControlSessionTest(unittest.TestCase):
-    def test_home_action_can_overlap_without_changing_legacy_default(self):
-        for mode in (None, 'together'):
-            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
-                green = dict(home_table_scene='table.json', open_targets_0_100=[0]*6)
-                if mode is not None:
-                    green['home_execution_mode'] = mode
-                flow = SimpleNamespace(cfg=dict(green_cup=green, home='home.json', calibration='cal.json'),
-                                       root=tmp, _sdk=Mock())
-                registry = Mock(errors=[]); registry.names.return_value=[]
-                with patch('scripts.action_registry.load_registry', return_value=registry), \
-                     patch('cup_grasp_demo.flow.core.read_json', side_effect=[
-                         dict(calibration_sha256='hash', scene={}), dict(joints_deg=[0]*7)]), \
-                     patch('cup_grasp_demo.flow.core.digest', return_value='hash'), \
-                     patch('scripts.result_feedback.execute_recipe') as execute:
-                    _, run = control.build_action_runtime(flow, io.StringIO())
-                    run('home')
-                recipe = execute.call_args.args[0]
-                self.assertEqual(recipe['execution'], dict(mode=mode or 'arm_then_hand', delay_s=0.0))
-                self.assertEqual(recipe['finger_duration_s'], .25)
+    def test_home_action_uses_the_registry_recipe(self):
+        """home 不再有内建 recipe（旧分支硬编码 30%/timed，把 9be7d7a 的
+        100% 现场调参静默遮蔽了）：统一走注册表，names 不再硬编码塞 home。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            green = dict(home_table_scene='table.json', open_targets_0_100=[0] * 6)
+            flow = SimpleNamespace(
+                cfg=dict(green_cup=green, home='home.json', calibration='cal.json'),
+                root=tmp, _sdk=Mock())
+            recipe = dict(gesture='home', joints_deg=[0] * 7, hand_0_100=[0] * 6,
+                          speed_percent=100, finger_duration_s=0.5,
+                          execution=dict(mode='together', delay_s=0.0),
+                          finger_speed_mode='max', finger_max_wait_s=0.65)
+            registry = Mock(errors=[])
+            registry.names.return_value = ['home', 'yeah']
+            registry.recipe.return_value = recipe
+            with patch('scripts.action_registry.load_registry', return_value=registry), \
+                 patch('cup_grasp_demo.flow.core.read_json', side_effect=[
+                     dict(calibration_sha256='hash', scene={}),
+                     dict(joints_deg=[0] * 7)]), \
+                 patch('cup_grasp_demo.flow.core.digest', return_value='hash'), \
+                 patch('scripts.result_feedback.execute_recipe') as execute:
+                names, run = control.build_action_runtime(flow, io.StringIO())
+                self.assertEqual(names, ['home', 'yeah'])
+                run('home')
+            execute.assert_called_once()
+            self.assertIs(execute.call_args.args[0], recipe)
+
+    def test_home_action_warns_when_registry_lacks_home(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            green = dict(home_table_scene='table.json')
+            flow = SimpleNamespace(
+                cfg=dict(green_cup=green, home='home.json', calibration='cal.json'),
+                root=tmp, _sdk=Mock())
+            registry = Mock(errors=[])
+            registry.names.return_value = ['yeah']
+            diagnostic = io.StringIO()
+            with patch('scripts.action_registry.load_registry', return_value=registry), \
+                 patch('cup_grasp_demo.flow.core.read_json', side_effect=[
+                     dict(calibration_sha256='hash', scene={})]), \
+                 patch('cup_grasp_demo.flow.core.digest', return_value='hash'):
+                names, _ = control.build_action_runtime(flow, diagnostic)
+            self.assertEqual(names, ['yeah'])
+            self.assertIn('缺少 home', diagnostic.getvalue())
+
+    def test_home_action_warns_when_home_json_drifts_from_registry(self):
+        """home.json 是阶段机 HOME 姿态来源，注册表 home 是 action 姿态来源——
+        关节角分叉只警告不拒绝（分叉 = 两条路去到不同姿态）。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            green = dict(home_table_scene='table.json')
+            flow = SimpleNamespace(
+                cfg=dict(green_cup=green, home='home.json', calibration='cal.json'),
+                root=tmp, _sdk=Mock())
+            recipe = dict(gesture='home', joints_deg=[1] * 7)
+            registry = Mock(errors=[])
+            registry.names.return_value = ['home']
+            registry.recipe.return_value = recipe
+            diagnostic = io.StringIO()
+            with patch('scripts.action_registry.load_registry', return_value=registry), \
+                 patch('cup_grasp_demo.flow.core.read_json', side_effect=[
+                     dict(calibration_sha256='hash', scene={}),
+                     dict(joints_deg=[0] * 7)]), \
+                 patch('cup_grasp_demo.flow.core.digest', return_value='hash'):
+                _, _ = control.build_action_runtime(flow, diagnostic)
+            self.assertIn('joints_deg 不一致', diagnostic.getvalue())
 
     def fake_flow(self):
         flow = Mock()

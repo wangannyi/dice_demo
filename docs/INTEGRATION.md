@@ -141,7 +141,7 @@ bash run_feedback.sh home --config configs/green_cup.json --session /tmp/feedbac
 | 剪刀 |  | `scissors` | 臂手同时启动，食指和中指张开 |
 | 归位 |  | `home` | 六路手指张开，机械臂返回保存的 HOME 关节姿态 |
 
-`--gestures` 指定手势分组目录（或单个组文件），默认 `configs/actions/gestures/`；`--list` 列出全部注册动作。不带 `--execute` 仅预览。无动作名的交互执行会复用一个 SDK/CAN 连接并持续返回菜单；输入 `q` 才退出。指定动作名的调用仍是单次进程接口。执行后保持动作姿态，**不自动回 HOME**，也不订阅比赛事件。骰子反馈和猜拳动作的臂速度均为 100%，臂手同时启动，手使用最大速度指令。HOME 单独保持 60%。
+`--gestures` 指定手势分组目录（或单个组文件），默认 `configs/actions/gestures/`；`--list` 列出全部注册动作。不带 `--execute` 仅预览。无动作名的交互执行会复用一个 SDK/CAN 连接并持续返回菜单；输入 `q` 才退出。指定动作名的调用仍是单次进程接口。执行后保持动作姿态，**不自动回 HOME**，也不订阅比赛事件。骰子反馈和猜拳动作的臂速度均为 100%，臂手同时启动，手使用最大速度指令。**`home` 也是注册表手势（`result_feedback.json`，当前 100%），与其它动作同一条链**——`green_control` 不再有内建 home recipe；它与 `configs/actions/home.json`（阶段机 HOME 姿态来源）的关节角由 `build_action_runtime` 做一致性警告。
 
 手指六路顺序：拇指尖、拇指根、食指、中指、无名指、小指。七轴角度单位为度。新增、删除动作和调整执行时延见[调试文档](DEBUG.md#6-反馈动作)。动作内字段覆盖全局默认值；修改全局速度时注意已有动作也可能配置了覆盖值。
 

@@ -340,6 +340,66 @@
 - **修法**：返回值改 per-detection 类别数组或删掉第三个返回值；补 proto 通道一致性
   断言。（与 TODO.md「model_adapter.py 接线」同批做。）
 
+#### [x] P2-23 `action home` 被 green_control 内建 recipe 遮蔽：`9be7d7a` 调参静默无效 ✅ 已修（2026-09-24 dice_game 窗口）
+
+- **位置**：`green_control.py:379-394`（旧内建分支，`speed_percent=fast_speed_percent`
+  即 30、`finger_speed_mode="timed"`）；被遮蔽的配置
+  `configs/actions/gestures/result_feedback.json` 的 `home`（100%/max/together）
+- **问题**：`run_action("home")` 走硬编码内建分支，注册表里的 home 手势永远不被
+  调用——`9be7d7a`（home 60%→100% 现场调机）改的是被遮蔽的那份，常驻
+  `action home` 与 main 侧 `reset_home` 一直跑 30%/timed。`ready`/`actions`
+  事件里 `names = ["home", *registry.names()]` 去重后不暴露重复，肉眼无感。
+  文档 `INTEGRATION.md` 写"HOME 单独保持 60%"同样与实际（30%）不符。
+- **修法**（已落地）：删内建分支，home 统一走 `registry.recipe("home")`；names 不再
+  硬编码塞 home；新增两道防护——注册表缺 home 时 diagnostic 警告"归位不可用"、
+  注册表 home 与 `home.json`（阶段机 HOME 姿态来源）joints_deg 不一致时警告。
+  INTEGRATION.md 的 60% 文档错误同步修正。背景：main 侧 2026-09-24 落地
+  "归位不变量"（离开游戏流程必回 home）后 action home 触发频率大增，30% 太慢
+  直接伤体验，此为修复的直接动因。
+
+#### [ ] P2-24 半途停靠后 `action`/`reload` 永久拒绝，协议无 abort
+
+- **位置**：`green_control.py:274-277,299-302`（判据 `next_index != 0`）；
+  `new_cycle` 已删（恒 `rejected(code=removed)`）；`refresh_perception`
+  仅 `next_index∈(2,3)` 可退
+- **问题**：任何半途停靠（`advance until GRIP`、或 until 省略的单阶段推进——控制台
+  键 2/3 就会踩）之后 `action`/`reload` 永久 `flow_in_progress`，唯一出路是把流程
+  跑到 RETURN_HOME 或重启进程。对"手势与抓取共用一条常驻连接"的设计这是调度死角：
+  手势会话从此不可用，main 侧 reset_home 也会被拒（unrouted 到失败处理）。
+- **修法**：新增 `abort` 命令——丢弃当前流程进度（`next_index=0` + 状态复位），
+  可选是否先归位；或允许 `action home` 在停靠态强制解锁（安全前提：接受握杯
+  掉落，与归位不变量的失败路径一致）。
+
+#### [ ] P2-25 连跑局间把 `status`/`actions` 也一并拒绝；peek 丢弃非对象行
+
+- **位置**：`green_control.py:131-132`（局间兜底一律 `multi_round_busy`，含只读
+  命令）；`:84`（合法 JSON 但非对象的行返回 None，被当"没有更多输入"跳出 peek
+  且不回 invalid_request——与 `_handle` 对非对象行回 `invalid_request` 的行为不一致）
+- **问题**：连跑期间连只读探活都被拒，客户端无法查询状态只能干等；peek 静默吞行
+  可能掩盖协议错乱。
+- **修法**：局间放行 `status`/`actions`（只读无副作用）；peek 对非对象行同样回
+  `invalid_request` 并继续循环。
+
+#### [ ] P2-26 "Hand start" 自动重试 = 从 HOME 整局重放（main 侧 provider 行为）
+
+- **位置**：main `backend/components/robot_arm_nero/provider.py:604-620`（Hand start
+  时 interrupt 常驻 + 原样重发 payload）；demo 侧新进程 `next_index=0`
+  （`green_pipeline.py` 自述"绿色杯流程暂不支持跨进程恢复"）
+- **问题**：`shake_dice` 的重试实际从 HOME 重新 CAPTURE/PLAN/GRIP 再摇一遍——
+  OPEN 阶段失败（杯子已放回桌面）会被再抓再摇；GRIP 后的手指校验失败重试
+  同样整局重放。语义与"重试该阶段"的直觉不符，且没有事件告诉 main 侧
+  "这是重放不是续跑"。
+- **修法**：短期在 provider 日志/事件里明示"整局重放"；根治需要协议加 resume
+  语义（带 next_index 恢复），或对 OPEN 之后的失败改走归位+重新开局而非重放。
+
+#### 备注：阶段失败后臂停在原位、无人归位（已由 main 侧归位不变量缓解）
+
+`failed` → 常驻退出（`green_control.py` serve 返回 2）→ 旧 main 侧 watcher 的
+reset_home 遇死 resident 直接 skipped → 臂停在失败位姿（握着杯子）。2026-09-24 起
+main 侧 `reset_home` 允许复活死常驻 + dice 失败页进入即归位 + 开机归位（dice_game
+仓库 49103f5/564ce81/d3b7c81），此路径已闭环；demo 侧无需再改（用户拍板接受失败
+归位时握杯掉落，不加安全回收动作）。
+
 ---
 
 ## 🟡 P3 —— 长尾排期

@@ -377,23 +377,11 @@ def build_action_runtime(flow, diagnostic):
         raise ValueError("桌面记录与当前标定不一致，请更新桌面记录")
 
     def run_action(name):
-        if name == "home":
-            home = read_json(ROOT / flow.cfg["home"])
-            # flow.cfg holds the raw JSON (strategy not merged); open_targets_0_100
-            # lives in the strategy file since the strategy split and reaches the
-            # validated view flow.g. Prefer g, fall back to raw config for mocks.
-            green = getattr(flow, "g", None) or flow.cfg["green_cup"]
-            mode = green.get("home_execution_mode", "arm_then_hand")
-            if mode not in ("arm_then_hand", "together"):
-                raise ValueError("home_execution_mode must be arm_then_hand or together")
-            recipe = dict(gesture="home", joints_deg=list(home["joints_deg"]),
-                          hand_0_100=list(green["open_targets_0_100"]),
-                          speed_percent=green.get("fast_speed_percent", 30),
-                          finger_duration_s=green.get("fast_finger_duration_s", 0.25),
-                          execution=dict(mode=mode, delay_s=0.0),
-                          finger_speed_mode="timed", finger_max_wait_s=0.65)
-        else:
-            recipe = registry.recipe(name)
+        # home 不再有内建 recipe：统一走注册表（configs/actions/gestures/
+        # result_feedback.json 的 home 手势），用户的调参（speed_percent 等）
+        # 因此真正生效——旧内建分支硬编码 fast_speed_percent=30/timed，
+        # 把 2026-09-24 的 home 100% 调机静默遮蔽了。
+        recipe = registry.recipe(name)
         directory = new_run(Path(flow.root), "green_action_" + recipe["gesture"])
         started = time.perf_counter()
         execute_recipe(recipe, flow.cfg, table["scene"], directory,
@@ -401,7 +389,18 @@ def build_action_runtime(flow, diagnostic):
         return dict(name=recipe["gesture"], receipt=str(directory / "receipt.json"),
                     elapsed_s=round(time.perf_counter() - started, 3))
 
-    names = ["home", *registry.names()]
+    names = registry.names()
+    if "home" not in names:
+        diagnostic.write("[actions] 手势库缺少 home——归位（reset_home）将不可用\n")
+    else:
+        # home.json 仍是阶段机 HOME 阶段的姿态来源；两处维护同一组关节角，
+        # 分叉时只警告不拒绝（分叉 = action home 与 HOME 阶段去到不同姿态）。
+        home = read_json(ROOT / flow.cfg["home"])
+        if list(home["joints_deg"]) != list(registry.recipe("home")["joints_deg"]):
+            diagnostic.write(
+                "[actions] home.json 与手势库 home 的 joints_deg 不一致，"
+                "归位动作将使用手势库的值\n"
+            )
     return names, run_action
 
 
