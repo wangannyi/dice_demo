@@ -3,6 +3,7 @@
 from contextlib import nullcontext
 import io
 import json
+import math
 from pathlib import Path
 import tempfile
 import time
@@ -133,6 +134,50 @@ class ControlSessionTest(unittest.TestCase):
             self.assertEqual(flow.perform.call_count, 5)
             self.assertEqual([x['code'] for x in events(outgoing) if x['event'] == 'rejected'],
                              ['duplicate_id', 'already_completed', 'removed'])
+
+    def test_query_pose_reports_at_home_and_failures_as_rejected(self):
+        """只读姿态探针（game 侧巡检归位的判定依据）：pose 事件带 at_home；
+        snapshot 失败必须 rejected（探针绝不杀会话、不进 failed）。"""
+        home_deg = [0, -70, -90, 100, -10, -5, 5]
+        at_home_rad = [math.radians(x) for x in home_deg]
+        away_rad = [math.radians(x + 30) for x in home_deg]
+        for joints, expect_home in ((at_home_rad, True), (away_rad, False)):
+            with self.subTest(expect_home=expect_home), \
+                    tempfile.TemporaryDirectory() as tmp:
+                flow = SimpleNamespace(cfg=dict(home='home.json'), root=tmp, _sdk=Mock())
+                flow._sdk.call.return_value = dict(success=True, joints_rad=joints)
+                outgoing = io.StringIO()
+                server = control.ControlSession(
+                    flow, Path(tmp) / 'state.json',
+                    commands(dict(id='p', command='query_pose'),
+                             dict(command='close')),
+                    outgoing, io.StringIO())
+                with patch('cup_grasp_demo.flow.core.read_json',
+                           return_value=dict(joints_deg=home_deg)), \
+                     patch('cup_grasp_demo.flow.debug.new_run',
+                           return_value=Path(tmp) / 'pose_run'):
+                    self.assertEqual(server.serve(), 0)
+                pose = next(x for x in events(outgoing) if x['event'] == 'pose')
+                self.assertEqual(pose['at_home'], expect_home)
+                self.assertEqual(len(pose['delta_deg']), 7)
+        # CAN/worker 断 → rejected + 会话存活
+        with tempfile.TemporaryDirectory() as tmp:
+            flow = SimpleNamespace(cfg=dict(home='home.json'), root=tmp, _sdk=Mock())
+            flow._sdk.call.side_effect = RuntimeError('SDK worker exited')
+            outgoing = io.StringIO()
+            server = control.ControlSession(
+                flow, Path(tmp) / 'state.json',
+                commands(dict(id='q', command='query_pose'),
+                         dict(command='close')),
+                outgoing, io.StringIO())
+            with patch('cup_grasp_demo.flow.core.read_json',
+                       return_value=dict(joints_deg=home_deg)), \
+                 patch('cup_grasp_demo.flow.debug.new_run',
+                       return_value=Path(tmp) / 'pose_run'):
+                self.assertEqual(server.serve(), 0)
+            rejected = next(x for x in events(outgoing) if x['event'] == 'rejected')
+            self.assertEqual(rejected['code'], 'pose_unavailable')
+            self.assertNotIn('pose', [x['event'] for x in events(outgoing)])
 
     def test_return_home_auto_resets_without_new_cycle(self):
         with tempfile.TemporaryDirectory() as directory:

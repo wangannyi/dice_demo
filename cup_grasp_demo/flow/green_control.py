@@ -52,6 +52,39 @@ class ControlSession:
     def _next_phase(self):
         return PHASES[self.next_index] if self.next_index < len(PHASES) else None
 
+    def _query_pose(self, request_id):
+        """Read-only pose probe for the patrol homing on the game side.
+
+        One ``snapshot`` over the persistent SDK worker, then compare against
+        ``home`` (the HOME-phase posture source).  Any failure — CAN down,
+        worker dead, malformed receipt — is a ``rejected``, never a ``failed``:
+        probing must not exit the session.
+        """
+        import math
+        from cup_grasp_demo.flow.core import ROOT, read_json
+        from cup_grasp_demo.flow.debug import new_run
+        try:
+            directory = new_run(Path(self.flow.root), "green_pose")
+            report = self.flow._sdk.call("snapshot", directory / "actual.json")
+            joints = report.get("joints_rad") if isinstance(report, dict) else None
+            if not isinstance(report, dict) or report.get("success") is not True \
+                    or not isinstance(joints, list) or len(joints) != 7:
+                raise RuntimeError(
+                    str(report.get("error", "snapshot 回执缺少 joints_rad"))[:200]
+                    if isinstance(report, dict) else "snapshot 无回执")
+            home = read_json(ROOT / self.flow.cfg["home"])
+            green = getattr(self.flow, "g", None)
+            tolerance = float(green["home_pose_tolerance_deg"]) if isinstance(green, dict) \
+                and "home_pose_tolerance_deg" in green else 5.0
+            deltas = [math.degrees(j - math.radians(h))
+                      for j, h in zip(joints, home["joints_deg"])]
+            at_home = max(abs(d) for d in deltas) <= tolerance
+            self._reply("pose", request_id, joints_rad=[round(j, 6) for j in joints],
+                        delta_deg=[round(d, 3) for d in deltas], at_home=at_home)
+        except Exception as exc:
+            self._reject(request_id, "pose_unavailable", f"{type(exc).__name__}: {exc}")
+        return True
+
     def _reply(self, event, request_id=None, **fields):
         emit(self.outgoing, event, id=request_id, cycle=self.cycle,
              status=self.state["status"], next_phase=self._next_phase(), **fields)
@@ -258,6 +291,8 @@ class ControlSession:
                 item["phase"] for item in self.state["events"]],
                 state_file=str(self.state_path))
             return True
+        if command == "query_pose":
+            return self._query_pose(request_id)
         if command == "close":
             self.state["status"] = "PAUSED"
             save(self.state_path, self.state)

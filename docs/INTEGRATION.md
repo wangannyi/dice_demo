@@ -55,6 +55,7 @@ bash run.sh control --execute
 | `{"id":"7","command":"actions"}` | 列出全部可用动作名（含 `home` 与别名） |
 | `{"id":"9","command":"reload"}` | 空闲时重扫 `configs/actions/gestures/` 并原子替换动作表（设备连接不断开）；流程进行中拒绝，失败保留旧表 |
 | `{"id":"11","command":"stop"}` | 仅连跑局间生效：停止后续轮次，已完成局保留，回空闲发 `rounds_stopped`；非连跑时 `rejected(not_in_multi_round)` |
+| `{"id":"12","command":"query_pose"}` | **只读姿态探针**（2026-09-24，game 侧空闲巡检归位用）：经 SDK worker 读一次关节快照，与 `home` 姿态比对（容差 5°/关节，可经 `green_cup.home_pose_tolerance_deg` 覆盖），回 `pose` 事件带 `at_home`/`joints_rad`/`delta_deg`。任何读取失败回 `rejected(pose_unavailable)`，**绝不 `failed`、不退出会话**；不与 `action` 互斥（只读无动作） |
 | `{"id":"8","command":"close"}` | 释放 SDK/相机并退出；未完成流程记为 `PAUSED`；连跑局间收到 close 停止连跑并退出 |
 
 启动时返回 `ready`（含可用动作列表），每阶段返回 `phase_started`、`phase_completed`，目标阶段结束后返回 `command_completed`。**RETURN_HOME 完成发 `run_completed` 并自动复位回空闲**（无轮次；直接 `advance` 即开始下一次抓取；`rounds>1` 时为有界连跑，局间仅接受 stop/close，其他命令 `rejected(multi_round_busy)`，全部完成发 `rounds_completed`）。静态动作返回 `action_started`、`action_completed`（含收据路径与耗时）；未知动作名返回 `rejected(unknown_action)` 不中断会话。**抓取流程进行中（已开始未跑完 RETURN_HOME）请求 `action` 一律 `rejected(flow_in_progress)`**——包括持杯间隙；空闲时静态动作随意调度互切。`status` 事件含 `status`、`next_phase`、`completed_phases`；阶段执行失败返回 `failed` 且进程退出。SDK 执行器进程死亡时按收据自动分级：收据 `success=true`（命令实际完成）直接返回结果并重建连接、绝不重发；收据确证零传输（`motion_attempted=false` 且 `tx.actual_tx_count=0` 且无不确定传输）时自动重建执行器并重发一次（收据记 `worker_restarted`）；收据缺失或传输状态不确定则照常失败退出，等待人工处理——与摇晃起点拒绝使用同一安全标准。上层必须持续读取 stdout，按 `id` 和事件判断完成；**不要靠固定睡眠或耗时文本推断动作完成**。阶段执行时追加的命令会排队，按顺序处理（链结束后依次执行）；运行中中止仍使用 SIGINT，并核实硬件状态。
