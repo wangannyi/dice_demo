@@ -20,6 +20,7 @@ INTERACTIVE_ACTIONS = (
     ('paper', '猜拳：布'),
     ('scissors', '猜拳：剪刀'),
     ('home', '归位：HOME（六路手指张开）'),
+    ('rps-ready', '猜拳：预备位置（六路手指张开）'),
 )
 
 

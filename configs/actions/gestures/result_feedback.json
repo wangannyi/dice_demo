@@ -235,6 +235,33 @@
       },
       "finger_speed_mode": "max",
       "finger_max_wait_s": 0.65
+    },
+    "rps-ready": {
+      "joints_deg": [
+        0,
+        -70,
+        -30,
+        100,
+        -10,
+        -5,
+        5
+      ],
+      "hand_0_100": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "speed_percent": 100,
+      "finger_duration_s": 0.5,
+      "execution": {
+        "mode": "together",
+        "delay_s": 0.0
+      },
+      "finger_speed_mode": "max",
+      "finger_max_wait_s": 0.65
     }
   },
   "aliases": {
