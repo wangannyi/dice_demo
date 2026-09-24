@@ -32,6 +32,7 @@ python3 scripts/control_console.py
 | `3` | 连续执行到 GRIP |
 | `4` | 连续执行到 SHAKE |
 | `5` 或 `g` | 连续执行到 RETURN_HOME |
+| `g5` / `g10` | 连跑 N 局（1..99，每局自动复位接着下一局）；局间可输 `stop` 停止或 `close` 退出 |
 | `6` | 重新识别杯子并规划 |
 | `1` | 查询状态 |
 | `8` | 释放设备并退出 |

@@ -5,6 +5,7 @@ import io
 import json
 from pathlib import Path
 import tempfile
+import time
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -240,6 +241,107 @@ class ControlSessionTest(unittest.TestCase):
             self.assertEqual(rejected['code'], 'reload_failed')
             listed = next(x for x in reports if x['event'] == 'actions')
             self.assertEqual(listed['names'], ['home', 'yeah'])
+
+    def test_multi_round_runs_every_round_and_reports(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            outgoing = io.StringIO()
+            server = control.ControlSession(
+                flow, Path(directory) / 'state.json', commands(
+                    dict(command='advance', until='RETURN_HOME', rounds=3),
+                    dict(command='close')),
+                outgoing, io.StringIO())
+            self.assertEqual(server.serve(), 0)
+            self.assertEqual(flow.perform.call_count, 3 * len(control.PHASES))
+            reports = events(outgoing)
+            starts = [x for x in reports if x['event'] == 'round_started']
+            self.assertEqual([x['round'] for x in starts], [1, 2, 3])
+            self.assertEqual(len([x for x in reports if x['event'] == 'run_completed']), 3)
+            done = next(x for x in reports if x['event'] == 'rounds_completed')
+            self.assertEqual(done['rounds'], 3)
+            command = next(x for x in reports
+                           if x['event'] == 'command_completed' and 'rounds_completed' in x)
+            self.assertEqual(command['rounds_completed'], 3)
+            # StringIO has no fileno: between-round peek is a no-op, all rounds run.
+
+    def test_multi_round_rejects_invalid_rounds_and_idle_stop(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            outgoing = io.StringIO()
+            server = control.ControlSession(
+                flow, Path(directory) / 'state.json', commands(
+                    dict(command='advance', rounds=0),
+                    dict(command='advance', rounds=True),
+                    dict(command='advance', rounds=100),
+                    dict(command='stop'),
+                    dict(command='close')),
+                outgoing, io.StringIO())
+            self.assertEqual(server.serve(), 0)
+            codes = [x['code'] for x in events(outgoing) if x['event'] == 'rejected']
+            self.assertEqual(codes, ['invalid_rounds', 'invalid_rounds', 'invalid_rounds',
+                                     'not_in_multi_round'])
+            self.assertEqual(flow.perform.call_count, 0)
+
+    def test_multi_round_failure_ends_rounds_without_retry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            # Round 1 fine; round 2 fails on its first phase.
+            flow.perform.side_effect = [None] * len(control.PHASES) + [RuntimeError('boom')]
+            outgoing = io.StringIO()
+            server = control.ControlSession(
+                flow, Path(directory) / 'state.json', commands(
+                    dict(command='advance', until='RETURN_HOME', rounds=3)),
+                outgoing, io.StringIO())
+            self.assertEqual(server.serve(), 2)
+            self.assertEqual(flow.perform.call_count, len(control.PHASES) + 1)
+            reports = events(outgoing)
+            self.assertEqual(len([x for x in reports if x['event'] == 'round_started']), 2)
+            self.assertEqual(reports[-1]['event'], 'failed')
+
+    def _pipe_session(self, lines, flow, directory):
+        """ControlSession over a real pipe so select-based peeking works.
+
+        Both commands are written up front, then the writer closes: the pipe
+        delivers them in order and EOF lets serve() exit once it runs dry.
+        The advance loop consumes the queued stop/close between rounds.
+        """
+        import os
+        read_fd, write_fd = os.pipe()
+        incoming = os.fdopen(read_fd, 'r', buffering=1)
+        writer = os.fdopen(write_fd, 'w', buffering=1)
+        for line in lines:
+            writer.write(json.dumps(line) + '\n')
+        writer.close()
+        outgoing = io.StringIO()
+        server = control.ControlSession(
+            flow, Path(directory) / 'state.json', incoming, outgoing, io.StringIO())
+        return server, outgoing
+
+    def test_multi_round_stop_between_rounds_parks_idle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            server, outgoing = self._pipe_session(
+                [dict(command='advance', until='RETURN_HOME', rounds=3),
+                 dict(command='stop')],
+                flow, directory)
+            self.assertEqual(server.serve(), 0)
+            reports = events(outgoing)
+            stopped = next(x for x in reports if x['event'] == 'rounds_stopped')
+            self.assertEqual(stopped['status'], 'WAITING')
+            self.assertLess(flow.perform.call_count, 3 * len(control.PHASES))
+            self.assertGreaterEqual(flow.perform.call_count, len(control.PHASES))
+
+    def test_multi_round_close_between_rounds_exits(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            server, outgoing = self._pipe_session(
+                [dict(command='advance', until='RETURN_HOME', rounds=3),
+                 dict(command='close')],
+                flow, directory)
+            self.assertEqual(server.serve(), 0)
+            reports = events(outgoing)
+            self.assertEqual(reports[-1]['event'], 'closed')
+            self.assertLess(flow.perform.call_count, 3 * len(control.PHASES))
 
     def test_failure_stops_following_phases(self):
         with tempfile.TemporaryDirectory() as directory:

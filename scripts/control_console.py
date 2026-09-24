@@ -75,13 +75,14 @@ def build_menu(shortcuts, gestures):
         "",
         "抓取流程（视觉联动复合任务）：",
         "  g  完整流程（一口气到 RETURN_HOME，结束自动回空闲）",
+        "  g5 / g10  连跑 N 局（如 g5 连玩 5 局，局间可 stop 停 / close 退）",
         "  2  单阶段推进（调试）      3  连续执行到 GRIP（闭手抓杯）",
         "  4  连续执行到 SHAKE（摇完停住）    5  连续执行到 RETURN_HOME",
         "  6  refresh_perception   退回 CAPTURE 重新识别（仅 CAPTURE 后、APPROACH 前可用）",
         "  1  status               8  close 释放设备并退出",
         "  9  仅退控制台（子进程收到 EOF 后释放设备，状态记 PAUSED）",
         "  0  显示本菜单",
-        "也可直接输入一行 JSON 命令，如 {\"command\":\"action\",\"name\":\"yeah\"}。",
+        "连跑进行中仅接受 stop / close；也可直接输入一行 JSON 命令，如 {\"command\":\"advance\",\"rounds\":3}。",
     ]
     return "\n".join(lines)
 
@@ -103,6 +104,9 @@ HINTS = {
     "ready": "常驻就绪：预热完成，空闲态可发手势或开始抓取流程",
     "phase_started": "阶段开始",
     "phase_completed": "阶段完成",
+    "round_started": "连跑新一局开始",
+    "rounds_completed": "连跑全部完成：自动复位回空闲",
+    "rounds_stopped": "连跑已停止：已完成局保留，回到空闲",
     "command_completed": "命令完成",
     "run_completed": "抓取流程完成：自动复位回空闲，可发手势或直接再来一轮",
     "action_started": "静态动作开始",
@@ -123,7 +127,8 @@ def describe(event):
     for key, label in (("phase", "阶段"), ("next_phase", "下一阶段"), ("status", "状态"),
                        ("run", "运行序号"), ("cycle", "运行序号"), ("code", "code"),
                        ("through", "推进到"), ("name", "动作"), ("receipt", "收据"),
-                       ("actions", "动作")):
+                       ("actions", "动作"), ("round", "局"), ("rounds", "总局数"),
+                       ("rounds_completed", "完成局数"), ("reason", "原因")):
         if event.get(key) is not None:
             value = event[key]
             parts.append(f"{label}=" + ("、".join(value) if isinstance(value, list) else str(value)))
@@ -306,6 +311,10 @@ def main():
                 continue
             if raw in choices:
                 command = dict(choices[raw])
+            elif (raw.startswith("g") and raw[1:].isdigit()
+                    and 1 <= int(raw[1:]) <= 99):
+                command = {"command": "advance", "until": "RETURN_HOME",
+                           "rounds": int(raw[1:])}
             elif raw.startswith("a ") and raw[2:].strip():
                 command = {"command": "action", "name": raw[2:].strip()}
             elif raw.startswith("{"):
