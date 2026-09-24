@@ -5,6 +5,7 @@ import math
 import os
 from pathlib import Path
 import subprocess
+import sys
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextvars import copy_context
@@ -821,9 +822,7 @@ class Workflow:
         if not persistent:
             self.close_sdk()
         run = common.new_run(self.root, "green_joint_shake")
-        sdk = os.environ.get(
-            "DICE_SDK_PYTHON", "/usr/bin/python3"
-        )
+        sdk = os.environ.get("DICE_SDK_PYTHON", sys.executable)
         prepared = getattr(self, '_shake_future', None) if attempt == 0 else None
         if prepared is not None:
             p, table = prepared.result(timeout=self.cfg['timeout_s'])

@@ -1,4 +1,4 @@
 python-can>=3.3.4
 typing-extensions
 numpy
-# pyAgxArm source supplied separately through NERO_SDK_DIR.
+# pyAgxArm source is pinned under third_party/pyAgxArm.

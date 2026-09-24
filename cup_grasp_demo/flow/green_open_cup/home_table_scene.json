@@ -19,7 +19,7 @@
       "rms_mm": 2.750024509588857
     }
   },
-  "calibration_sha256": "e53cb85f8f9ce5eaf2903492c526a80c79456e4d38db7182b53229d3ac3a6ab3",
-  "source": "/home/test2/dice_demo_hwj/cup_grasp_demo/datasets/table_auto_20260923_184613/planar_table_scene.json",
+  "calibration_sha256": "5a0937eba8ebc1b43b50742d4a9b6ea6ca8972b926b8e1157f0ddfb658b066c3",
+  "source": "calibration/datasets/table_auto_20260923_184613/planar_table_scene.json",
   "requires_fixed_base_and_table": true
 }

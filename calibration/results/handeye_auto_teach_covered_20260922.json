@@ -259,7 +259,7 @@
     "grid_height_mm": 108.0,
     "spacing_x_mm": 21.625,
     "spacing_y_mm": 21.6,
-    "source_dataset": "/home/test2/dice_demo/nero_calibration/datasets/handeye_auto_teach_covered_20260922",
+    "source_dataset": "calibration/datasets/handeye_auto_teach_covered_20260922",
     "opencv_version": "4.13.0",
     "recorded_board_config": {
       "type": "charuco",
@@ -338,5 +338,6 @@
     },
     "method": "Original marker detection and corner interpolation; measured X/Y grid points for PnP. Original flange poses, sample order, holdouts and gates retained.",
     "scope": "Offline derived observations; not a resumable capture session or a live board config."
-  }
+  },
+  "source_dataset": "calibration/datasets/handeye_auto_teach_covered_20260922"
 }

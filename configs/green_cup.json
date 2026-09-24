@@ -128,7 +128,6 @@
       "confidence": 0.35,
       "iou_threshold": 0.45,
       "mask_threshold": 0.5,
-      "ort_package_dir": "/usr/lib/python3.14/dist-packages",
       "geometry_method": "stereo_rim",
       "reference_dimensions_mm": {
         "height": 65,

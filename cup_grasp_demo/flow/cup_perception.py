@@ -20,8 +20,7 @@ from vision.inference.yolo_seg import preprocess
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULTS = dict(confidence=.35, iou_threshold=.45, mask_threshold=.5,
                 min_workspace_fraction=.9, min_valid_depth_fraction=.5,
-                mask_erode_px=1, section_half_band_mm=4.,
-                ort_package_dir='/usr/lib/python3.14/dist-packages')
+                mask_erode_px=1, section_half_band_mm=4., ort_package_dir=None)
 
 
 def perception_options(cfg):
@@ -57,8 +56,8 @@ def perception_options(cfg):
     if (isinstance(value, bool) or not isinstance(value, (int, float))
             or not math.isfinite(value) or not .5 <= value <= 4.):
         raise ValueError('cup_perception.section_half_band_mm must be in 0.5..4 mm')
-    if not isinstance(opts['ort_package_dir'], str):
-        raise ValueError('cup_perception.ort_package_dir must be a string')
+    if opts['ort_package_dir'] is not None and not isinstance(opts['ort_package_dir'], str):
+        raise ValueError('cup_perception.ort_package_dir must be null or a string')
     return opts
 
 

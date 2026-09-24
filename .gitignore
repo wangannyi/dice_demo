@@ -2,7 +2,6 @@ __pycache__/
 *.pyc
 .venv*/
 .deps/
-vendor-site/
 .ruff_cache/
 dist/
 **/datasets/
@@ -22,6 +21,6 @@ spacemitk3-dice_demo/
 # 本地会话工件与打包产物
 .zcode/
 .code/
-vendor-site-deps/
+third_party/python/
 .vscode/
 .v2c/

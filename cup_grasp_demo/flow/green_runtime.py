@@ -5,6 +5,7 @@ from pathlib import Path
 import select
 import signal
 import subprocess
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
@@ -35,7 +36,7 @@ class SDKClient:
         """Start one SDK worker subprocess and wait for its ready line."""
         self.log = self.log_path.open('a')
         argv = self._worker_argv or [
-            os.environ.get('DICE_SDK_PYTHON', '/usr/bin/python3'),
+            os.environ.get('DICE_SDK_PYTHON', sys.executable),
             str(Path(__file__).with_name('green_sdk_worker.py')), '--channel', self.cfg['channel'],
             '--evidence-output', str((self.directory / 'sdk_startup.json').resolve())]
         self._log_index += 1

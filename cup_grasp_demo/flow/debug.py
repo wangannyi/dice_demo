@@ -43,7 +43,7 @@ def new_run(session, name):
 
 
 def bridge(command, output, cfg, request=None):
-    python = os.environ.get('DICE_SDK_PYTHON', '/usr/bin/python3')
+    python = os.environ.get('DICE_SDK_PYTHON', sys.executable)
     argv = [python, str(HERE / 'hardware.py'), command, '--channel', cfg['channel'],
             '--output', str(output)]
     if request:

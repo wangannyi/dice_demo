@@ -6,7 +6,7 @@ import shutil
 import tarfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
-TREES=('cup_grasp_demo','vision','nero_revo2_control','configs','calibration','scripts','docs')
+TREES=('cup_grasp_demo','vision','nero_revo2_control','configs','calibration','scripts','docs','third_party')
 SKIP={'build','CMakeFiles','.pytest_cache','.ruff_cache','datasets','output','runtime','diagnostics','__pycache__','.git','.deps','.venv'}
 
 def build(destination, *, site_active=False):
@@ -22,7 +22,8 @@ def build(destination, *, site_active=False):
             if any(part in SKIP for part in rel.parts) or path.is_symlink() or not path.is_file():continue
             if path.suffix == '.md' and path.name not in ('README.md',) and tree != 'docs':
                 continue  # Development journals reference local-only captures.
-            if path.suffix in ('.py','.sh','.json','.md','.onnx','.urdf','.xacro','.txt','.yaml') or path.name == 'LICENSE':
+            if (tree == 'third_party' or path.suffix in ('.py','.sh','.json','.md','.onnx','.urdf','.xacro','.txt','.yaml')
+                    or path.name == 'LICENSE'):
                 selected.add(rel)
     for name in ('README.md','run.sh','run_feedback.sh','.gitignore','requirements-vision.txt','requirements-sdk.txt','THIRD_PARTY.md'):
         selected.add(Path(name))
