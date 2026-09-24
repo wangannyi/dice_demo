@@ -22,14 +22,27 @@ def read_json(path):
 
 
 class SDKClient:
-    def __init__(self, cfg, directory):
+    def __init__(self, cfg, directory, *, worker_argv=None):
         self.cfg = cfg
-        self.log_path = (directory / 'sdk_worker.log').resolve()
-        self.log = self.log_path.open('x')
-        self.process = subprocess.Popen([
+        self.directory = Path(directory)
+        self.log_path = (self.directory / 'sdk_worker.log').resolve()
+        # Test seam: a fake worker argv replaces the real subprocess command.
+        self._worker_argv = worker_argv
+        self._log_index = 0
+        self._spawn()
+
+    def _spawn(self):
+        """Start one SDK worker subprocess and wait for its ready line."""
+        self.log = self.log_path.open('a')
+        argv = self._worker_argv or [
             os.environ.get('DICE_SDK_PYTHON', '/usr/bin/python3'),
-            str(Path(__file__).with_name('green_sdk_worker.py')), '--channel', cfg['channel'],
-            '--evidence-output', str((directory / 'sdk_startup.json').resolve())],
+            str(Path(__file__).with_name('green_sdk_worker.py')), '--channel', self.cfg['channel'],
+            '--evidence-output', str((self.directory / 'sdk_startup.json').resolve())]
+        self._log_index += 1
+        if self._log_index > 1:
+            self.log.write(f'\n===== worker restart #{self._log_index - 1} =====\n')
+            self.log.flush()
+        self.process = subprocess.Popen(argv,
             cwd=ROOT, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self.log,
             text=True, bufsize=1)
         try:
@@ -37,8 +50,36 @@ class SDKClient:
             if answer.get('ready') is not True:
                 raise RuntimeError(f"SDK worker 启动失败：{answer.get('error', '未就绪')}；日志：{self.log_path}")
         except BaseException:
-            self.close()
+            self._terminate()
             raise
+
+    def restart(self):
+        """Replace a dead worker; the old process is gone, only pipes need closing."""
+        for pipe in (self.process.stdin, self.process.stdout):
+            try:
+                pipe.close()
+            except OSError:
+                pass
+        self.log.close()
+        self._spawn()
+
+    def _dead_worker_receipt(self, output):
+        """Receipt of a dead worker; None unless the file parses. No motion checks here."""
+        if not output.exists():
+            return None
+        try:
+            return read_json(output)
+        except (OSError, ValueError):
+            return None
+
+    def _zero_tx_failure(self, report):
+        """A dead worker may be restarted only when its receipt proves nothing moved."""
+        tx = report.get('tx') or {}
+        return (report.get('success') is False
+                and report.get('motion_attempted') is False
+                and report.get('finger_commands_sent') in (None, 0)
+                and tx.get('actual_tx_count') == 0
+                and tx.get('transmission_outcome_uncertain') is False)
 
     def receive(self, timeout):
         ready, _, _ = select.select([self.process.stdout], [], [], timeout)
@@ -59,6 +100,33 @@ class SDKClient:
         return json.loads(line)
 
     def call(self, command, output, request=None, *, on_dispatched=None):
+        try:
+            return self._call_once(command, output, request, on_dispatched=on_dispatched)
+        except RuntimeError as exc:
+            # Worker-death recovery: only when the subprocess is confirmed dead.
+            # A timeout never restarts (the worker may still be executing; a
+            # second executor is unsafe). The receipt then decides:
+            #   success=True      -> the command actually finished; return it
+            #   zero-transmission -> restart once and resend
+            #   anything else     -> surface the failure (human intervention)
+            if 'SDK worker exited' not in str(exc):
+                self.close()
+                raise
+            report = self._dead_worker_receipt(output)
+            if report is not None and report.get('success') is True:
+                # Command actually finished; recover the connection, never resend.
+                self.restart()
+                return report
+            if report is None or not self._zero_tx_failure(report):
+                self.close()
+                raise
+        # Receipt proved nothing moved and nothing was sent; one restart+retry.
+        self.restart()
+        report = self._call_once(command, output, request)
+        report['worker_restarted'] = True
+        return report
+
+    def _call_once(self, command, output, request=None, *, on_dispatched=None):
         message = dict(command=command, output=str(output))
         if command == 'snapshot' and self.cfg.get('green_cup', {}).get('fast_cached_feedback', False):
             message['cached_snapshot'] = True
@@ -94,10 +162,11 @@ class SDKClient:
                 raise RuntimeError(f"{report.get('error')}; 日志：{output.with_suffix('.log')}")
             return report
         except BaseException:
-            self.close()
+            self._terminate()
             raise
 
-    def close(self):
+    def _terminate(self):
+        """Stop the worker process and close its pipes; the log stays open."""
         proc = self.process
         if proc.poll() is None:
             try:
@@ -112,7 +181,13 @@ class SDKClient:
                     proc.kill()
                     proc.wait()
         for pipe in (proc.stdin, proc.stdout):
-            pipe.close()
+            try:
+                pipe.close()
+            except OSError:
+                pass
+
+    def close(self):
+        self._terminate()
         self.log.close()
 
 
