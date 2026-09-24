@@ -131,7 +131,7 @@ bash run_feedback.sh home --execute
 
 `win`、`lose`、`draw` 是骰子结果动作别名；`rock`、`paper`、`scissors` 是猜拳动作；`home` 会张开六路手指并返回保存的 HOME 关节姿态。无动作名且带 `--execute` 时，程序保持常驻并复用同一个 SDK/CAN 连接；每个动作完成后返回菜单，输入 `q` 关闭连接。指定动作名时仍执行一次后退出。普通动作完成后保持姿态，不自动回 HOME。骰子反馈与猜拳动作的机械臂速度均为 100%，灵巧手使用最大速度指令，臂手同时开始。石头动作的四指目标下发后 `0.1 s` 即下发拇指闭合目标；平局手型按 `0.5 s` 间隔切换。
 
-动作定义在 `configs/actions/gestures/`。每个动作可配置：
+动作定义在 `configs/actions/gestures/`。目录下每个 JSON 文件是一组（组名即文件名，顶层默认值只对本组生效）：`result_feedback.json` 是骰子反馈组（yeah/thumbs-up/tie/home 及 win/lose/draw 别名），`rps.json` 是猜拳组（rock/paper/scissors/rps-ready）——两组可各自独立调默认速度与手指参数。每个动作可配置：
 
 ```json
 {

@@ -38,9 +38,13 @@ class FeedbackTests(unittest.TestCase):
 
     def test_rock_paper_scissors_recipes(self):
         joints = [40.117, -90.324, -90.391, 79.804, -9.524, -5.203, 4.942]
-        rock = feedback.recipe_for(self.config, 'rock')
-        paper = feedback.recipe_for(self.config, 'paper')
-        scissors = feedback.recipe_for(self.config, 'scissors')
+        # RPS gestures live in the rps.json group since the split; load them
+        # through the registry exactly as the runtime does.
+        from scripts.action_registry import load_registry
+        registry = load_registry()
+        rock = registry.recipe('rock')
+        paper = registry.recipe('paper')
+        scissors = registry.recipe('scissors')
         for recipe in (rock, paper, scissors):
             self.assertEqual(recipe['joints_deg'], joints)
             self.assertEqual(recipe['speed_percent'], 100)
