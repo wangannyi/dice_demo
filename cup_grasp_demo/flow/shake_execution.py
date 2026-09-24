@@ -127,14 +127,18 @@ def validate_request(request, now):
 
 
 def verify_stop(session, target, report, *, timeout=6.0, require_position=True,
-                stable_samples=10, poll_s=.03):
+                stable_samples=10, poll_s=.03, joint_max_age_s=.1):
     if not 3 <= stable_samples <= 10 or not 0 <= poll_s <= .03:
         raise ValueError("Invalid stop verification settings")
     previous = None
     stable = 0
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        row = core.fresh_feedback(session, previous=previous)
+        # Post-motion feedback can lag one CAN beat; the caller passes the
+        # same configured budget the motion loop already uses (0.1 default
+        # keeps standalone stop checks strict).
+        row = core.fresh_feedback(session, previous=previous,
+                                  joint_max_age_s=joint_max_age_s)
         previous = row
         report.append(row)
         if not state_ok(row):
@@ -246,6 +250,8 @@ def control_conflicts(before, current):
 
 def run(request):
     validate_request(request, time.time())
+    from cup_grasp_demo.flow.joint_execution import feedback_freshness_limit
+    freshness_limit = feedback_freshness_limit(request)
     plan = request["plan"]
     utilization = plan["parameters"].get("limit_utilization", .8)
     channel = request["channel"]
@@ -358,7 +364,8 @@ def run(request):
             if index <= last_index:
                 time.sleep(0.001)
                 continue
-            row = core.fresh_feedback(session, previous=previous)
+            row = core.fresh_feedback(session, previous=previous,
+                                      joint_max_age_s=freshness_limit)
             previous = row
             elapsed = time.monotonic() - start
             # Feedback acquisition can take a control tick. Select the command
@@ -400,7 +407,8 @@ def run(request):
         report['motion_elapsed_s'] = report['reference_send_elapsed_s']
         report['duration_completed'] = report['reference_send_elapsed_s'] >= duration
         report["center_settle"] = []
-        verify_stop(session, plan["start_q_rad"], report["center_settle"])
+        verify_stop(session, plan["start_q_rad"], report["center_settle"],
+                    joint_max_age_s=freshness_limit)
         report["returned_center"] = True
         report["hand_after"] = hand_feedback(hand, cache)
         report["measured_wave"] = measured_wave(report["feedback"], plan)
@@ -419,6 +427,7 @@ def run(request):
                     session,
                     report["failure_hold"]["target_rad"],
                     report["hold_feedback"],
+                    joint_max_age_s=freshness_limit,
                 )
                 report["failure_hold"]["hold_verified"] = True
             except BaseException as hold_error:

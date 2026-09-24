@@ -235,6 +235,9 @@ def live_plan(robot, plan):
 
 def run(request, *, connected=None, connection_evidence=None):
     validate_request(request, time.time())
+    # One configured freshness budget for every reader in this run: the
+    # streaming loop, the non-reader fallback and both stop verifications.
+    freshness_limit = feedback_freshness_limit(request)
     if connected is not None and request.get('load_context') != 'green_cup_held':
         raise ValueError('Persistent shake is restricted to the green pipeline')
     if connected is not None and connection_evidence is None:
@@ -314,7 +317,7 @@ def run(request, *, connected=None, connection_evidence=None):
             from cup_grasp_demo.flow.joint_stream import (
                 DeadlineClock, FeedbackReader, stream_statistics)
             clock = DeadlineClock(rate, start, monotonic=time.monotonic, sleep=time.sleep)
-            freshness = feedback_freshness_limit(request)
+            freshness = freshness_limit
             report['feedback_freshness_limit_s'] = freshness
             reader = FeedbackReader(
                 lambda **kwargs: core.fresh_feedback(session, **kwargs), previous,
@@ -327,7 +330,8 @@ def run(request, *, connected=None, connection_evidence=None):
                     clock.wait()
                     row = reader.latest(time.time())
                 else:
-                    row = core.fresh_feedback(session, previous=previous)
+                    row = core.fresh_feedback(session, previous=previous,
+                                              joint_max_age_s=freshness_limit)
                 is_new = row is not previous
                 previous = row
                 elapsed = time.monotonic() - start
@@ -387,7 +391,8 @@ def run(request, *, connected=None, connection_evidence=None):
         require_center = request.get('require_center_position', True)
         shared.verify_stop(session, plan["start_q_rad"], report["center_settle"],
                            **({"require_position": False} if not require_center else {}),
-                           **({"stable_samples": 3, "poll_s": 0.0} if connected is not None else {}))
+                           **({"stable_samples": 3, "poll_s": 0.0} if connected is not None else {}),
+                           joint_max_age_s=freshness_limit)
         report["returned_center"] = require_center
         report["stopped_verified"] = True
         report["completion_basis"] = 'center_position' if require_center else 'fresh_normal_idle'
@@ -404,6 +409,7 @@ def run(request, *, connected=None, connection_evidence=None):
                     session,
                     report["failure_hold"]["target_rad"],
                     report["hold_feedback"],
+                    joint_max_age_s=freshness_limit,
                 )
                 report["failure_hold"]["hold_verified"] = True
             except BaseException as hold_error:
