@@ -11,7 +11,8 @@
     --session PATH   覆盖 DICE_RUN（默认 cup_grasp_demo/datasets/green_current）
 
 也可以不选数字，直接输入一行 JSON 命令（如 {"command":"advance","until":"LIFT"}）。
-阶段执行中下发的命令会在常驻进程内排队，按顺序处理。
+运动类命令在阶段执行中会排队、按序处理；status/query_pose 探测即时应答
+（query_pose 遇忙立即回 command_busy）。
 """
 
 import argparse
@@ -31,8 +32,8 @@ ROOT = Path(__file__).resolve().parent.parent
 FIXED_SHORTCUTS = {"y": "yeah", "t": "thumbs-up", "e": "tie", "h": "home", "r": "rock"}
 GESTURE_HINTS = {"yeah": "机械臂赢", "thumbs-up": "机械臂输", "tie": "平局",
                  "rock": "拳头", "paper": "布", "scissors": "剪刀"}
-# 流程命令与固定手势键保留，动态手势不得占用。
-RESERVED_KEYS = set("0123456789aglf") | set(FIXED_SHORTCUTS)
+# 流程命令与固定手势键保留，动态手势不得占用（x 保留给连跑 stop）。
+RESERVED_KEYS = set("0123456789aglfx") | set(FIXED_SHORTCUTS)
 
 
 def gesture_shortcuts(gestures):
@@ -75,14 +76,20 @@ def build_menu(shortcuts, gestures):
         "",
         "抓取流程（视觉联动复合任务）：",
         "  g  完整流程（一口气到 RETURN_HOME，结束自动回空闲）",
-        "  g5 / g10  连跑 N 局（如 g5 连玩 5 局，局间可 stop 停 / close 退）",
+        "  g5 / g10  连跑 N 局（如 g5 连玩 5 局，局间 x 停 / 8 退）",
         "  2  单阶段推进（调试）      3  连续执行到 GRIP（闭手抓杯）",
         "  4  连续执行到 SHAKE（摇完停住）    5  连续执行到 RETURN_HOME",
         "  6  refresh_perception   退回 CAPTURE 重新识别（仅 CAPTURE 后、APPROACH 前可用）",
-        "  1  status               8  close 释放设备并退出",
-        "  9  仅退控制台（子进程收到 EOF 后释放设备，状态记 PAUSED）",
+        "  x  stop 停止连跑（仅连跑局间生效，已完成局保留；非连跑时会被拒）",
+        "",
+        "状态查询（执行中也即时应答，不排队）：",
+        "  1  status 查询当前状态/已完成阶段",
+        "  7  query_pose 只读姿态探针（空闲时回在家判定；执行中立即回 command_busy）",
+        "",
+        "  8  close 释放设备并退出",
+        "  9  仅退控制台（不发 close：子进程收到 EOF 后释放设备，状态记 PAUSED）",
         "  0  显示本菜单",
-        "连跑进行中仅接受 stop / close；也可直接输入一行 JSON 命令，如 {\"command\":\"advance\",\"rounds\":3}。",
+        "也可直接输入一行 JSON 命令，如 {\"command\":\"advance\",\"rounds\":3}。",
     ]
     return "\n".join(lines)
 
@@ -95,6 +102,8 @@ BASE_CHOICES = {
     "5": {"command": "advance", "until": "RETURN_HOME"},
     "g": {"command": "advance", "until": "RETURN_HOME"},
     "6": {"command": "refresh_perception"},
+    "7": {"command": "query_pose"},
+    "x": {"command": "stop"},
     "l": {"command": "actions"},
     "f": {"command": "reload"},
     "8": {"command": "close"},
@@ -114,6 +123,7 @@ HINTS = {
     "actions": "可用动作名",
     "actions_reloaded": "手势表已重新加载（拒载明细见常驻进程 stderr 日志）",
     "status": "当前状态",
+    "pose": "姿态探针",
     "perception_reset": "已退回 CAPTURE：下次 advance 会重新识别与规划",
     "rejected": "命令被拒绝",
     "failed": "执行失败，常驻进程将退出",
@@ -128,7 +138,8 @@ def describe(event):
                        ("run", "运行序号"), ("cycle", "运行序号"), ("code", "code"),
                        ("through", "推进到"), ("name", "动作"), ("receipt", "收据"),
                        ("actions", "动作"), ("round", "局"), ("rounds", "总局数"),
-                       ("rounds_completed", "完成局数"), ("reason", "原因")):
+                       ("rounds_completed", "完成局数"), ("reason", "原因"),
+                       ("at_home", "在家")):
         if event.get(key) is not None:
             value = event[key]
             parts.append(f"{label}=" + ("、".join(value) if isinstance(value, list) else str(value)))
@@ -191,13 +202,15 @@ class SimulateBackend:
             held = None
             _snapshot_cache = None
             recovery_events = []
+            # 演练模式没有 SDK worker；query_pose 落到 pose_unavailable 拒绝
+            # （正确语义），root 只为让 new_run 的目录拼接不先炸。
+            root = tempfile.gettempdir()
 
             def unchanged(self):
                 pass
 
             def perform(self, phase):
                 time.sleep(0.4)
-
         def fake_run_action(name):
             if name not in actions:
                 raise ValueError("未知动作：" + name + "；可选：" + ", ".join(actions))
@@ -309,6 +322,10 @@ def main():
             if raw == "0":
                 print(menu)
                 continue
+            if raw == "9":
+                # 仅退控制台：不发 close，子进程收到 stdin EOF 后自行释放设备。
+                print("仅退控制台：关闭 stdin，常驻进程将在当前阶段结束后释放设备（状态记 PAUSED）")
+                break
             if raw in choices:
                 command = dict(choices[raw])
             elif (raw.startswith("g") and raw[1:].isdigit()
