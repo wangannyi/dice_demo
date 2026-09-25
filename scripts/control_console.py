@@ -283,7 +283,10 @@ def main():
         print("真机模式：run.sh control --execute，等待 SDK/CAN 连接、相机预热、模型加载……")
     print(menu)
 
-    terminal_events = {"closed", "failed", "preview"}
+    # failed 自 097e634 失败自动恢复起不再是终止事件（后面还有 recovery/recovered，
+    # 进程继续服务）；真正的结束只有子进程正常关闭（closed/preview）或死亡
+    # （stdout EOF 走 reader 的 finally 置位 stop）。
+    terminal_events = {"closed", "preview"}
     stop = threading.Event()
 
     def reader():
