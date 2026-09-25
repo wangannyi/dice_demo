@@ -5,8 +5,9 @@
 > d01e83d P1-4 limits 超时、0b2fc9f P2-3/P2-25 队列化+即时探测、
 > 3e535e5 P2-14 控制台 9 键、a08a71f P2-23 home 注册表、
 > 097e634 失败自动恢复）；**P1-2/P2-4/P2-3 连跑族随机制删除消解**
-> （0e1ec6a：rounds/stop 连跑协议整体移除，多局由上层驱动）；与本清单无关的优化项见
-> TODO.md。行号以 5d6f4c1 为准，改动后可能漂移，以描述定位为准。
+> （0e1ec6a：rounds/stop 连跑协议整体移除，多局由上层驱动）；
+> **P2-5/6/7/8/9 新鲜度剩余接线已修**（6bb9de5：一个配置预算贯穿全部反馈通道）；
+> 与本清单无关的优化项见 TODO.md。行号以 5d6f4c1 为准，改动后可能漂移，以描述定位为准。
 
 ---
 
@@ -42,67 +43,6 @@
   LIFT 阶段 `finish_following()` 的 `future.result(timeout=120)` 白等满 120s 后
   TimeoutError。
 - **修法**：重发透传 `on_dispatched`（注意只在第一次真正 dispatch 时执行一次）。
-
-### B. 反馈新鲜度病根剩余接线（3559c19/d3a1634/5d6f4c1 的同族）
-
-#### [ ] P2-5 状态流被内层写死的 0.25 架空
-
-- **位置**：`joint_execution.py:325`（`state_max_age_s=max(.25, freshness)` 名义可放宽）
-  vs `nero_revo2_control/bridges/visual_servo_probe.py:219/235/249`（三处写死 `.25`：
-  arm status / 7 轴 enable / 二次刷新判据）
-- **问题**：freshness=0.3/0.5 时 state_max_age_s 的放宽永不生效，内层先抛
-  `No fresh arm status feedback` / `No fresh joint enable feedback`。
-  这是测试注释里刚打过的补丁（100ms 那次）在 0.25 上的同构复发。
-- **修法**：`fresh_feedback` 加 `state_max_age_s=.25` 形参替换三处字面量，
-  `FeedbackReader._run` 透传 `self.state_max_age_s`。
-
-#### [ ] P2-6 手指反馈 0.25 不可配，与臂侧不对称；另有第三套 1.0s 门限
-
-- **位置**：`finger_feedback_probe.py:146`（写死 `.25`）；调用方
-  `shake_execution.py:72-77`（`闭手位置反馈不新鲜，停止摇晃`）、`:384-387`；
-  第三套：`grasp_execution.py:43/70`（写死 `<= 1`）
-- **问题**：臂侧已放宽 0.3，手侧仍硬编码 0.25。摇骰中每 0.1s 查一次手形，CAN 被
-  100Hz 关节流占满时手包松 >250ms 即在**运动进行中**中止（比启动前中止危险），
-  随后落进 P1-1 的 0.1s hold 链。同一项目手指侧 0.25/1.0 两套写死门限、零配置项。
-- **修法**：`_copy_getter(..., max_age_s)`（或 `hand_feedback(..., max_age_s=)`）从
-  `request['feedback_freshness_limit_s']` 取值（手/臂同总线，同一预算最自然）；
-  `grasp_execution` 的 1.0 一并收口。
-
-#### [ ] P2-7 `PassivePoseSession.snapshot()` 硬顶 0.25s：配置 0.1..0.5 名不副实
-
-- **位置**：`passive_pose_bridge.py:227-230`（`0 <= age <= .25` 否则重试至 2s 超时）、
-  `:197`（`start()` 自报 `freshness_limit_s: .25`）
-- **问题**：对外配置校验允许到 0.5（joint_execution/joint_delivery/green_pipeline 三处），
-  实际有效上限永远 0.25。现场调到 0.3 以上且真出现 0.25~0.3s 调度间隔时，报的是
-  `No fresh stable four-packet snapshot`（与 freshness limit 无关），无法分辨是配置
-  太小、总线坏还是接线漏了。当前 0.3 能工作只因实测最大年龄 0.129s 未触雷。
-- **修法**：`.25` 与 `.02` 提为 `PassivePoseSession(deadline_s, max_age_s=..., max_span_s=...)`
-  由 `fresh_feedback(joint_max_age_s=...)` 透传；或把配置范围收敛到 `.1..25` 并在
-  start()/文档写明。
-
-#### [ ] P2-8 测量路径写死 0.1s：0.3 配置下 16% 合格样本被静默丢弃
-
-- **位置**：`joint_profile.py:366-372`（`0 <= observed - stamp <= 0.1` 否则 `continue`）
-- **问题**：`measurements()` 用它算 `unique_feedback_samples`/频域周期/
-  `tracking_verified`。配置 0.3 时执行侧接受的 0.1~0.3s 行在这里被丢——
-  实测回执 192 行中 31 行（16%）会被丢，样点变稀，最坏把 `tracking_verified`
-  从真判成假（执行与验收结论不一致）。
-- **修法**：`packet_samples`/`measurements` 加 `max_age_s` 形参，由 run 传
-  `freshness_limit`。
-
-#### [ ] P2-9 起点静止检查 0.1s + 失败无 failure_code（⚠️ 需拍板）
-
-- **位置**：`joint_execution.py:122-123,157`；`visual_servo_probe.py:286,331`
-- **现状**：5d6f4c1 **有意保持严格**（注释：安全判定点用陈旧反馈会假阳性）。
-- **反方论点**：`persistent_stopped_window` 的设计目的就是容忍 LIFT 尾部错拍
-  （docstring 自己写了 "Two packets can therefore straddle the tail of the lift"），
-  却用 100ms 拒收；且失败不带 `failure_code`，走不了 green_pipeline.py:902 已有的
-  `start_position_changed` 重试路径，整轮直接硬失败。
-- **实测背景**：同一会话 192 个反馈样本中 31 个（16%）packet age > 0.1s，最大 0.129s
-  ——LIFT 刚结束正是最拥挤的时刻。
-- **两个选项**：① 透传 freshness_limit（stationarity 是可行性判定不是安全门）；
-  ② 保持 0.1 但把该异常映射成 `failure_code='start_position_changed'` 走既有
-  no-motion replan 恢复。**建议 ②（不降安全等级，补恢复路径）**。
 
 ### C. 摇骰热路径与清理
 
@@ -366,16 +306,14 @@ main 侧另有失败页归位/开机归位兜底（dice_game 49103f5/564ce81/d3b
 （在旧代码上必失败才证明抓住 bug）→ 全量通过（当前基线 475 passed / 30 skipped）
 → 提交。
 
-## 建议修复顺序（2026-09-25 连跑删除后）
+## 建议修复顺序（2026-09-25 新鲜度族收尾后）
 
-1. **P2-5/6/7/8/9 反馈新鲜度剩余接线**（同病根一族一次收干净；P2-9 建议选
-   "保持 0.1 但接 start_position_changed 恢复路径"）
-2. **P2-1/2 SDK 自愈补全**（P2-1 修好后 P2-2 即现形，连着做）
-3. **P2-10/11/12 摇骰热路径与清理**（P2-11 顺带修 motion_attempted 审计失真）
-4. **P2-13 手误即崩类** / **P2-15/16/17 中断与信号语义**
-5. **P2-18/19/21 视觉采集**（P2-19 关乎"下次能否打开相机"）
-6. **P2-24 abort 协议**（主动停靠死角；可复用 097e634 恢复链）/ P2-26
-7. P3 按主题批量（P3-4/5 配置卫生最轻，可穿插做）
+1. **P2-1/2 SDK 自愈补全**（P2-1 修好后 P2-2 即现形，连着做）
+2. **P2-10/11/12 摇骰热路径与清理**（P2-11 顺带修 motion_attempted 审计失真）
+3. **P2-13 手误即崩类** / **P2-15/16/17 中断与信号语义**
+4. **P2-18/19/21 视觉采集**（P2-19 关乎"下次能否打开相机"）
+5. **P2-24 abort 协议**（主动停靠死角；可复用 097e634 恢复链）/ P2-26
+6. P3 按主题批量（P3-4/5 配置卫生最轻，可穿插做）
 
 ---
 *产出：2026-09-24 全项目深挖（4 路并行审计 + P1 逐条人工复核；P1-4/P3-23 来自
