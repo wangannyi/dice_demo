@@ -58,7 +58,7 @@ class ControlSession:
     def _new_state(self):
         return dict(strategy="green_open_cup", mode="control", cycle=self.cycle,
                     status="WAITING", events=[], phase_timings_s={}, actions=[],
-                    rounds_total=None, rounds_remaining=None, last_failure=None)
+                    last_failure=None)
 
     def _next_phase(self):
         return PHASES[self.next_index] if self.next_index < len(PHASES) else None
@@ -166,92 +166,14 @@ class ControlSession:
     def _reject(self, request_id, code, message):
         self._reply("rejected", request_id, code=code, message=message)
 
-    def _inter_round_request(self):
-        """Non-blocking peek between rounds; returns a parsed request or None.
-
-        The reader thread owns stdin and feeds this queue; everything it did
-        not answer immediately (motion commands) surfaces here in arrival
-        order, so a stop written while a round is still running is seen at
-        the very next boundary.
-        """
-        try:
-            request = self.queue.get_nowait()
-        except queue.Empty:
-            return None
-        return {"command": "close", "_eof": True} if request is None else request
-
-    def _stop_rounds(self, request_id, reason):
-        self.state["status"] = "WAITING"
-        self.state["rounds_total"] = None
-        self.state["rounds_remaining"] = None
-        save(self.state_path, self.state)
-        self._reply("rounds_stopped", request_id, reason=reason)
-
-    def _advance(self, request_id, target_index, rounds=1):
+    def _advance(self, request_id, target_index):
         if self.next_index > target_index:
             self._reject(request_id, "already_completed", "目标阶段已经完成，不能重复执行")
             return True
-        if rounds > 1:
-            self.state["rounds_total"] = rounds
-            self.state["rounds_remaining"] = rounds
-            save(self.state_path, self.state)
-        stop_reason = None
-        completed_rounds = 0
-        for round_index in range(rounds):
-            if round_index:
-                # Between rounds the arm is idle at HOME; peek for stop/close.
-                while True:
-                    inter = self._inter_round_request()
-                    if inter is None:
-                        break
-                    command = inter.get("command")
-                    inter_id = inter.get("id")
-                    if inter_id is not None:
-                        if inter_id in self.seen_ids:
-                            self._reject(inter_id, "duplicate_id", "此命令 id 已处理，不能重复派发")
-                            continue
-                        self.seen_ids.add(inter_id)
-                    if command == "stop":
-                        self._stop_rounds(inter_id, "stop 命令")
-                        stop_reason = "stop"
-                        break
-                    if command == "close":
-                        self._reply("command_completed", request_id,
-                                    through=PHASES[target_index],
-                                    rounds_completed=completed_rounds)
-                        self.state["status"] = "PAUSED"
-                        self.state["rounds_total"] = None
-                        self.state["rounds_remaining"] = None
-                        save(self.state_path, self.state)
-                        self._reply("closed", inter_id, state_file=str(self.state_path))
-                        return False
-                    self._reject(inter_id, "multi_round_busy",
-                                 "连跑进行中，仅接受 stop/close；其他命令请连跑结束后再发")
-                if stop_reason:
-                    break
-            if rounds > 1:
-                self.state["rounds_remaining"] = rounds - round_index
-                save(self.state_path, self.state)
-                self._reply("round_started", request_id,
-                            round=round_index + 1, rounds=rounds)
-            if not self._advance_single(request_id, target_index):
-                # Phase failure ends the rounds (completed ones stay recorded);
-                # recover by homing instead of exiting the resident session.
-                if rounds > 1:
-                    self.state["rounds_total"] = None
-                    self.state["rounds_remaining"] = None
-                    save(self.state_path, self.state)
-                return self._recover(request_id, self.state.get("error", ""))
-            completed_rounds += 1
-        if rounds > 1:
-            self.state["rounds_total"] = None
-            self.state["rounds_remaining"] = None
-            save(self.state_path, self.state)
-            if stop_reason is None:
-                self._reply("rounds_completed", request_id, rounds=rounds,
-                            runs=self.cycle - 1)
-        self._reply("command_completed", request_id, through=PHASES[target_index],
-                    rounds_completed=completed_rounds)
+        if not self._advance_single(request_id, target_index):
+            # Phase failure: recover by homing instead of exiting the session.
+            return self._recover(request_id, self.state.get("error", ""))
+        self._reply("command_completed", request_id, through=PHASES[target_index])
         return True
 
     def _advance_single(self, request_id, target_index):
@@ -412,8 +334,8 @@ class ControlSession:
             self._reply("perception_reset", request_id)
             return True
         if command == "stop":
-            self._reject(request_id, "not_in_multi_round",
-                         "stop 仅在连跑（advance rounds>1）局间生效；当前不在连跑")
+            self._reject(request_id, "removed",
+                         "连跑已移除：单轮执行无中断需求，等待 command_completed 或 close 即可")
             return True
         if command == "advance":
             target = request.get("until")
@@ -427,13 +349,11 @@ class ControlSession:
             if target_index >= len(PHASES):
                 self._reject(request_id, "invalid_phase", "until 超出阶段范围")
                 return True
-            rounds = request.get("rounds", 1)
-            if (isinstance(rounds, bool) or not isinstance(rounds, int)
-                    or not 1 <= rounds <= 99):
-                self._reject(request_id, "invalid_rounds",
-                             "rounds 必须是 1..99 的整数（有界连跑，不提供无限模式）")
+            if "rounds" in request:
+                self._reject(request_id, "removed",
+                             "连跑已移除：一次 advance 一轮，循环由上层按 command_completed 驱动")
                 return True
-            return self._advance(request_id, target_index, rounds=rounds)
+            return self._advance(request_id, target_index)
         self._reject(request_id, "invalid_command",
                      "command 必须是 status、advance、refresh_perception、action、actions、reload 或 close")
         return True
