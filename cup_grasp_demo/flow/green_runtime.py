@@ -21,6 +21,10 @@ def read_json(path):
     return json.loads(Path(path).read_text())
 
 
+class _ReceiptFailure(RuntimeError):
+    """The worker reported a motion failure while alive and idle."""
+
+
 class SDKClient:
     def __init__(self, cfg, directory, *, worker_argv=None):
         self.cfg = cfg
@@ -54,7 +58,13 @@ class SDKClient:
             raise
 
     def restart(self):
-        """Replace a dead worker; the old process is gone, only pipes need closing."""
+        """Replace a possibly-dead worker; a still-alive process is terminated first.
+
+        A live worker holds the non-blocking /tmp control lock and the CAN
+        channel — leaking it would make every later spawn fail outright.
+        """
+        if self.process.poll() is None:
+            self._terminate()
         for pipe in (self.process.stdin, self.process.stdout):
             try:
                 pipe.close()
@@ -110,7 +120,10 @@ class SDKClient:
             #   zero-transmission -> restart once and resend
             #   anything else     -> surface the failure (human intervention)
             if 'SDK worker exited' not in str(exc):
-                self.close()
+                # Receipt-level and other failures leave the connection state
+                # as _call_once already arranged it (a dead worker is closed
+                # there).  close() here would kill a live idle worker that the
+                # recovery chain could otherwise reuse.
                 raise
             report = self._dead_worker_receipt(output)
             if report is not None and report.get('success') is True:
@@ -136,8 +149,17 @@ class SDKClient:
             plan = read_json(request)['plan']
             stages = max(1, len(plan.get('stages', [])))
         try:
-            self.process.stdin.write(json.dumps(message) + '\n')
-            self.process.stdin.flush()
+            try:
+                self.process.stdin.write(json.dumps(message) + '\n')
+                self.process.stdin.flush()
+            except (BrokenPipeError, ValueError, OSError) as exc:
+                # 管道已断（worker 死亡，或父进程此前已 close）：统一归类为
+                # worker 死亡，交给 call() 的 worker-exited 分支和 _recover
+                # 的重启逻辑接管；绝不让裸 ValueError 漏出去被上层误判成
+                # 「未知动作名」（2026-09-25 僵尸态根因之一）。
+                raise RuntimeError(
+                    f'SDK worker exited (write failed): {type(exc).__name__}: {exc}'
+                ) from exc
             if on_dispatched is not None:
                 on_dispatched()
             # Feedback overlap can intentionally defer hand startup by up to 30 s.
@@ -159,9 +181,16 @@ class SDKClient:
                         and report.get('failure_code') == 'start_position_changed'
                         and report.get('motion_attempted') is False):
                     return report
-                raise RuntimeError(f"{report.get('error')}; 日志：{output.with_suffix('.log')}")
+                # Receipt-level failure: the worker is alive and idle (it just
+                # reported the failure).  Raise OUTSIDE the terminate guard so
+                # a normal motion failure never kills a healthy connection.
+                raise _ReceiptFailure(f"{report.get('error')}; 日志：{output.with_suffix('.log')}")
             return report
+        except _ReceiptFailure:
+            raise
         except BaseException:
+            # 收线只留给真需要的情况：worker 死亡（EOF/写失败）、超时
+            # （可能卡死）、协议错乱。回执失败已在上面豁免。
             self._terminate()
             raise
 

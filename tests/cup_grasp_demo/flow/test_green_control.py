@@ -739,5 +739,90 @@ class RecoveryTests(unittest.TestCase):
             flow._sdk.restart.assert_called_once()
             self.assertIn('recovered', [x['event'] for x in events(outgoing)])
 
+    def test_write_failed_worker_exit_also_recovers(self):
+        """P0-1/P0-2：管道写失败的归类文本（write failed）同样触发恢复重启。"""
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            flow._sdk = Mock()
+            calls = []
+
+            def run_action(name):
+                calls.append(name)
+                if name == 'yeah':
+                    raise RuntimeError(
+                        'SDK worker exited (write failed): ValueError: '
+                        'I/O operation on closed file')
+                return dict(name=name, receipt='receipt.json', elapsed_s=.1)
+
+            outgoing = io.StringIO()
+            server = control.ControlSession(
+                flow, Path(directory) / 'state.json', commands(
+                    dict(id='a', command='action', name='yeah'),
+                    dict(command='close')),
+                outgoing, io.StringIO(),
+                actions=('yeah', 'home'), run_action=run_action)
+            self.assertEqual(server.serve(), 0)
+            self.assertEqual(calls, ['yeah', 'home'])
+            flow._sdk.restart.assert_called_once()
+            self.assertIn('recovered', [x['event'] for x in events(outgoing)])
+            # 绝不允许再走 unknown_action 秒拒僵尸路径。
+            self.assertNotIn('unknown_action',
+                             [x.get('code') for x in events(outgoing)])
+
+    def test_dead_worker_process_triggers_restart_without_marker_text(self):
+        """P0-2：进程已死但错误文本不含 'SDK worker exited'（如傍晚
+        limits 超时形态）——poll() 判定同样重启，归位不再写在死管道上。"""
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            flow._sdk = Mock()
+            flow._sdk.process.poll.return_value = 3  # 已退出的 worker
+            calls = []
+
+            def run_action(name):
+                calls.append(name)
+                if name == 'yeah':
+                    raise RuntimeError(
+                        'TimeoutError: Missing live controller limits (after one retry)')
+                return dict(name=name, receipt='receipt.json', elapsed_s=.1)
+
+            outgoing = io.StringIO()
+            server = control.ControlSession(
+                flow, Path(directory) / 'state.json', commands(
+                    dict(id='a', command='action', name='yeah'),
+                    dict(command='close')),
+                outgoing, io.StringIO(),
+                actions=('yeah', 'home'), run_action=run_action)
+            self.assertEqual(server.serve(), 0)
+            self.assertEqual(calls, ['yeah', 'home'])
+            flow._sdk.restart.assert_called_once()
+            self.assertIn('recovered', [x['event'] for x in events(outgoing)])
+
+    def test_live_worker_failure_keeps_connection_for_recovery(self):
+        """P1-3：worker 活着（poll None）且回执失败——不重启，归位走
+        同一条连接。"""
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            flow._sdk = Mock()
+            flow._sdk.process.poll.return_value = None
+            calls = []
+
+            def run_action(name):
+                calls.append(name)
+                if name == 'yeah':
+                    raise RuntimeError('固件 None; 日志：/tmp/x.log')
+                return dict(name=name, receipt='receipt.json', elapsed_s=.1)
+
+            outgoing = io.StringIO()
+            server = control.ControlSession(
+                flow, Path(directory) / 'state.json', commands(
+                    dict(id='a', command='action', name='yeah'),
+                    dict(command='close')),
+                outgoing, io.StringIO(),
+                actions=('yeah', 'home'), run_action=run_action)
+            self.assertEqual(server.serve(), 0)
+            self.assertEqual(calls, ['yeah', 'home'])
+            flow._sdk.restart.assert_not_called()
+            self.assertIn('recovered', [x['event'] for x in events(outgoing)])
+
 if __name__ == '__main__':
     unittest.main()

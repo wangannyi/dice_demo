@@ -99,12 +99,18 @@ class ControlSession:
         if not self._recovery_enabled() or self.run_action is None:
             return False
         try:
-            if "SDK worker exited" in str(error_text):
-                sdk = getattr(self.flow, "_sdk", None)
-                if sdk is not None:
-                    sdk.restart()
             self._reply("recovery_started", request_id, action="home",
                         cause=str(error_text)[:300])
+            # 归位前确认/重拉 SDK worker：worker 死亡是硬失败的常见形态
+            # （P0-1 已把通道死亡归类为 SDK worker exited；进程死活是更直接
+            # 的判据）。死了才重启——活 worker 上回执失败时保留同一条连接
+            # 直接归位（restart 对活进程会先收掉，安全但费几秒握手）。
+            sdk = getattr(self.flow, "_sdk", None)
+            if sdk is not None and (
+                    getattr(sdk, "process", None) is None
+                    or getattr(getattr(sdk, "process", None), "poll", lambda: 1)() is not None
+                    or "SDK worker exited" in str(error_text)):
+                sdk.restart()
             result = self.run_action("home")
             # Same reset as a finished run: the failed round is void, held-cup
             # state and caches must not leak into the next command.

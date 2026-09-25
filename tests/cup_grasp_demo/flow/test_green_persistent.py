@@ -66,7 +66,7 @@ class LifecycleTest(unittest.TestCase):
             factory.assert_called_once()
             self.assertEqual(factory.return_value.call.call_count,2)
 
-    def test_failed_rpc_closes_and_surfaces_receipt_error(self):
+    def test_failed_rpc_surfaces_receipt_error_and_keeps_connection(self):
         with tempfile.TemporaryDirectory() as d:
             out=Path(d)/'receipt.json';out.write_text(json.dumps({'success':False,'error':'fault'}))
             client=object.__new__(runtime.SDKClient);client.cfg={'timeout_s':40}
@@ -74,7 +74,9 @@ class LifecycleTest(unittest.TestCase):
             client.close=Mock()
             with self.assertRaisesRegex(RuntimeError,'fault'):
                 client.call('snapshot',out)
-            client.close.assert_called_once()
+            # Receipt failure leaves a live idle worker: keep the connection
+            # for the recovery chain (P1-3, 2026-09-25; used to close() here).
+            client.close.assert_not_called()
 
     def test_shake_start_change_returns_to_bounded_workflow_recovery(self):
         for attempted in (False, True, None):
@@ -96,7 +98,8 @@ class LifecycleTest(unittest.TestCase):
                 else:
                     with self.assertRaisesRegex(RuntimeError, 'start changed'):
                         client.call('shake', out, req)
-                    client.close.assert_called_once()
+                    # Receipt failure keeps the connection (P1-3).
+                    client.close.assert_not_called()
 
     def test_capture_waits_for_resources_and_requests_fresh_frames(self):
         resource=object.__new__(runtime.VisionResources)

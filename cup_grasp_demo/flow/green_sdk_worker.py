@@ -86,9 +86,12 @@ def main():
                                  ensure_ascii=False), flush=True)
                 raise
             print(json.dumps({'ready': True}), flush=True)
+            exited_cleanly = False
             for line in sys.stdin:
                 message = json.loads(line)
                 if message.get('command') == 'close':
+                    print('[worker] exit: close command', file=sys.stderr, flush=True)
+                    exited_cleanly = True
                     break
                 if message.get('command') not in ('snapshot', 'run', 'shake'):
                     raise ValueError('Unknown SDK worker request')
@@ -113,7 +116,14 @@ def main():
                         code = hardware.main(argv, connected=(robot, hand, before))
                 print(json.dumps({'output': str(output), 'returncode': code}), flush=True)
                 if code and not (message['command'] == 'shake' and retryable_shake_start('shake', report)):
+                    print(f'[worker] exit: failed motion code={code} output={output}',
+                          file=sys.stderr, flush=True)
+                    exited_cleanly = True
                     break  # Failed motion must never leave a reusable executor.
+            if not exited_cleanly:
+                # stdin EOF without close/failed-motion: distinguishable from
+                # a signal kill (which leaves a traceback) only via this line.
+                print('[worker] exit: eof', file=sys.stderr, flush=True)
         finally:
             if robot is not None:
                 robot.disconnect()

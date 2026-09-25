@@ -78,4 +78,6 @@ class ShakeRecoveryTest(unittest.TestCase):
                     w.shake()
                 self.assertEqual(len(messages), 1)
                 self.assertNotIn('shake', w.receipts)
-                client.close.assert_called_once()
+                # Receipt failure keeps the connection (P1-3, 2026-09-25;
+                # the no-resend guarantee above is the safety property).
+                client.close.assert_not_called()
