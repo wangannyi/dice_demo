@@ -22,6 +22,51 @@ def events(stream):
     return [json.loads(line) for line in stream.getvalue().splitlines()]
 
 
+def _parse_events(text):
+    return [json.loads(line) for line in text.splitlines() if line.strip()]
+
+
+def threaded_session(flow, directory, script, **session_kwargs):
+    """ControlSession on a real pipe; script(send, wait_for) drives stdin.
+
+    Probes are answered at arrival time by the reader thread, so a probe
+    written mid-execution is truly mid-execution; scripts wait for the event
+    they depend on before writing more, which is how the serial game client
+    uses the protocol.
+    """
+    import os
+    import threading
+    read_fd, write_fd = os.pipe()
+    incoming = os.fdopen(read_fd, 'r', buffering=1)
+    writer = os.fdopen(write_fd, 'w', buffering=1)
+    outgoing = io.StringIO()
+    server = control.ControlSession(
+        flow, Path(directory) / 'state.json', incoming, outgoing,
+        io.StringIO(), **session_kwargs)
+    send_lock = threading.Lock()
+
+    def send(item):
+        with send_lock:
+            writer.write(json.dumps(item) + '\n')
+            writer.flush()
+
+    def wait_for(match, timeout=2.0):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if match(_parse_events(outgoing.getvalue())):
+                return True
+            time.sleep(.005)
+        return False
+
+    def run_script():
+        try:
+            script(send, wait_for)
+        finally:
+            writer.close()
+    threading.Thread(target=run_script, daemon=True).start()
+    return server, outgoing, send, wait_for
+
+
 class ControlSessionTest(unittest.TestCase):
     def test_home_action_uses_the_registry_recipe(self):
         """home 不再有内建 recipe（旧分支硬编码 30%/timed，把 9be7d7a 的
@@ -99,14 +144,23 @@ class ControlSessionTest(unittest.TestCase):
     def test_waits_after_target_and_advances_only_on_next_command(self):
         with tempfile.TemporaryDirectory() as directory:
             flow = self.fake_flow()
-            outgoing = io.StringIO()
-            server = control.ControlSession(
-                flow, Path(directory) / 'state.json', commands(
-                    dict(id='one', command='advance', until='GRIP'),
-                    dict(id='check', command='status'),
-                    dict(id='two', command='advance'),
-                    dict(id='end', command='close')),
-                outgoing, io.StringIO())
+
+            def script(send, wait_for):
+                send(dict(id='one', command='advance', until='GRIP'))
+                self.assertTrue(wait_for(lambda evs: any(
+                    e.get('event') == 'command_completed' and e.get('id') == 'one'
+                    for e in evs)))
+                send(dict(id='check', command='status'))
+                self.assertTrue(wait_for(lambda evs: any(
+                    e.get('event') == 'status' and e.get('id') == 'check'
+                    for e in evs)))
+                send(dict(id='two', command='advance'))
+                self.assertTrue(wait_for(lambda evs: any(
+                    e.get('event') == 'command_completed' and e.get('id') == 'two'
+                    for e in evs)))
+                send(dict(id='end', command='close'))
+
+            server, outgoing, _, _ = threaded_session(flow, directory, script)
             self.assertEqual(server.serve(), 0)
             self.assertEqual([call.args[0] for call in flow.perform.call_args_list],
                              list(control.PHASES[:6]))
@@ -278,13 +332,18 @@ class ControlSessionTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             flow = self.fake_flow()
-            outgoing = io.StringIO()
-            server = control.ControlSession(
-                flow, Path(directory) / 'state.json', commands(
-                    dict(command='reload'),
-                    dict(command='actions'),
-                    dict(command='close')),
-                outgoing, io.StringIO(),
+
+            def script(send, wait_for):
+                send(dict(command='reload'))
+                self.assertTrue(wait_for(lambda evs: any(
+                    e.get('event') == 'actions_reloaded' for e in evs)))
+                send(dict(command='actions'))
+                self.assertTrue(wait_for(lambda evs: any(
+                    e.get('event') == 'actions' for e in evs)))
+                send(dict(command='close'))
+
+            server, outgoing, _, _ = threaded_session(
+                flow, directory, script,
                 actions=['home', 'yeah'], run_action=Mock(),
                 reload_actions=fresh_actions)
             self.assertEqual(server.serve(), 0)
@@ -335,12 +394,14 @@ class ControlSessionTest(unittest.TestCase):
     def test_multi_round_runs_every_round_and_reports(self):
         with tempfile.TemporaryDirectory() as directory:
             flow = self.fake_flow()
-            outgoing = io.StringIO()
-            server = control.ControlSession(
-                flow, Path(directory) / 'state.json', commands(
-                    dict(command='advance', until='RETURN_HOME', rounds=3),
-                    dict(command='close')),
-                outgoing, io.StringIO())
+
+            def script(send, wait_for):
+                send(dict(command='advance', until='RETURN_HOME', rounds=3))
+                self.assertTrue(wait_for(lambda evs: any(
+                    e.get('event') == 'rounds_completed' for e in evs)))
+                send(dict(command='close'))
+
+            server, outgoing, _, _ = threaded_session(flow, directory, script)
             self.assertEqual(server.serve(), 0)
             self.assertEqual(flow.perform.call_count, 3 * len(control.PHASES))
             reports = events(outgoing)
@@ -352,7 +413,6 @@ class ControlSessionTest(unittest.TestCase):
             command = next(x for x in reports
                            if x['event'] == 'command_completed' and 'rounds_completed' in x)
             self.assertEqual(command['rounds_completed'], 3)
-            # StringIO has no fileno: between-round peek is a no-op, all rounds run.
 
     def test_multi_round_rejects_invalid_rounds_and_idle_stop(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -377,11 +437,14 @@ class ControlSessionTest(unittest.TestCase):
             flow = self.fake_flow()
             # Round 1 fine; round 2 fails on its first phase.
             flow.perform.side_effect = [None] * len(control.PHASES) + [RuntimeError('boom')]
-            outgoing = io.StringIO()
-            server = control.ControlSession(
-                flow, Path(directory) / 'state.json', commands(
-                    dict(command='advance', until='RETURN_HOME', rounds=3)),
-                outgoing, io.StringIO())
+
+            def script(send, wait_for):
+                send(dict(command='advance', until='RETURN_HOME', rounds=3))
+                # No close: failed rounds must end the session by themselves.
+                self.assertTrue(wait_for(lambda evs: any(
+                    e.get('event') == 'failed' for e in evs)))
+
+            server, outgoing, _, _ = threaded_session(flow, directory, script)
             self.assertEqual(server.serve(), 2)
             self.assertEqual(flow.perform.call_count, len(control.PHASES) + 1)
             reports = events(outgoing)
@@ -479,6 +542,151 @@ class ControlSessionTest(unittest.TestCase):
             flow.perform.assert_not_called()
             flow.close.assert_called_once()
             self.assertEqual([item['event'] for item in events(output)], ['ready', 'closed'])
+
+
+class ImmediateProbeTests(unittest.TestCase):
+    """A 改造（2026-09-25）：只读探测在到达时刻即时应答，运动命令照旧排队。
+
+    探测命令从动作执行体内（serve 线程）经真实管道发出——证明应答没有
+    排队在动作后面；等应答到达后才放行动作完成。
+    """
+
+    def fake_flow(self):
+        flow = Mock()
+        flow.receipts = {}
+        flow.recovery_events = []
+        flow.held = None
+        flow._snapshot_cache = None
+        return flow
+
+    def test_status_answered_immediately_while_action_runs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            handles = {}
+
+            def slow_action(name):
+                # 从执行体内发探测：应答必须先于动作完成到达。
+                handles['send'](dict(id='probe', command='status'))
+                if not handles['wait_for'](lambda evs: any(
+                        e.get('event') == 'status' and e.get('id') == 'probe'
+                        for e in evs)):
+                    raise RuntimeError('status 探测在动作执行中未被即时应答')
+                return dict(name=name, receipt='receipt.json', elapsed_s=.01)
+
+            def script(send, wait_for):
+                send(dict(id='a', command='action', name='yeah'))
+                wait_for(lambda evs: any(
+                    e.get('event') == 'action_completed' for e in evs))
+                send(dict(command='close'))
+
+            server, outgoing, send, wait_for = threaded_session(
+                flow, directory, script, actions=('yeah',), run_action=slow_action)
+            handles['send'], handles['wait_for'] = send, wait_for
+            self.assertEqual(server.serve(), 0)
+            reports = events(outgoing)
+            probe = next(x for x in reports if x.get('id') == 'probe')
+            self.assertEqual(probe['event'], 'status')
+            self.assertEqual(probe['status'], 'RUNNING')
+            self.assertLess([x.get('id') for x in reports].index('probe'),
+                            [x['event'] for x in reports].index('action_completed'))
+
+    def test_query_pose_answers_busy_immediately_while_action_runs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            handles = {}
+
+            def slow_action(name):
+                handles['send'](dict(id='p', command='query_pose'))
+                if not handles['wait_for'](lambda evs: any(
+                        e.get('id') == 'p' for e in evs)):
+                    raise RuntimeError('query_pose 在动作执行中未被即时应答')
+                return dict(name=name, receipt='receipt.json', elapsed_s=.01)
+
+            def script(send, wait_for):
+                send(dict(id='a', command='action', name='yeah'))
+                wait_for(lambda evs: any(
+                    e.get('event') == 'action_completed' for e in evs))
+                send(dict(command='close'))
+
+            server, outgoing, send, wait_for = threaded_session(
+                flow, directory, script, actions=('yeah',), run_action=slow_action)
+            handles['send'], handles['wait_for'] = send, wait_for
+            self.assertEqual(server.serve(), 0)
+            reports = events(outgoing)
+            rejected = next(x for x in reports if x.get('id') == 'p')
+            self.assertEqual(rejected['event'], 'rejected')
+            self.assertEqual(rejected['code'], 'command_busy')
+            self.assertNotIn('pose', [x['event'] for x in reports])
+
+    def test_motion_commands_queue_behind_running_action_in_order(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            handles = {}
+
+            def slow_action(name):
+                if name == 'yeah':
+                    # 执行中进两条命令：只能排队，当前动作完成后按序处理。
+                    handles['send'](dict(id='second', command='action', name='two'))
+                    handles['send'](dict(command='close'))
+                return dict(name=name, receipt='receipt.json', elapsed_s=.01)
+
+            def script(send, wait_for):
+                send(dict(id='first', command='action', name='yeah'))
+                wait_for(lambda evs: any(e.get('event') == 'closed' for e in evs))
+
+            server, outgoing, send, wait_for = threaded_session(
+                flow, directory, script, actions=('yeah', 'two'),
+                run_action=slow_action)
+            handles['send'] = send
+            self.assertEqual(server.serve(), 0)
+            reports = events(outgoing)
+            ids = [x.get('id') for x in reports]
+            self.assertLess([x['event'] for x in reports].index('action_completed'),
+                            ids.index('second'))
+            self.assertEqual(reports[-1]['event'], 'closed')
+
+    def test_status_and_query_pose_during_multi_round_rounds(self):
+        """P2-25：连跑执行期 status 即时应答、query_pose 回 command_busy。"""
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            handles = {}
+            calls = {'n': 0}
+
+            def performing(phase):
+                calls['n'] += 1
+                if calls['n'] == 2:  # round 1 的第二阶段执行中发探测
+                    handles['send'](dict(id='s', command='status'))
+                    handles['send'](dict(id='p', command='query_pose'))
+                    if not handles['wait_for'](lambda evs: any(
+                            e.get('id') == 's' for e in evs)):
+                        raise RuntimeError('status 探测在阶段执行中未被即时应答')
+                return None
+
+            flow.perform = Mock(side_effect=performing)
+
+            def script(send, wait_for):
+                send(dict(command='advance', until='RETURN_HOME', rounds=2))
+                wait_for(lambda evs: any(
+                    e.get('event') == 'rounds_completed' for e in evs))
+                send(dict(command='close'))
+
+            server, outgoing, send, wait_for = threaded_session(
+                flow, directory, script)
+            handles['send'], handles['wait_for'] = send, wait_for
+            self.assertEqual(server.serve(), 0)
+            reports = events(outgoing)
+            status = next(x for x in reports if x.get('id') == 's')
+            self.assertEqual(status['event'], 'status')
+            self.assertEqual(status['status'], 'RUNNING')
+            self.assertLess([x.get('id') for x in reports].index('s'),
+                            [x['event'] for x in reports].index('rounds_completed'))
+            busy = next(x for x in reports if x.get('id') == 'p')
+            self.assertEqual(busy['event'], 'rejected')
+            self.assertEqual(busy['code'], 'command_busy')
+            # 连跑全程不受探测影响，两轮完整跑完。
+            self.assertEqual(flow.perform.call_count, 2 * len(control.PHASES))
+            self.assertNotIn('multi_round_busy',
+                             [x.get('code') for x in reports])
 
 
 if __name__ == '__main__':

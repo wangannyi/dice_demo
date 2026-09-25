@@ -10,7 +10,9 @@ import copy
 from contextlib import redirect_stdout
 import json
 from pathlib import Path
+import queue
 import sys
+import threading
 import time
 
 from cup_grasp_demo.flow.core import cached_screen_geometry
@@ -19,10 +21,17 @@ from cup_grasp_demo.flow.core import save
 from cup_grasp_demo.flow.session_storage import session_lock
 
 
+_EMIT_LOCK = threading.Lock()
+
+
 def emit(stream, event, **fields):
-    stream.write(json.dumps(dict(event=event, **fields), ensure_ascii=False,
-                            allow_nan=False) + "\n")
-    stream.flush()
+    line = json.dumps(dict(event=event, **fields), ensure_ascii=False,
+                      allow_nan=False) + "\n"
+    # The reader thread answers probes while serve() executes commands;
+    # the lock keeps the two writers from interleaving a single line.
+    with _EMIT_LOCK:
+        stream.write(line)
+        stream.flush()
 
 
 class ControlSession:
@@ -42,6 +51,8 @@ class ControlSession:
         self.cycle = 1
         self.seen_ids = set()
         self.state = self._new_state()
+        self.queue = queue.Queue()
+        self.executor_lock = threading.Lock()
         save(self.state_path, self.state)
 
     def _new_state(self):
@@ -51,6 +62,24 @@ class ControlSession:
 
     def _next_phase(self):
         return PHASES[self.next_index] if self.next_index < len(PHASES) else None
+
+    def _claim_request_id(self, request):
+        """Validate and mark the command id seen; returns (id, code, message).
+
+        code is None when the id is usable (and now recorded as seen); the
+        reject then carries the offending id.  Owned by whichever thread
+        dispatches the line, so ids stay unique across both dispatch paths.
+        """
+        request_id = request.get("id")
+        if (request_id is not None and
+                (isinstance(request_id, bool) or not isinstance(request_id, (str, int))
+                 or len(str(request_id)) > 64)):
+            return None, "invalid_id", "id 必须是长度不超过 64 的字符串或整数"
+        if request_id is not None:
+            if request_id in self.seen_ids:
+                return request_id, "duplicate_id", "此命令 id 已处理，不能重复派发"
+            self.seen_ids.add(request_id)
+        return request_id, None, None
 
     def _query_pose(self, request_id):
         """Read-only pose probe for the patrol homing on the game side.
@@ -95,26 +124,16 @@ class ControlSession:
     def _inter_round_request(self):
         """Non-blocking peek between rounds; returns a parsed request or None.
 
-        Only streams with a real file descriptor (stdin, pipes) support
-        select; in-memory test streams simply report "nothing to peek".
+        The reader thread owns stdin and feeds this queue; everything it did
+        not answer immediately (motion commands) surfaces here in arrival
+        order, so a stop written while a round is still running is seen at
+        the very next boundary.
         """
-        import select
         try:
-            fileno = self.incoming.fileno()
-        except (AttributeError, OSError, ValueError):
+            request = self.queue.get_nowait()
+        except queue.Empty:
             return None
-        ready, _, _ = select.select([fileno], [], [], 0)
-        if not ready:
-            return None
-        line = self.incoming.readline()
-        if not line:
-            return {"command": "close", "_eof": True}
-        try:
-            request = json.loads(line)
-        except json.JSONDecodeError:
-            self._reject(None, "invalid_json", "每行必须是完整 JSON")
-            return None
-        return request if isinstance(request, dict) else None
+        return {"command": "close", "_eof": True} if request is None else request
 
     def _stop_rounds(self, request_id, reason):
         self.state["status"] = "WAITING"
@@ -270,21 +289,18 @@ class ControlSession:
                     receipt=result.get("receipt"), elapsed_s=round(elapsed, 3))
         return True
 
-    def _handle(self, request):
+    def _handle(self, request, _id_validated=False):
         if not isinstance(request, dict):
             self._reject(None, "invalid_request", "每行必须是 JSON 对象")
             return True
-        request_id = request.get("id")
-        if (request_id is not None and
-                (isinstance(request_id, bool) or not isinstance(request_id, (str, int))
-                 or len(str(request_id)) > 64)):
-            self._reject(None, "invalid_id", "id 必须是长度不超过 64 的字符串或整数")
-            return True
-        if request_id is not None:
-            if request_id in self.seen_ids:
-                self._reject(request_id, "duplicate_id", "此命令 id 已处理，不能重复派发")
+        if _id_validated:
+            # The reader thread already claimed the id before queueing.
+            request_id = request.get("id")
+        else:
+            request_id, code, message = self._claim_request_id(request)
+            if code is not None:
+                self._reject(request_id, code, message)
                 return True
-            self.seen_ids.add(request_id)
         command = request.get("command")
         if command == "status":
             self._reply("status", request_id, completed_phases=[
@@ -370,26 +386,82 @@ class ControlSession:
                      "command 必须是 status、advance、refresh_perception、action、actions、reload 或 close")
         return True
 
+    def _reader_loop(self):
+        """Single stdin reader: answer read-only probes at once, queue the rest.
+
+        serve() blocks inside a motion command for seconds; status/actions/
+        query_pose must not wait behind it.  Read-only answers read the state
+        dict directly (single-field access and list copy are atomic under the
+        GIL), and query_pose additionally try-acquires the executor lock: the
+        SDK worker channel is single-connection RPC, so a probe must never
+        interleave with an executing command — busy means answer now with
+        command_busy instead of queueing behind the motion.
+        """
+        try:
+            while True:
+                line = self.incoming.readline()
+                if not line:
+                    self.queue.put(None)   # EOF sentinel: serve exits as PAUSED.
+                    return
+                if len(line) > 4096:
+                    self._reject(None, "invalid_request", "单条命令超过 4096 字符")
+                    continue
+                try:
+                    request = json.loads(line)
+                except json.JSONDecodeError:
+                    self._reject(None, "invalid_json", "每行必须是完整 JSON")
+                    continue
+                if not isinstance(request, dict):
+                    self._reject(None, "invalid_request", "每行必须是 JSON 对象")
+                    continue
+                request_id, code, message = self._claim_request_id(request)
+                if code is not None:
+                    self._reject(request_id, code, message)
+                    continue
+                command = request.get("command")
+                if command == "status":
+                    self._reply("status", request_id, completed_phases=[
+                        item["phase"] for item in list(self.state["events"])],
+                        state_file=str(self.state_path))
+                elif command == "actions":
+                    self._reply("actions", request_id, names=sorted(set(self.actions)))
+                elif command == "query_pose":
+                    if self.executor_lock.acquire(blocking=False):
+                        try:
+                            self._query_pose(request_id)
+                        finally:
+                            self.executor_lock.release()
+                    else:
+                        self._reject(request_id, "command_busy",
+                                     "抓取流程或动作执行中，稍后再试 query_pose")
+                else:
+                    self.queue.put(request)
+        except BaseException as error:
+            try:
+                self.diagnostic.write(f"[reader] {type(error).__name__}: {error}\n")
+            except Exception:
+                pass
+            # Unblock serve(): without a sentinel it would wait forever.
+            self.queue.put(None)
+
     def serve(self):
         self._reply("ready", phases=list(PHASES), actions=sorted(set(self.actions)),
                     state_file=str(self.state_path))
+        reader = threading.Thread(target=self._reader_loop, daemon=True,
+                                  name="control-reader")
+        reader.start()
         while True:
-            line = self.incoming.readline()
-            if not line:
+            request = self.queue.get()
+            if request is None:
                 self.state["status"] = "PAUSED"
                 save(self.state_path, self.state)
                 self._reply("closed", reason="stdin_eof", state_file=str(self.state_path))
                 return 0
-            if len(line) > 4096:
-                self._reject(None, "invalid_request", "单条命令超过 4096 字符")
-                continue
-            try:
-                request = json.loads(line)
-            except json.JSONDecodeError:
-                self._reject(None, "invalid_json", "每行必须是完整 JSON")
-                continue
-            if not self._handle(request):
-                return 2 if self.state["status"] == "FAILED" else 0
+            # One executor at a time: motion commands and the query_pose probe
+            # share the single SDK worker channel; the reader only try-acquires.
+            with self.executor_lock:
+                if not self._handle(request, _id_validated=True):
+                    return 2 if self.state["status"] == "FAILED" else 0
 
 
 def build_action_runtime(flow, diagnostic):
