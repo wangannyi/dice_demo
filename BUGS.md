@@ -60,8 +60,6 @@
   TimeoutError。
 - **修法**：重发透传 `on_dispatched`（注意只在第一次真正 dispatch 时执行一次）。
 
-#### [ ] P2-24 半途停靠后 `action`/`reload` 永久拒绝，协议无 abort
-
 #### [ ] P2-4 连跑进行中 state 只写 `rounds_remaining`，`rounds_total` 缺失
 
 - **位置**：`green_control.py` `_advance` 的轮次循环（每轮 `rounds_remaining` 更新处）
