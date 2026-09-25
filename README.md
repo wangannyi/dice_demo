@@ -21,14 +21,6 @@ git clone https://github.com/wangannyi/dice_demo.git
 cd dice_demo
 ```
 
-创建交付包：
-
-```bash
-python3 scripts/package_release.py --output "dist/release_$(date +%Y%m%d_%H%M%S)"
-```
-
-交付包包含源码、配置、模型和标定工具，不包含运行记录。默认交付包要求接收方重新标定。只有复现同一套固定设备时才使用 `--site-active` 保留现场标定状态。
-
 ## 2. 安装和检查环境
 
 K3 上安装系统依赖：
@@ -139,16 +131,6 @@ bash run.sh fast --until place --execute  # 放杯并返回 HOME
 | `green_cup.joint_test_config` | 摇晃动作配置文件 |
 
 六路手指顺序为：拇指尖、拇指根、食指、中指、无名指、小指。TCP 偏移使用法兰坐标系，不是图像坐标系。
-
-### 相机档位
-
-```bash
-python3 scripts/set_camera_profile.py usb2
-python3 scripts/set_camera_profile.py usb3
-python3 scripts/set_camera_profile.py usb2 --dry-run
-```
-
-默认 USB 2.0 档位为 1280×720、6 FPS；USB 3.0 档位为 1280×720、15 FPS。命令会同步抓杯与标定配置。改变彩色分辨率或裁剪后必须重新标定；改变深度分辨率后必须重新验证深度对齐和杯位。
 
 ### 摇晃动作
 

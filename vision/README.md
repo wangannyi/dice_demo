@@ -49,11 +49,5 @@ cp vision/strategy/green_cup.json vision/strategy/<物体名>.json
 | `fresh_discard_frames` | int | 正式采集前丢弃帧数（0~5） |
 | `calibration_file` | str | 标定结果路径（换相机配置后须重做桌面登记） |
 
-**换配置须知**：改分辨率或裁剪后必须重新标定和桌面登记（`scripts/table_capture.py` + `scripts/register_home_table.py`），camera.json 的 `calibration_file` 绑定会校验标定一致性。
-
-## 使用 set_camera_profile.py 切换相机档位
-```bash
-python3 scripts/set_camera_profile.py usb2   # 1280×720@6（默认，USB 2.0 验证档）
-python3 scripts/set_camera_profile.py usb3   # 1280×720@15
-python3 scripts/set_camera_profile.py usb2 --fps 6 --color-resolution 640 480
-```
+**换配置须知**：改分辨率或裁剪后必须重新标定和桌面登记（工具随标定流程提供，
+见 `docs/CALIBRATION.md`）。
