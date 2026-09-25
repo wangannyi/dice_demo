@@ -4,32 +4,15 @@
 > **已修条目已从清单删除**（修复详情见 git 历史：8034cc8 P1-1 hold 新鲜度、
 > d01e83d P1-4 limits 超时、0b2fc9f P2-3/P2-25 队列化+即时探测、
 > 3e535e5 P2-14 控制台 9 键、a08a71f P2-23 home 注册表、
-> 097e634 失败自动恢复）；与本清单无关的优化项见 TODO.md。
-> 行号以 5d6f4c1 为准，改动后可能漂移，以描述定位为准。
-
----
-
-## 🔴 P1 —— 必须修（1 条，已亲自验证坐实）
-
-### [ ] P1-2 rounds 连跑谎报局数：`already_completed` 空转轮也计数
-
-- **位置**：`cup_grasp_demo/flow/green_control.py:140-143`（无条件 `completed_rounds += 1`）
-  配合 `_advance_single:156-158`（目标已超越时 `_reject(already_completed)` 却 `return True`）
-- **问题**：`rounds>1` 且目标非 `RETURN_HOME` 时，第 2..N 轮只发拒绝事件不执行任何阶段，
-  最后仍发 `rounds_completed rounds=3, runs=0`（自相矛盾），无 `run_completed`。
-  **控制台菜单 83 行自己推荐的 `{"command":"advance","rounds":3}` 就会踩**
-  （无 until → target_index=next_index=0，只跑 HOME）。
-- **危害**：游戏程序按 rounds 协议接入会把"没跑"当"跑了 N 局"。
-- **修法**：`_handle` 的 advance 分支加 `rounds > 1 and target_index != len(PHASES)-1 →
-  rejected(invalid_rounds)`；同时让被 `already_completed` 拒绝的轮次不计入
-  `completed_rounds`（或在 `_advance` 入口先判 `next_index > target_index` 拒绝整个连跑）。
-- **测试补**：① `rounds>1` + `until=GRIP` 被拒；② 无 until + rounds>1 被拒（当前菜单路径）。
+> 097e634 失败自动恢复）；**P1-2/P2-4/P2-3 连跑族随机制删除消解**
+> （0e1ec6a：rounds/stop 连跑协议整体移除，多局由上层驱动）；与本清单无关的优化项见
+> TODO.md。行号以 5d6f4c1 为准，改动后可能漂移，以描述定位为准。
 
 ---
 
 ## 🟠 P2 —— 真实缺陷，特定条件触发
 
-### A. SDK 自愈与连跑（最近两个新功能各有硬伤）
+### A. SDK 自愈（worker 死亡分级的实现缺口）
 
 #### [ ] P2-1 零发送重发分支实际永远走不进去（两个独立死因）
 
@@ -59,16 +42,6 @@
   LIFT 阶段 `finish_following()` 的 `future.result(timeout=120)` 白等满 120s 后
   TimeoutError。
 - **修法**：重发透传 `on_dispatched`（注意只在第一次真正 dispatch 时执行一次）。
-
-#### [ ] P2-4 连跑进行中 state 只写 `rounds_remaining`，`rounds_total` 缺失
-
-- **位置**：`green_control.py` `_advance` 的轮次循环（每轮 `rounds_remaining` 更新处）
-- **问题**（2026-09-25 复盘收窄）：失败残留的一半已被 097e634 失败自动恢复解决
-  （恢复链统一清 `rounds_total/rounds_remaining`）。剩余：每轮完成
-  `_reset_for_next_run()` 后 `rounds_total=None`，下一轮只补 remaining →
-  连跑进行中发 status 探测，`rounds_total=null` + `rounds_remaining=2`，
-  客户端不知道总局数。
-- **修法**：`rounds>1` 分支每轮同时写 `rounds_total` 与 `rounds_remaining`。
 
 ### B. 反馈新鲜度病根剩余接线（3559c19/d3a1634/5d6f4c1 的同族）
 
@@ -390,20 +363,19 @@ main 侧另有失败页归位/开机归位兜底（dice_game 49103f5/564ce81/d3b
 3. TODO.md 已记录的"测试配置漂移 21 键"同类问题：测试在验证一套偏离交付的参数组合。
 
 **修复时的通用要求**：每条修前存档锚点 → 修 → 新增测试做 stash 回归验证
-（在旧代码上必失败才证明抓住 bug）→ 全量通过（当前基线 480 passed / 30 skipped）
+（在旧代码上必失败才证明抓住 bug）→ 全量通过（当前基线 475 passed / 30 skipped）
 → 提交。
 
-## 建议修复顺序（2026-09-25 复盘后）
+## 建议修复顺序（2026-09-25 连跑删除后）
 
-1. **P1-2**（唯一剩的 P1：rounds 谎报局数，游戏程序在用 rounds 协议）
-2. **P2-5/6/7/8/9 反馈新鲜度剩余接线**（同病根一族一次收干净；P2-9 建议选
+1. **P2-5/6/7/8/9 反馈新鲜度剩余接线**（同病根一族一次收干净；P2-9 建议选
    "保持 0.1 但接 start_position_changed 恢复路径"）
-3. **P2-1/2/4 SDK 自愈与连跑补全**（P2-1 修好后 P2-2 即现形，连着做）
-4. **P2-10/11/12 摇骰热路径与清理**（P2-11 顺带修 motion_attempted 审计失真）
-5. **P2-13 手误即崩类** / **P2-15/16/17 中断与信号语义**
-6. **P2-18/19/21 视觉采集**（P2-19 关乎"下次能否打开相机"）
-7. **P2-24 abort 协议**（主动停靠死角；可复用 097e634 恢复链）/ P2-26
-8. P3 按主题批量（P3-4/5 配置卫生最轻，可穿插做）
+2. **P2-1/2 SDK 自愈补全**（P2-1 修好后 P2-2 即现形，连着做）
+3. **P2-10/11/12 摇骰热路径与清理**（P2-11 顺带修 motion_attempted 审计失真）
+4. **P2-13 手误即崩类** / **P2-15/16/17 中断与信号语义**
+5. **P2-18/19/21 视觉采集**（P2-19 关乎"下次能否打开相机"）
+6. **P2-24 abort 协议**（主动停靠死角；可复用 097e634 恢复链）/ P2-26
+7. P3 按主题批量（P3-4/5 配置卫生最轻，可穿插做）
 
 ---
 *产出：2026-09-24 全项目深挖（4 路并行审计 + P1 逐条人工复核；P1-4/P3-23 来自
