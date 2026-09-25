@@ -121,7 +121,7 @@
   TimeoutError。
 - **修法**：重发透传 `on_dispatched`（注意只在第一次真正 dispatch 时执行一次）。
 
-#### [ ] P2-3 局间 stop 有 TextIOWrapper 缓冲盲区
+#### [x] P2-3 局间 stop 有 TextIOWrapper 缓冲盲区 ✅ 已修（0b2fc9f，2026-09-25；A 改造队列化，select peek 退役）
 
 - **位置**：`green_control.py:62-84`（`_inter_round_request` 用 select 探 fd）、`:106-111`
 - **问题**：`serve()` 用 `readline()`（8KB readahead），advance 与 stop 同批写入时，
@@ -370,7 +370,7 @@
   可选是否先归位；或允许 `action home` 在停靠态强制解锁（安全前提：接受握杯
   掉落，与归位不变量的失败路径一致）。
 
-#### [ ] P2-25 连跑局间把 `status`/`actions` 也一并拒绝；peek 丢弃非对象行
+#### [x] P2-25 连跑局间把 `status`/`actions` 也一并拒绝；peek 丢弃非对象行 ✅ 已修（0b2fc9f，2026-09-25；A 改造：只读命令到达即应答、query_pose 忙时 rejected(command_busy)、非对象行回 invalid_request 不吞行）
 
 - **位置**：`green_control.py:131-132`（局间兜底一律 `multi_round_busy`，含只读
   命令）；`:84`（合法 JSON 但非对象的行返回 None，被当"没有更多输入"跳出 peek
