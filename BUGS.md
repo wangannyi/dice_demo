@@ -250,7 +250,7 @@
   load_registry 增加 aliases 类型检查整组拒载；补负例测试（recipe 为
   null/number/list、aliases 为 number）。
 
-#### [ ] P2-14 菜单承诺的 `9` 从未实现
+#### [x] P2-14 菜单承诺的 `9` 从未实现 ✅ 已修（3e535e5，2026-09-25；`9` 本地退出不发 close，子进程 EOF 自行释放记 PAUSED）
 
 - **位置**：`scripts/control_console.py:83`（菜单文案）vs `:90-101`（BASE_CHOICES 无 9）
   且 `9` 被 `RESERVED_KEYS` 占死
