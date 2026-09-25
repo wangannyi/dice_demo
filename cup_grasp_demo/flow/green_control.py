@@ -58,7 +58,7 @@ class ControlSession:
     def _new_state(self):
         return dict(strategy="green_open_cup", mode="control", cycle=self.cycle,
                     status="WAITING", events=[], phase_timings_s={}, actions=[],
-                    rounds_total=None, rounds_remaining=None)
+                    rounds_total=None, rounds_remaining=None, last_failure=None)
 
     def _next_phase(self):
         return PHASES[self.next_index] if self.next_index < len(PHASES) else None
@@ -80,6 +80,51 @@ class ControlSession:
                 return request_id, "duplicate_id", "此命令 id 已处理，不能重复派发"
             self.seen_ids.add(request_id)
         return request_id, None, None
+
+    def _recovery_enabled(self):
+        """green_cup.failure_recovery（默认开）：硬失败自动归位而非退出。"""
+        green = getattr(self.flow, "g", None)
+        value = green.get("failure_recovery", True) if isinstance(green, dict) else True
+        return bool(value)
+
+    def _recover(self, request_id, error_text):
+        """After a hard failure: home the arm and keep serving.
+
+        The resident process must outlive motion failures.  Recovery runs on
+        the serve thread behind the executor lock; probes keep answering
+        (status instantly, query_pose as command_busy) and new motion commands
+        queue behind recovery.  A failing recovery itself falls back to the
+        legacy exit — an arm whose homing fails is not safe to keep commanding.
+        """
+        if not self._recovery_enabled() or self.run_action is None:
+            return False
+        try:
+            if "SDK worker exited" in str(error_text):
+                sdk = getattr(self.flow, "_sdk", None)
+                if sdk is not None:
+                    sdk.restart()
+            self._reply("recovery_started", request_id, action="home",
+                        cause=str(error_text)[:300])
+            result = self.run_action("home")
+            # Same reset as a finished run: the failed round is void, held-cup
+            # state and caches must not leak into the next command.
+            self._reset_for_next_run()
+            self.state["last_failure"] = str(error_text)[:300]
+            self.state["actions"].append(dict(
+                name="home", elapsed_s=result.get("elapsed_s"),
+                receipt=result.get("receipt"), note="recovery"))
+            save(self.state_path, self.state)
+            self._reply("recovered", request_id, action="home",
+                        receipt=result.get("receipt"))
+            return True
+        except BaseException as error:
+            self.state.update(status="FAILED",
+                              error=f"恢复失败（home）: {type(error).__name__}: {error}",
+                              last_failure=str(error_text)[:300])
+            save(self.state_path, self.state)
+            self._reply("failed", request_id, phase="recovery:home",
+                        error=self.state["error"], state_file=str(self.state_path))
+            return False
 
     def _query_pose(self, request_id):
         """Read-only pose probe for the patrol homing on the game side.
@@ -190,8 +235,13 @@ class ControlSession:
                 self._reply("round_started", request_id,
                             round=round_index + 1, rounds=rounds)
             if not self._advance_single(request_id, target_index):
-                # Phase failure ends the process; no cross-round retry.
-                return False
+                # Phase failure ends the rounds (completed ones stay recorded);
+                # recover by homing instead of exiting the resident session.
+                if rounds > 1:
+                    self.state["rounds_total"] = None
+                    self.state["rounds_remaining"] = None
+                    save(self.state_path, self.state)
+                return self._recover(request_id, self.state.get("error", ""))
             completed_rounds += 1
         if rounds > 1:
             self.state["rounds_total"] = None
@@ -273,11 +323,13 @@ class ControlSession:
             self._reject(request_id, "unknown_action", str(exc))
             return True
         except Exception as exc:
-            self.state.update(status="FAILED", error=f"{type(exc).__name__}: {exc}")
+            error = f"{type(exc).__name__}: {exc}"
+            self.state.update(status="FAILED", error=error, last_failure=error)
             save(self.state_path, self.state)
             self._reply("failed", request_id, phase=f"action:{name}",
-                        error=self.state["error"], state_file=str(self.state_path))
-            return False
+                        error=error, state_file=str(self.state_path))
+            # 硬失败不再必然退出：先尝试归位恢复，恢复失败才退出。
+            return self._recover(request_id, error)
         elapsed = time.perf_counter() - started
         self.state["status"] = "WAITING"
         self.state["active_action"] = None

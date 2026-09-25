@@ -689,5 +689,176 @@ class ImmediateProbeTests(unittest.TestCase):
                              [x.get('code') for x in reports])
 
 
+class RecoveryTests(unittest.TestCase):
+    """failure_recovery（默认开）：硬失败走 home 归位，常驻进程全程存活。
+
+    恢复失败（home 也炸）才退回旧行为退出——归位不了的机械臂不安全，
+    不能继续接命令。开关关（false）或会话未接动作执行器时保持旧语义。
+    """
+
+    def fake_flow(self):
+        flow = Mock()
+        flow.receipts = {}
+        flow.recovery_events = []
+        flow.held = None
+        flow._snapshot_cache = None
+        return flow
+
+    def test_action_failure_homes_and_session_survives(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            calls = []
+
+            def run_action(name):
+                calls.append(name)
+                if name == 'yeah':
+                    raise RuntimeError('boom')
+                return dict(name=name, receipt='receipt.json', elapsed_s=.1)
+
+            outgoing = io.StringIO()
+            server = control.ControlSession(
+                flow, Path(directory) / 'state.json', commands(
+                    dict(id='a', command='action', name='yeah'),
+                    dict(id='after', command='action', name='paper'),
+                    dict(command='close')),
+                outgoing, io.StringIO(),
+                actions=('yeah', 'home', 'paper'), run_action=run_action)
+            self.assertEqual(server.serve(), 0)
+            self.assertEqual(calls, ['yeah', 'home', 'paper'])
+            reports = events(outgoing)
+            seq = [x['event'] for x in reports]
+            self.assertLess(seq.index('failed'), seq.index('recovery_started'))
+            self.assertLess(seq.index('recovery_started'), seq.index('recovered'))
+            after = next(x for x in reports if x.get('id') == 'after'
+                         and x['event'] == 'action_completed')
+            state = json.loads((Path(directory) / 'state.json').read_text())
+            self.assertEqual(state['status'], 'PAUSED')
+            self.assertIn('boom', state['last_failure'])
+
+    def test_phase_failure_homes_and_session_survives(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            flow.perform.side_effect = [None, RuntimeError('vision boom')]
+            calls = []
+
+            def run_action(name):
+                calls.append(name)
+                return dict(name=name, receipt='receipt.json', elapsed_s=.1)
+
+            outgoing = io.StringIO()
+            server = control.ControlSession(
+                flow, Path(directory) / 'state.json', commands(
+                    dict(id='adv', command='advance', until='CAPTURE'),
+                    dict(command='close')),
+                outgoing, io.StringIO(),
+                actions=('home',), run_action=run_action)
+            self.assertEqual(server.serve(), 0)
+            self.assertEqual(calls, ['home'])
+            reports = events(outgoing)
+            seq = [x['event'] for x in reports]
+            self.assertLess(seq.index('failed'), seq.index('recovered'))
+            self.assertEqual(seq[-2], 'recovered')
+            self.assertEqual(seq[-1], 'closed')
+
+    def test_recovery_failure_exits_like_legacy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+
+            def run_action(name):
+                if name == 'yeah':
+                    raise RuntimeError('boom')
+                raise RuntimeError('home also broken')
+
+            outgoing = io.StringIO()
+            server = control.ControlSession(
+                flow, Path(directory) / 'state.json', commands(
+                    dict(id='a', command='action', name='yeah')),
+                outgoing, io.StringIO(),
+                actions=('yeah', 'home'), run_action=run_action)
+            self.assertEqual(server.serve(), 2)
+            reports = events(outgoing)
+            failures = [x for x in reports if x['event'] == 'failed']
+            self.assertEqual(len(failures), 2)
+            self.assertIn('home also broken', failures[1]['error'])
+            state = json.loads((Path(directory) / 'state.json').read_text())
+            self.assertEqual(state['status'], 'FAILED')
+
+    def test_failure_recovery_disabled_restores_legacy_exit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            flow.g = {'failure_recovery': False}
+            calls = []
+
+            def run_action(name):
+                calls.append(name)
+                raise RuntimeError('boom')
+
+            outgoing = io.StringIO()
+            server = control.ControlSession(
+                flow, Path(directory) / 'state.json', commands(
+                    dict(id='a', command='action', name='yeah')),
+                outgoing, io.StringIO(),
+                actions=('yeah', 'home'), run_action=run_action)
+            self.assertEqual(server.serve(), 2)
+            self.assertEqual(calls, ['yeah'])
+            self.assertNotIn('recovered', [x['event'] for x in events(outgoing)])
+            self.assertNotIn('recovery_started', [x['event'] for x in events(outgoing)])
+
+    def test_worker_death_restarts_sdk_before_homing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            flow._sdk = Mock()
+            calls = []
+
+            def run_action(name):
+                calls.append(name)
+                if name == 'yeah':
+                    raise RuntimeError('SDK worker exited：日志：/tmp/x.log')
+                return dict(name=name, receipt='receipt.json', elapsed_s=.1)
+
+            outgoing = io.StringIO()
+            server = control.ControlSession(
+                flow, Path(directory) / 'state.json', commands(
+                    dict(id='a', command='action', name='yeah'),
+                    dict(command='close')),
+                outgoing, io.StringIO(),
+                actions=('yeah', 'home'), run_action=run_action)
+            self.assertEqual(server.serve(), 0)
+            self.assertEqual(calls, ['yeah', 'home'])
+            flow._sdk.restart.assert_called_once()
+            self.assertIn('recovered', [x['event'] for x in events(outgoing)])
+
+    def test_multi_round_failure_recovers_and_cleans_rounds_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            # Round 1 fine (all phases); round 2 fails on its first phase.
+            flow.perform.side_effect = [None] * len(control.PHASES) + [RuntimeError('boom')]
+            calls = []
+
+            def run_action(name):
+                calls.append(name)
+                return dict(name=name, receipt='receipt.json', elapsed_s=.1)
+
+            # close 必须等失败发生后再发：局间 peek 会立刻消费提前写入的
+            # close，第 2 局就不会开始（writer 保持打开、按事件写入）。
+            def script(send, wait_for):
+                send(dict(id='r', command='advance', until='RETURN_HOME', rounds=2))
+                self.assertTrue(wait_for(lambda evs: any(
+                    e.get('event') == 'recovered' for e in evs)))
+                send(dict(command='close'))
+
+            server, outgoing, _, _ = threaded_session(
+                flow, directory, script, actions=('home',), run_action=run_action)
+            self.assertEqual(server.serve(), 0)
+            self.assertEqual(calls, ['home'])
+            reports = events(outgoing)
+            seq = [x['event'] for x in reports]
+            self.assertEqual(len([x for x in reports if x['event'] == 'round_started']), 2)
+            self.assertLess(seq.index('failed'), seq.index('recovered'))
+            state = json.loads((Path(directory) / 'state.json').read_text())
+            self.assertIsNone(state['rounds_total'])
+            self.assertIsNone(state['rounds_remaining'])
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -126,7 +126,9 @@ HINTS = {
     "pose": "姿态探针",
     "perception_reset": "已退回 CAPTURE：下次 advance 会重新识别与规划",
     "rejected": "命令被拒绝",
-    "failed": "执行失败，常驻进程将退出",
+    "failed": "执行失败，正在自动归位恢复（等 recovered 或进程退出）",
+    "recovery_started": "失败后自动归位开始（动作=home）",
+    "recovered": "已归位恢复完成，回到空闲，可继续发命令",
     "closed": "设备已释放，进程退出",
     "preview": "预览模式（未带 --execute），进程即将退出",
 }

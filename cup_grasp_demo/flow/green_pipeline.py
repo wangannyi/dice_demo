@@ -83,6 +83,8 @@ def validate(cfg):
         raise ValueError("direct_return_home must be boolean")
     if type(g.get("persistent_runtime", True)) is not bool:
         raise ValueError("persistent_runtime must be boolean")
+    if type(g.get("failure_recovery", True)) is not bool:
+        raise ValueError("failure_recovery must be boolean")
     if g.get('table_plane_source', 'live_depth') not in ('live_depth', 'calibrated'):
         raise ValueError('table_plane_source must be live_depth or calibrated')
     if type(g.get("recovery_attempts", 1)) is not int or not 0 <= g.get("recovery_attempts", 1) <= 2:
