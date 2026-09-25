@@ -203,8 +203,9 @@ def validate_target(values, limits):
     return values
 
 
-def fresh_feedback(session, *, previous=None, joint_max_age_s=.1, monotonic=time.monotonic,
-                   wallclock=time.time, sleep=time.sleep, _refresh_remaining=2):
+def fresh_feedback(session, *, previous=None, joint_max_age_s=.1, state_max_age_s=.25,
+                   monotonic=time.monotonic, wallclock=time.time, sleep=time.sleep,
+                   _refresh_remaining=2):
     snapshot = session.snapshot()
     q = numbers(snapshot['q_rad'], 7, 'joint feedback')
     fk = numbers(snapshot['fk_flange_pose_m_rad'], 6, 'flange FK')
@@ -216,7 +217,7 @@ def fresh_feedback(session, *, previous=None, joint_max_age_s=.1, monotonic=time
         message = session.robot.get_arm_status()
         stamp = getattr(message, 'timestamp', None)
         if (stamp is not None and isinstance(stamp, (int, float)) and math.isfinite(stamp)
-                and 0 <= wallclock()-stamp <= .25
+                and 0 <= wallclock()-stamp <= state_max_age_s
                 and (previous is None or stamp > previous['status_timestamp_epoch_s'])):
             break
         sleep(.01)
@@ -232,7 +233,7 @@ def fresh_feedback(session, *, previous=None, joint_max_age_s=.1, monotonic=time
             driver = session.robot.get_driver_states(joint_index=index)
             stamp = getattr(driver, 'timestamp', None)
             if (stamp is None or not isinstance(stamp, (int, float)) or not math.isfinite(stamp)
-                    or not 0 <= wallclock()-stamp <= .25):
+                    or not 0 <= wallclock()-stamp <= state_max_age_s):
                 missing.append(index)
             enable_stamps.append(stamp)
         if not missing:
@@ -246,10 +247,11 @@ def fresh_feedback(session, *, previous=None, joint_max_age_s=.1, monotonic=time
     # Waiting for the first enable packets must not publish an old joint/FK
     # snapshot. Refresh all four joint packets, then recheck all timestamps.
     if (max(wallclock()-stamp for stamp in snapshot['packet_timestamps_after_epoch_s'].values()) > joint_max_age_s
-            or wallclock()-message.timestamp > .25):
+            or wallclock()-message.timestamp > state_max_age_s):
         if _refresh_remaining <= 0:
             raise RuntimeError('Could not obtain simultaneous fresh joint/status/enable feedback')
         return fresh_feedback(session, previous=previous, joint_max_age_s=joint_max_age_s,
+                              state_max_age_s=state_max_age_s,
                               monotonic=monotonic, wallclock=wallclock, sleep=sleep,
                               _refresh_remaining=_refresh_remaining-1)
     snapshot.update(q_rad=q, fk_flange_pose_m_rad=fk, tx_attempts=session.guard.report()['tx_attempts'],

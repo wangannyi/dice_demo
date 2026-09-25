@@ -104,6 +104,18 @@ def check_start_rows(request, rows, report):
             raise RuntimeError(f"当前姿态或控制状态与计划不同；最大起点误差 {report['start_max_error_deg']:.4f}°，容差 {tolerance}°；重新 plan，不自动移动到旧起点")
 
 
+def _start_check_feedback(session, report, *, previous=None):
+    """Start-check reads run before any motion command; a stale/unavailable
+    feed means we cannot prove the arm rests at the planned start — the same
+    condition as a start-position change, so route it into the existing
+    no-motion replan recovery instead of a hard failure."""
+    try:
+        return core.fresh_feedback(session, previous=previous)
+    except BaseException:
+        report['failure_code'] = 'start_position_changed'
+        raise
+
+
 def persistent_stopped_window(request, session, report, *, max_windows=10):
     """Allow the preceding lift to settle without a fixed inter-phase delay.
 
@@ -119,8 +131,8 @@ def persistent_stopped_window(request, session, report, *, max_windows=10):
     windows = []
     rows = []
     for attempt in range(1, max_windows + 1):
-        first = core.fresh_feedback(session, previous=previous)
-        second = core.fresh_feedback(session, previous=first)
+        first = _start_check_feedback(session, report, previous=previous)
+        second = _start_check_feedback(session, report, previous=first)
         rows = [first, second]
         previous = second
         spans = [abs(a - b) for a, b in zip(first['q_rad'], second['q_rad'])]
@@ -154,7 +166,7 @@ def persistent_stopped_window(request, session, report, *, max_windows=10):
 def prepare_control(request, session, baseline, report, *, persistent=False):
     """Reuse an owned CAN connection; a standalone test still performs handoff."""
     if persistent and baseline['status']['ctrl_mode'] == 1:
-        fresh = core.fresh_feedback(session, previous=baseline)
+        fresh = _start_check_feedback(session, report, previous=baseline)
         # Validate against the actual planned start, not a second stricter
         # handoff tolerance inherited from the standalone micro-move probe.
         recheck = {}
@@ -244,9 +256,13 @@ def run(request, *, connected=None, connection_evidence=None):
         raise ValueError("Persistent shake requires original pre-connection evidence")
     plan = request["plan"]
     cfg = plan["parameters"]
+    # measurements() reads the run's freshness budget from plan parameters, so
+    # acceptance filtering matches what the execution loop actually accepted.
+    cfg.setdefault('feedback_freshness_limit_s', freshness_limit)
     bus, factory = core.load_sdk_runtime(request["channel"])
     guard = JointGuard(bus)
-    session = core.PassivePoseSession(bus, factory, deadline_s=2)
+    session = core.PassivePoseSession(bus, factory, deadline_s=2,
+                                       max_age_s=freshness_limit)
     session.guard = guard
     report = dict(
         sdk_method="move_js",

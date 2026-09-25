@@ -339,7 +339,7 @@ def feedback_check(row, plan, elapsed):
     return errors
 
 
-def packet_samples(rows, joint):
+def packet_samples(rows, joint, max_age_s=.1):
     """Use packet receipt timestamps; identical packet copies count once."""
     key = (
         "joint_12",
@@ -364,7 +364,7 @@ def packet_samples(rows, joint):
         )
         observed = row.get("observed_epoch_s")
         if isinstance(stamp, (int, float)) and isinstance(observed, (int, float)):
-            if not math.isfinite(stamp) or not 0 <= observed - stamp <= 0.1:
+            if not math.isfinite(stamp) or not 0 <= observed - stamp <= max_age_s:
                 continue
             if previous_stamp is not None and stamp <= previous_stamp:
                 continue
@@ -428,10 +428,14 @@ def measurements(rows, plan):
     """Windowed angle-feedback estimates; never substitute command derivatives."""
     result = []
     window = plan["parameters"].get("measurement_window_s", 0.12)
+    # Measurement must accept the same packet ages the execution loop accepted;
+    # a stricter filter here silently drops valid samples and can flip
+    # tracking_verified to false on a run that actually tracked.
+    max_age_s = plan["parameters"].get("feedback_freshness_limit_s", .1)
     for j, requested in zip(
         plan["parameters"]["joints"], plan["parameters"]["amplitude_deg"]
     ):
-        samples, sources = packet_samples(rows, j)
+        samples, sources = packet_samples(rows, j, max_age_s=max_age_s)
         if len(samples) < 3:
             continue
         derivatives = window_derivatives(samples, window)

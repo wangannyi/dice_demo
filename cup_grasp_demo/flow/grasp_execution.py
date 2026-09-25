@@ -37,10 +37,10 @@ def validate_sequence(plan, cfg=None):
         raise ValueError('Grasp must close thumb base first, then the other five channels')
 
 
-def fresh_current(hand, demo, wallclock=time.time):
+def fresh_current(hand, demo, wallclock=time.time, max_age_s=1.):
     value = demo.read_fresh(hand.get_finger_current, 1., 'Revo2 current')
     stamp = demo.feedback_stamp(value)
-    if stamp is None or not 0 <= wallclock() - stamp <= 1:
+    if stamp is None or not 0 <= wallclock() - stamp <= max_age_s:
         raise RuntimeError('No fresh Revo2 current feedback')
     return dict(received_epoch_s=stamp, values=demo.finger_values(value))
 

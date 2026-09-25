@@ -64,9 +64,9 @@ class ShakeGuard(core.AuditedSendGuard):
         self.bus_class.send = send
 
 
-def hand_feedback(hand, cache):
+def hand_feedback(hand, cache, max_age_s=.25):
     result = {
-        k: _copy_getter(hand, k, cache, time.time)
+        k: _copy_getter(hand, k, cache, time.time, max_age_s=max_age_s)
         for k in ("position", "current", "status")
     }
     if not result["position"]["fresh"]:
@@ -257,7 +257,8 @@ def run(request):
     channel = request["channel"]
     bus, factory = core.load_sdk_runtime(channel)
     guard = ShakeGuard(bus)
-    session = core.PassivePoseSession(bus, factory, deadline_s=2)
+    session = core.PassivePoseSession(bus, factory, deadline_s=2,
+                                       max_age_s=freshness_limit)
     session.guard = guard
     report = dict(
         sdk_method="move_js",
@@ -279,13 +280,20 @@ def run(request):
         hand = session.robot.init_effector("revo2")
         cache = BroadcastCache()
         session.robot.get_context().register_parser_packet_fun(cache.receive)
-        rows, report["stationarity"] = core.stopped_window(session)
+        # Start checks precede any motion command: failures mean the start
+        # state is unprovable, i.e. the no-motion replan recovery applies.
+        try:
+            rows, report["stationarity"] = core.stopped_window(session)
+        except BaseException:
+            report["failure_code"] = "start_position_changed"
+            raise
         previous = rows[-1]
         limits = core.joint_limits(session.robot)
         for row in rows:
             if core.ready_blockers(row, take_can_control=True) or max(
                 abs(a - b) for a, b in zip(row["q_rad"], plan["start_q_rad"])
             ) > math.radians(0.05):
+                report["failure_code"] = "start_position_changed"
                 raise RuntimeError("机械臂当前姿态与摇晃计划不同，请重新 shake-plan")
         center = plan["T_base_flange_center"]
         direction = plan["direction_base"]
@@ -306,7 +314,7 @@ def run(request):
         conflicts = control_conflicts(before, report["host_control_before_motion"])
         if conflicts:
             raise RuntimeError("; ".join(conflicts))
-        report["hand_before"] = hand_feedback(hand, cache)
+        report["hand_before"] = hand_feedback(hand, cache, max_age_s=freshness_limit)
         baseline = report["hand_before"]["positions_0_100"]
         if baseline[1] < 90 or min(baseline[0], *baseline[2:]) < 5:
             raise RuntimeError("手指尚未处于当前两步闭手后的抓握姿态")
@@ -344,7 +352,7 @@ def run(request):
         report["can_mode"] = take_js_control(core, session, previous, timeout_s=3)
         previous = report["can_mode"]["samples"][-1]
         check_feedback(previous, plan, expected_s=0)
-        check_hand = hand_feedback(hand, cache)
+        check_hand = hand_feedback(hand, cache, max_age_s=freshness_limit)
         if max(abs(a - b) for a, b in zip(check_hand["positions_0_100"], baseline)) > 3:
             raise RuntimeError("摇晃启动前手形已变化")
         if not 0 <= time.time() - request["authorized_epoch_s"] <= 60:
@@ -382,7 +390,7 @@ def run(request):
             if not session.robot.get_joint_limits_enabled():
                 raise RuntimeError("SDK joint limits disabled")
             if elapsed - last_hand >= 0.1:
-                h = hand_feedback(hand, cache)
+                h = hand_feedback(hand, cache, max_age_s=freshness_limit)
                 if max(abs(a - b) for a, b in zip(h["positions_0_100"], baseline)) > 8:
                     raise RuntimeError("摇晃中手指反馈改变超过 8，停止并保留闭手")
                 last_hand = elapsed
@@ -410,7 +418,7 @@ def run(request):
         verify_stop(session, plan["start_q_rad"], report["center_settle"],
                     joint_max_age_s=freshness_limit)
         report["returned_center"] = True
-        report["hand_after"] = hand_feedback(hand, cache)
+        report["hand_after"] = hand_feedback(hand, cache, max_age_s=freshness_limit)
         report["measured_wave"] = measured_wave(report["feedback"], plan)
         report["success"] = report["measured_wave"]["tracking_verified"]
         if not report["success"]:

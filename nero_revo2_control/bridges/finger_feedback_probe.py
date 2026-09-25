@@ -101,7 +101,7 @@ class BroadcastCache:
                     'observed_control_frames': {key: dict(value) for key, value in self.controls.items()}}
 
 
-def _copy_getter(hand, kind, cache, wallclock):
+def _copy_getter(hand, kind, cache, wallclock, max_age_s=.25):
     can_id, attribute, getter = PACKETS[kind]
     row = {'can_id': hex(can_id), 'available': False, 'fresh': False,
            'timestamp_before_epoch_s': None, 'timestamp_getter_epoch_s': None,
@@ -143,7 +143,7 @@ def _copy_getter(hand, kind, cache, wallclock):
         row['reason'] = 'no_matching_raw_broadcast_in_this_process'
     elif not raw['is_remote_rx']:
         row['reason'] = 'local_injected_frame_not_hardware_rx'
-    elif not math.isfinite(age) or not 0 <= age <= .25:
+    elif not math.isfinite(age) or not 0 <= age <= max_age_s:
         row['reason'] = 'packet_stale_or_future'
     else:
         row['fresh'], row['reason'] = True, 'ok'

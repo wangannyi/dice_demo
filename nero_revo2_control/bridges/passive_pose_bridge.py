@@ -150,14 +150,23 @@ def load_sdk_runtime(channel):
 class PassivePoseSession:
     """Testable passive lifecycle and bounded four-packet snapshot reader."""
 
-    def __init__(self, bus_class, robot_factory, *, deadline_s=2.,
-                 monotonic=time.monotonic, wallclock=time.time, sleep=time.sleep):
+    def __init__(self, bus_class, robot_factory, *, deadline_s=2., max_age_s=.25,
+                 max_span_s=.02, monotonic=time.monotonic, wallclock=time.time,
+                 sleep=time.sleep):
         deadline_s = _finite_number(deadline_s)
         if not 1 <= deadline_s <= 5:
             raise ValueError('deadline_s must be between 1 and 5 seconds')
+        max_age_s = _finite_number(max_age_s)
+        max_span_s = _finite_number(max_span_s)
+        if not .05 <= max_age_s <= 5:
+            raise ValueError('max_age_s must be between 0.05 and 5 seconds')
+        if not .01 <= max_span_s <= 1:
+            raise ValueError('max_span_s must be between 0.01 and 1 seconds')
         self.guard = TxGuard(bus_class)
         self.robot_factory = robot_factory
         self.deadline_s = deadline_s
+        self.max_age_s = max_age_s
+        self.max_span_s = max_span_s
         self.monotonic = monotonic
         self.wallclock = wallclock
         self.sleep = sleep
@@ -194,8 +203,8 @@ class PassivePoseSession:
         self.previous_packets = _packet_timestamps(self.robot)
         self.started = True
         return {'schema': SCHEMA, 'event': 'ready', 'request_id': None,
-                'deadline_s': self.deadline_s, 'freshness_limit_s': .25,
-                'packet_span_limit_s': .02, 'tx_guard_installed_before_factory': True,
+                'deadline_s': self.deadline_s, 'freshness_limit_s': self.max_age_s,
+                'packet_span_limit_s': self.max_span_s, 'tx_guard_installed_before_factory': True,
                 'source_runtime_info': source_runtime_info(self.robot, self.guard.bus_class),
                 **self.stats()}
 
@@ -224,10 +233,11 @@ class PassivePoseSession:
                         wall = _finite_number(self.wallclock())
                         ages = {name: wall-before[name] for name in PACKETS}
                         span = max(before.values())-min(before.values())
-                        if not all(0 <= age <= .25 for age in ages.values()):
+                        if not all(0 <= age <= self.max_age_s for age in ages.values()):
                             last_rejection = 'joint packets are stale or from the future'
-                        elif span > .02:
-                            last_rejection = 'joint packet span exceeds 20 ms'
+                        elif span > self.max_span_s:
+                            last_rejection = 'joint packet span exceeds %.0f ms' % (
+                                self.max_span_s * 1000,)
                         elif self.previous_packets is not None and not all(
                                 before[name] > self.previous_packets[name] for name in PACKETS):
                             last_rejection = 'not all four joint packets advanced'
