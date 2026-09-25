@@ -1,32 +1,15 @@
-# Bug 清单（2026-09-24 全项目深挖）
+# Bug 清单（2026-09-24 全项目深挖；2026-09-25 复盘清理）
 
 > 4 路并行审计产出（常驻控制 / 运动执行 / 视觉感知 / 入口配置桥接），P1 结论已逐条人工复核。
-> 基线：HEAD 5d6f4c1，全量测试 464 passed / 30 skipped 全绿、compileall 零错误——
-> **以下所有 bug 都在现有测试盲区里**。修一条划一条；与本清单无关的优化项见 TODO.md。
->
+> **已修条目已从清单删除**（修复详情见 git 历史：8034cc8 P1-1 hold 新鲜度、
+> d01e83d P1-4 limits 超时、0b2fc9f P2-3/P2-25 队列化+即时探测、
+> 3e535e5 P2-14 控制台 9 键、a08a71f P2-23 home 注册表、
+> 097e634 失败自动恢复）；与本清单无关的优化项见 TODO.md。
 > 行号以 5d6f4c1 为准，改动后可能漂移，以描述定位为准。
 
 ---
 
-## 🔴 P1 —— 必须修（4 条，均已亲自验证坐实；P1-1/P1-4 已修 8034cc8/d01e83d）
-
-### [x] P1-1 失败保命链第四处 0.1s 硬编码：`fresh_js_hold` ✅ 已修（8034cc8，2026-09-24）
-
-- **位置**：`cup_grasp_demo/flow/joint_delivery.py:307`（裸调 `core.fresh_feedback(session)`）
-- **调用点**：`joint_execution.py:406`、`shake_execution.py:424`
-- **问题**：5d6f4c1 修了同链下游的 verify_stop，但上游的 `fresh_js_hold` 仍走默认 0.1s。
-  同一条失败链两半用不同预算：hold 取样 0.1 / hold 验证 0.3，先炸的必然是严格的那半。
-- **板上实证**（`cup_grasp_demo/datasets/game_20260924_163812_c882ba06/runs/...163854_green_joint_shake_d47d58/actual.json`）：
-  ```
-  error      = RuntimeError: Joint feedback exceeds 100 ms freshness limit
-  hold_error = Joint feedback exceeds 100 ms freshness limit   ← 就是 fresh_js_hold
-  restored_speed_percent = None    ← hold_verified 拿不到 → 速度不恢复
-  ```
-- **连锁**：`joint_execution.py:418-422` 要求 `hold_verified` 才恢复 `restore_speed_percent`，
-  机械臂最终停在"没人验证过、也没降速"的状态。
-- **修法**：`fresh_js_hold(core, session, limits, *, joint_max_age_s=.1)` 加形参，
-  两个调用点传 `freshness_limit`。hold 的安全性来自 `state_ok` + `validate_target`，
-  不是 packet 年龄——放宽取样预算不降低安全等级。
+## 🔴 P1 —— 必须修（1 条，已亲自验证坐实）
 
 ### [ ] P1-2 rounds 连跑谎报局数：`already_completed` 空转轮也计数
 
@@ -41,50 +24,6 @@
   rejected(invalid_rounds)`；同时让被 `already_completed` 拒绝的轮次不计入
   `completed_rounds`（或在 `_advance` 入口先判 `next_index > target_index` 拒绝整个连跑）。
 - **测试补**：① `rounds>1` + `until=GRIP` 被拒；② 无 until + rounds>1 被拒（当前菜单路径）。
-
-### [ ] P1-3 `register_home_table.py` 把绝对路径写回 git 跟踪的配置
-
-- **位置**：`scripts/register_home_table.py:34,45-46`
-- **问题**：`register()` 拿 `planar_scene.verify()` 的返回值整份回写，而 `verify` 返回
-  `load_config()` 的**已锚定视图**（`core.py:111-113` 把 home/calibration/
-  orientation_reference/tcp_candidate/grasp_config 五个键无条件改成 ROOT 绝对路径）。
-  按文档跑一次桌面登记 = 把 `/home/...` 写进 `configs/green_cup.json`。
-- **背景**：之前修的"同事绝对路径"问题只修了读侧（load_config 锚定容忍），写侧仍在生产。
-- **连带**：`package_release.py:37/40` 的 `relative_to(ROOT)`/`is_relative_to` 换机打包
-  直接 `ValueError`；出厂记录已见 `/home/test2/dice_demo_hwj/...` 残留 3 处
-  （`green_open_cup/home_table_scene.json:23`、`configs/calibration/handeye_result.json:262`、
-  `configs/installation/camera.json:262`）。
-- **修法**：`register()` 只改原始 JSON 的目标键——`raw = json.loads(config.read_text())`
-  后改 `raw['green_cup']['installation_requires_calibration']` 再 `atomic_json(config, raw)`，
-  不回写锚定视图。
-- **测试补**：不 mock `verify` 的用例，断言登记后 5 个路径键仍为相对路径。
-  （现有 `tests/scripts/test_register_home_table.py:38-39` 用 patch 绕过了真实 load_config，零覆盖。）
-
----
-
-### [x] P1-4 LOWER 放杯直接死因：`batched_limits` 0.5s 硬编码超时且无重试 ✅ 已修（d01e83d，2026-09-24）
-
-> 修法：`read_limits` 加 `timeout_s` 形参（默认 .5 行为兼容）+ 超时后重置 deadline
-> 再收一轮（只读查询无副作用），两轮皆空才抛；`delivery_options` 新键
-> `limits_read_timeout_s`（.1..5）批量/非批量分支统一接线；green_cup.json 走默认，
-> 现场有效总预算 1.0s。测试 +7（stash 回归验证 6/7 失败）。
-
-> 2026-09-24 另一窗口（dice_game）报障 ①，核实后录入；当天 17:05:54 现场 LOWER 整局失败。
-
-- **位置**：`cup_grasp_demo/flow/batched_limits.py:13`（`deadline = monotonic() + .5` 写死）
-- **问题**：14 个 CAN 查询（7 关节 × 角度/速度 + 加速度）连发后轮询，deadline 写死
-  0.5s，没收齐直接抛 `TimeoutError` 放弃整个动作，无重试。
-- **现场实证**（`game_20260924_165900_e5085e96/runs/20260924_170554_green_lower_36ed0a/actual.json`）：
-  下行动作 `sent_count: 0`（一个包没发），error 为
-  `Missing live controller limits: J5 acceleration, J6 angle/velocity, J6 acceleration,
-  J7 angle/velocity, J7 acceleration`；**同一秒内保命 hold 动作 85ms 就读全全部
-  limits**（`limits_read_s: 0.0855`）——总线只是忙了一瞬，不是坏。
-- **危害**：与已修的反馈新鲜度病根同族（CAN 忙时超时假设不成立），但位置在
-  `joint_delivery.py:169` 的 `read_limits`（MoveJS 交付前），一发即整局 FAILED。
-- **修法**：deadline 提为参数并接到配置（如 `joint_delivery.limits_read_timeout_s`，
-  默认仍 .5 现场可放宽）；超时后有限重试一轮（limits 是只读查询，重发无副作用，
-  与运动指令不同）；`motion_attempted` 语义顺带核对（该回执记 True 但实际 0 包发出——
-  见 P2-11/P3 一族）。
 
 ---
 
@@ -121,25 +60,17 @@
   TimeoutError。
 - **修法**：重发透传 `on_dispatched`（注意只在第一次真正 dispatch 时执行一次）。
 
-#### [x] P2-3 局间 stop 有 TextIOWrapper 缓冲盲区 ✅ 已修（0b2fc9f，2026-09-25；A 改造队列化，select peek 退役）
+#### [ ] P2-24 半途停靠后 `action`/`reload` 永久拒绝，协议无 abort
 
-- **位置**：`green_control.py:62-84`（`_inter_round_request` 用 select 探 fd）、`:106-111`
-- **问题**：`serve()` 用 `readline()`（8KB readahead），advance 与 stop 同批写入时，
-  第一条 readline 把后续行吞进用户态缓冲 → fd 已空 → select not ready → peek None →
-  跑完全部轮。跑完后 stop 落到 `_handle` 被拒 `not_in_multi_round`。
-- **触发**：任何同一次 flush 批量写 advance+stop 的管道客户端（游戏程序典型写法）。
-- **测试为何没抓到**：`test_green_control.py` 的 `_pipe_session` 写完即关 writer，
-  EOF 使 select 恒 ready——测试通过的理由与实际语义无关。
-- **修法**：peek 前先问缓冲（自维护 pending 行队列，或改 `os.read` 裸读/selectors）；
-  测试改为 writer 保持打开、延迟写入。
+#### [ ] P2-4 连跑进行中 state 只写 `rounds_remaining`，`rounds_total` 缺失
 
-#### [ ] P2-4 多轮期间 state 丢 `rounds_total`；失败时轮次字段残留
-
-- **位置**：`green_control.py:135-139`（只写 remaining）、`:140-143`、`:196-206`
-- **问题**：每轮完成 `_reset_for_next_run()` 后 `rounds_total=None`，第 2 轮只补
-  remaining → 中途 status 永远 `rounds_total=null` + `rounds_remaining=2`；
-  轮内失败时两个字段从不清理，FAILED state 里残留 `rounds_total=3`。
-- **修法**：`rounds>1` 分支每次同时写两个字段；失败/停止路径统一清理。
+- **位置**：`green_control.py` `_advance` 的轮次循环（每轮 `rounds_remaining` 更新处）
+- **问题**（2026-09-25 复盘收窄）：失败残留的一半已被 097e634 失败自动恢复解决
+  （恢复链统一清 `rounds_total/rounds_remaining`）。剩余：每轮完成
+  `_reset_for_next_run()` 后 `rounds_total=None`，下一轮只补 remaining →
+  连跑进行中发 status 探测，`rounds_total=null` + `rounds_remaining=2`，
+  客户端不知道总局数。
+- **修法**：`rounds>1` 分支每轮同时写 `rounds_total` 与 `rounds_remaining`。
 
 ### B. 反馈新鲜度病根剩余接线（3559c19/d3a1634/5d6f4c1 的同族）
 
@@ -250,15 +181,6 @@
   load_registry 增加 aliases 类型检查整组拒载；补负例测试（recipe 为
   null/number/list、aliases 为 number）。
 
-#### [x] P2-14 菜单承诺的 `9` 从未实现 ✅ 已修（3e535e5，2026-09-25；`9` 本地退出不发 close，子进程 EOF 自行释放记 PAUSED）
-
-- **位置**：`scripts/control_console.py:83`（菜单文案）vs `:90-101`（BASE_CHOICES 无 9）
-  且 `9` 被 `RESERVED_KEYS` 占死
-- **问题**：操作员按 9 只得"无效指令"，以为"机械臂进程已释放"，实际常驻进程继续占着
-  CAN/相机。唯一等价操作是 Ctrl-D，菜单没写。
-- **修法**：二选一——加 `"9"` 本地退出分支（关 stdin 不发 close），或菜单改写
-  "Ctrl-D 仅退控制台"。
-
 #### [ ] P2-15 Ctrl-C 提示语与事实不符；wait 无超时
 
 - **位置**：`control_console.py:339-346`；根因 `:157-160`（Popen 未 `start_new_session`）
@@ -340,45 +262,27 @@
 - **修法**：返回值改 per-detection 类别数组或删掉第三个返回值；补 proto 通道一致性
   断言。（与 TODO.md「model_adapter.py 接线」同批做。）
 
-#### [x] P2-23 `action home` 被 green_control 内建 recipe 遮蔽：`9be7d7a` 调参静默无效 ✅ 已修（2026-09-24 dice_game 窗口）
+#### [x] P2-23 `action home` 被 green_control 内建 recipe 遮蔽：`9be7d7a` 调参静默无效 ✅ 已修（2026-09-24 dice_game 窗口 a08a71f）
 
-- **位置**：`green_control.py:379-394`（旧内建分支，`speed_percent=fast_speed_percent`
-  即 30、`finger_speed_mode="timed"`）；被遮蔽的配置
-  `configs/actions/gestures/result_feedback.json` 的 `home`（100%/max/together）
-- **问题**：`run_action("home")` 走硬编码内建分支，注册表里的 home 手势永远不被
-  调用——`9be7d7a`（home 60%→100% 现场调机）改的是被遮蔽的那份，常驻
-  `action home` 与 main 侧 `reset_home` 一直跑 30%/timed。`ready`/`actions`
-  事件里 `names = ["home", *registry.names()]` 去重后不暴露重复，肉眼无感。
-  文档 `INTEGRATION.md` 写"HOME 单独保持 60%"同样与实际（30%）不符。
-- **修法**（已落地）：删内建分支，home 统一走 `registry.recipe("home")`；names 不再
-  硬编码塞 home；新增两道防护——注册表缺 home 时 diagnostic 警告"归位不可用"、
-  注册表 home 与 `home.json`（阶段机 HOME 姿态来源）joints_deg 不一致时警告。
-  INTEGRATION.md 的 60% 文档错误同步修正。背景：main 侧 2026-09-24 落地
-  "归位不变量"（离开游戏流程必回 home）后 action home 触发频率大增，30% 太慢
-  直接伤体验，此为修复的直接动因。
+#### 备注：阶段失败后臂停在原位、无人归位 ✅ 已闭环（097e634 demo 侧失败自动恢复 + main 侧归位不变量）
+
+`failed` 后 demo 侧自动走 home 归位（recovery_started→recovered），归位失败才退出；
+main 侧另有失败页归位/开机归位兜底（dice_game 49103f5/564ce81/d3b7c81）。
+用户拍板接受失败归位时握杯掉落，不加安全回收动作。
 
 #### [ ] P2-24 半途停靠后 `action`/`reload` 永久拒绝，协议无 abort
 
-- **位置**：`green_control.py:274-277,299-302`（判据 `next_index != 0`）；
-  `new_cycle` 已删（恒 `rejected(code=removed)`）；`refresh_perception`
-  仅 `next_index∈(2,3)` 可退
+- **位置**：`green_control.py`（判据 `next_index != 0`）；`new_cycle` 已删（恒
+  `rejected(code=removed)`）；`refresh_perception` 仅 `next_index∈(2,3)` 可退
 - **问题**：任何半途停靠（`advance until GRIP`、或 until 省略的单阶段推进——控制台
   键 2/3 就会踩）之后 `action`/`reload` 永久 `flow_in_progress`，唯一出路是把流程
   跑到 RETURN_HOME 或重启进程。对"手势与抓取共用一条常驻连接"的设计这是调度死角：
   手势会话从此不可用，main 侧 reset_home 也会被拒（unrouted 到失败处理）。
-- **修法**：新增 `abort` 命令——丢弃当前流程进度（`next_index=0` + 状态复位），
-  可选是否先归位；或允许 `action home` 在停靠态强制解锁（安全前提：接受握杯
-  掉落，与归位不变量的失败路径一致）。
-
-#### [x] P2-25 连跑局间把 `status`/`actions` 也一并拒绝；peek 丢弃非对象行 ✅ 已修（0b2fc9f，2026-09-25；A 改造：只读命令到达即应答、query_pose 忙时 rejected(command_busy)、非对象行回 invalid_request 不吞行）
-
-- **位置**：`green_control.py:131-132`（局间兜底一律 `multi_round_busy`，含只读
-  命令）；`:84`（合法 JSON 但非对象的行返回 None，被当"没有更多输入"跳出 peek
-  且不回 invalid_request——与 `_handle` 对非对象行回 `invalid_request` 的行为不一致）
-- **问题**：连跑期间连只读探活都被拒，客户端无法查询状态只能干等；peek 静默吞行
-  可能掩盖协议错乱。
-- **修法**：局间放行 `status`/`actions`（只读无副作用）；peek 对非对象行同样回
-  `invalid_request` 并继续循环。
+  （2026-09-25 复盘：097e634 失败自动恢复解决了**失败**路径的停靠——失败即走 home
+  复位；但**主动停靠**（用户自己 until GRIP 停下）仍无出路，本条收窄为主动停靠场景。）
+- **修法**：新增 `abort` 命令——丢弃当前流程进度（走 097e634 同款恢复链：
+  `next_index=0` + home 归位 + 状态复位）；或允许 `action home` 在停靠态强制解锁
+  （安全前提：接受握杯掉落，与归位不变量的失败路径一致）。
 
 #### [ ] P2-26 "Hand start" 自动重试 = 从 HOME 整局重放（main 侧 provider 行为）
 
@@ -391,14 +295,6 @@
   "这是重放不是续跑"。
 - **修法**：短期在 provider 日志/事件里明示"整局重放"；根治需要协议加 resume
   语义（带 next_index 恢复），或对 OPEN 之后的失败改走归位+重新开局而非重放。
-
-#### 备注：阶段失败后臂停在原位、无人归位（已由 main 侧归位不变量缓解）
-
-`failed` → 常驻退出（`green_control.py` serve 返回 2）→ 旧 main 侧 watcher 的
-reset_home 遇死 resident 直接 skipped → 臂停在失败位姿（握着杯子）。2026-09-24 起
-main 侧 `reset_home` 允许复活死常驻 + dice 失败页进入即归位 + 开机归位（dice_game
-仓库 49103f5/564ce81/d3b7c81），此路径已闭环；demo 侧无需再改（用户拍板接受失败
-归位时握杯掉落，不加安全回收动作）。
 
 ---
 
@@ -420,22 +316,23 @@ main 侧 `reset_home` 允许复活死常驻 + dice 失败页进入即归位 + �
   `shake.joint_motion_cost`）。
 - [ ] **P3-5** 出厂绝对路径残留 3 处：`green_open_cup/home_table_scene.json:23` 的
   `source: /home/test2/...`、`configs/calibration/handeye_result.json:262` 与
-  `configs/installation/camera.json:262` 的 `source_dataset: /home/test2/...`
-  （与 P1-3 同批处理）。
+  `configs/installation/camera.json:262` 的 `source_dataset: /home/test2/...`。
+  （原 P1-3——register_home_table 绝对路径回写——已随脚本删除消解；将来
+  `git checkout` 找回该脚本做桌面登记时**必须带上修复**：只回写原始 JSON 的
+  目标键，不回写 load_config 锚定视图，否则 5 个路径键会再次变成绝对路径。）
 - [ ] **P3-6** `configs/green_cup.json:131` 与 `cup_perception.py:24` 双处硬编码
   `/usr/lib/python3.14/dist-packages`（板上 3.12/3.14 混跑）；`detector.py:65-70`
   的 ORT 兜底还缺 `exc.name` 判断、把版本相关路径 append 进 sys.path。
 - [ ] **P3-7** `configs/installation/camera.json` 是过期副本（sha256 与活动标定不一致），
-  仅打包时被 `package_release.py:45` 覆盖——建议改为打包时直接复制活动标定。
+  仅打包时被覆盖——建议改为打包时直接复制活动标定。
 
 ### 打包与交付
 
-- [ ] **P3-8** `package_release.py:12-16,37,48-50`：换机 `relative_to` 未捕获且失败
-  不清理半成品目录（之后永远打不了包）；`green_open_cup/config.json` 不在重写列表，
-  同包三种闸门状态不一致。
 - [ ] **P3-9** `ensure_can_link.sh:6,12-18`：`DICE_CAN_INTERFACE` 全仓库无人导出
   （与 `cfg['channel']` 脱钩，改 can1 后脚本仍去 can0 报平安 exit 0）；只验 UP
   不验位速率。
+  （原 P3-8——package_release 打包三处问题——已随脚本删除消解；将来找回打包
+  脚本时参照本清单 git 历史。）
 
 ### 视觉诊断工具
 
@@ -456,8 +353,9 @@ main 侧 `reset_home` 允许复活死常驻 + dice 失败页进入即归位 + �
 - [ ] **P3-16** `vision/capture/config.py:38-44`：`calibration_file`/`calibration_digest()`
   无人调用，README:52 却宣称它做一致性校验——真正生效的是
   `configs/green_cup.json:7` 的 `calibration` 键。二选一：接线或删字段改 README。
-- [ ] **P3-17** `planar_scene.py:15-20,44`：会话路径以调用者 cwd 为基准、采集子进程以
-  ROOT 为基准，相对 `--session` 时分叉。
+- [ ] **P3-17** `cup_grasp_demo/flow/planar_scene.py` 成为零引用死代码
+  （table_capture/register_home_table 已随脚本瘦身删除；将来找回登记工具时
+  连同修复路径基准问题：会话路径以调用者 cwd 为基准、采集子进程以 ROOT 为基准）。
 
 ### 时钟/字段一致性
 
@@ -482,31 +380,34 @@ main 侧 `reset_home` 允许复活死常驻 + dice 失败页进入即归位 + �
 
 ---
 
-## 📌 为什么 464 个测试全绿还漏了这些
+## 📌 为什么当初 464 个测试全绿还漏了这些
 
 两个直接实锤 + 一个系统性原因：
 
 1. `test_sdk_restart.py` 的假 worker 不复刻真 worker 的 `.log`/`output.exists()` 语义，
    还伪造了 run/snapshot 不产出的 `tx` 块（→ P2-1 在真机永不出现的场景里绿了）。
-2. `test_green_control.py` 的 `_pipe_session` 写完即关 writer，EOF 使 select 恒
-   ready——stop 盲区测试通过的理由与实际语义无关（→ P2-3）。
+2. 旧 `_pipe_session` 写完即关 writer，EOF 使 select 恒 ready——P2-3 的 stop 盲区
+   测试通过的理由与实际语义无关；A 改造后三个测试又踩同款"批量写入被提前消费"
+   陷阱（事件驱动形态已纠正，这是本仓库反复出现的测试反模式）。
 3. TODO.md 已记录的"测试配置漂移 21 键"同类问题：测试在验证一套偏离交付的参数组合。
 
 **修复时的通用要求**：每条修前存档锚点 → 修 → 新增测试做 stash 回归验证
-（在旧代码上必失败才证明抓住 bug）→ 全量 464+ 通过 → 提交。
+（在旧代码上必失败才证明抓住 bug）→ 全量通过（当前基线 480 passed / 30 skipped）
+→ 提交。
 
-## 建议修复顺序
+## 建议修复顺序（2026-09-25 复盘后）
 
-1. ~~**P1-1**~~ ✅ 已修（8034cc8）+ **P2-5/6/7/8 新鲜度剩余接线**（同病根一次收干净）
-2. ~~**P1-4**~~ ✅ 已修（d01e83d）
-3. **P1-2**（游戏程序马上要用 rounds 协议）
-4. **P1-3 + P3-5**（绝对路径写读两侧一起堵）
-5. **P2-1/2/3/4 SDK 自愈与连跑**（既然做了就要真的能用）
-6. **P2-10/11/12 摇骰热路径与清理**（P2-11 顺带核 P1-4 回执的 motion_attempted 失真）
-7. **P2-13..17 入口健壮性**（手误即崩类）
-8. **P2-18..22 视觉采集**
-9. P3 按主题批量
+1. **P1-2**（唯一剩的 P1：rounds 谎报局数，游戏程序在用 rounds 协议）
+2. **P2-5/6/7/8/9 反馈新鲜度剩余接线**（同病根一族一次收干净；P2-9 建议选
+   "保持 0.1 但接 start_position_changed 恢复路径"）
+3. **P2-1/2/4 SDK 自愈与连跑补全**（P2-1 修好后 P2-2 即现形，连着做）
+4. **P2-10/11/12 摇骰热路径与清理**（P2-11 顺带修 motion_attempted 审计失真）
+5. **P2-13 手误即崩类** / **P2-15/16/17 中断与信号语义**
+6. **P2-18/19/21 视觉采集**（P2-19 关乎"下次能否打开相机"）
+7. **P2-24 abort 协议**（主动停靠死角；可复用 097e634 恢复链）/ P2-26
+8. P3 按主题批量（P3-4/5 配置卫生最轻，可穿插做）
 
 ---
 *产出：2026-09-24 全项目深挖（4 路并行审计 + P1 逐条人工复核；P1-4/P3-23 来自
-dice_game 窗口报障核实）。基线 5d6f4c1。*
+dice_game 窗口报障核实）。2026-09-25 复盘清理：已修 6 条删除、脚本瘦身消解
+3 条（P1-3/P3-8 降级为找回提醒、P3-17 转死代码）、失败自动恢复收窄 2 条。*
