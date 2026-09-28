@@ -195,6 +195,7 @@
       0
     ],
     "fast_speed_percent": 30,
+    "lift_start_tolerance_deg": 0.5,
     "shake_start_tolerance_deg": 0.5,
     "shake_feedback_freshness_limit_s": 0.3,
     "recovery_attempts": 2,

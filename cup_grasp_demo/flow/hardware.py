@@ -52,6 +52,19 @@ def validate_start(plan, current, status, enabled, tolerance_deg):
 
 
 
+def request_start_tolerance(request, plan, cfg):
+    """Only explicitly tagged green lifts may use the configured small-drift bound."""
+    tolerance = cfg['start_tolerance_deg']
+    if request.get('allow_lift_start_drift') is not True:
+        return tolerance
+    if cfg.get('pipeline_strategy') != 'green_open_cup' or plan.get('kind') != 'green_arm_plan':
+        raise ValueError('Lift drift tolerance requires a green arm plan')
+    value = cfg.get('green_cup', {}).get('lift_start_tolerance_deg', tolerance)
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not .01 <= value <= .5:
+        raise ValueError('lift_start_tolerance_deg must be 0.01..0.5')
+    return value
+
+
 def arm_motion_args(demo, stage, speed, cfg):
     maximum = 100 if cfg.get('pipeline_strategy') == 'green_open_cup' else 10
     if type(speed) is not int or not 1 <= speed <= maximum:
@@ -147,7 +160,11 @@ def main(argv=None, *, connected=None):
             if request:
                 plan, cfg = request['plan'], request['config']
                 plan = hand_start(plan, joints, status, enabled, cfg, result)
-                validate_start(plan, joints, status, enabled, cfg['start_tolerance_deg'])
+                start_tolerance = request_start_tolerance(request, plan, cfg)
+                validate_start(plan, joints, status, enabled, start_tolerance)
+                result['start_tolerance_deg'] = start_tolerance
+                result['start_max_error_deg'] = math.degrees(max(
+                    abs(a-b) for a, b in zip(joints, plan['start_q_rad'])))
                 from joint_delivery import ServoJointRobot
                 result['joint_delivery_events'] = []
                 motion_robot = ServoJointRobot(robot, demo, result['joint_delivery_events'],

@@ -256,9 +256,6 @@ def run(request, *, connected=None, connection_evidence=None):
         raise ValueError("Persistent shake requires original pre-connection evidence")
     plan = request["plan"]
     cfg = plan["parameters"]
-    # measurements() reads the run's freshness budget from plan parameters, so
-    # acceptance filtering matches what the execution loop actually accepted.
-    cfg.setdefault('feedback_freshness_limit_s', freshness_limit)
     bus, factory = core.load_sdk_runtime(request["channel"])
     guard = JointGuard(bus)
     session = core.PassivePoseSession(bus, factory, deadline_s=2,
@@ -450,7 +447,8 @@ def run(request, *, connected=None, connection_evidence=None):
             guard.restore()
         report["tx"] = guard.report(include_history=True)
         report["sdk_disconnected"] = connected is None
-        report["measurement"] = measurements(report["feedback"], plan)
+        report["measurement"] = measurements(
+            report["feedback"], plan, max_age_s=freshness_limit)
         violations = [
             row for row in report["feedback"] if row["tracking_threshold_exceeded"]
         ]

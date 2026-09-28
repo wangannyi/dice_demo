@@ -363,6 +363,8 @@ class Workflow:
             plan=plan,
             config=self.cfg,
         )
+        if label == 'lift':
+            request['allow_lift_start_drift'] = True
         if label in self.g.get('fast_phase_speed_percent', {}):
             request['config'] = dict(self.cfg, speed_percent=self.g['fast_phase_speed_percent'][label])
         write_json(run / "request.json", request)
