@@ -16,7 +16,7 @@
       "finger_duration_s": 0.5,
       "execution": {
         "mode": "together",
-        "delay_s": 0.0
+        "delay_s": 0.9
       },
       "finger_speed_mode": "max",
       "finger_max_wait_s": 0.65,
@@ -66,7 +66,7 @@
       "finger_duration_s": 0.5,
       "execution": {
         "mode": "together",
-        "delay_s": 0.0
+        "delay_s": 0.9
       },
       "finger_speed_mode": "max",
       "finger_max_wait_s": 0.65,
@@ -93,7 +93,7 @@
       "finger_duration_s": 0.5,
       "execution": {
         "mode": "together",
-        "delay_s": 0.0
+        "delay_s": 0.9
       },
       "finger_speed_mode": "max",
       "finger_max_wait_s": 0.65,
@@ -139,5 +139,6 @@
     "delay_s": 0.0
   },
   "finger_speed_mode": "max",
-  "finger_max_wait_s": 0.65
+  "finger_max_wait_s": 0.65,
+  "arm_delivery": "controller_endpoint"
 }

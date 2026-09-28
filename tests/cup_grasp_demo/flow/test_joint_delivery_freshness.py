@@ -102,3 +102,42 @@ class DeliveryFreshnessTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class ControllerEndpointTests(unittest.TestCase):
+    def make_endpoint(self):
+        servo, demo = make_delivery(options={'command_mode': 'controller_endpoint'})
+        servo.robot.get_joint_angle_vel_limits.return_value = feedback(NOW, SimpleNamespace(
+            min_angle_limit=-2., max_angle_limit=2., max_joint_spd=2.))
+        servo.robot.get_joint_acc_limits.return_value = feedback(NOW, SimpleNamespace(max_joint_acc=5.))
+        clock = [0.]
+        servo.monotonic = lambda: clock[0]
+        servo.sleep = lambda seconds: clock.__setitem__(0, clock[0]+seconds)
+        servo.check_feedback = Mock(side_effect=lambda *args: [0.4 if servo.robot.move_j.called else 0.1]*7)
+        return servo
+
+    def test_fixed_target_uses_move_j_once_and_ticks_hand_until_arrival(self):
+        servo = self.make_endpoint()
+        servo.on_motion_tick = Mock()
+        servo.move_js([.4]*7)
+        servo.robot.move_j.assert_called_once_with([.4]*7)
+        servo.robot.move_js.assert_not_called()
+        servo.robot.set_motion_mode.assert_called_once_with('j')
+        self.assertGreaterEqual(servo.on_motion_tick.call_count, 2)
+        self.assertTrue(servo.events[-1]['delivery_completed'])
+        self.assertEqual(servo.events[-1]['sdk_method'], 'move_j')
+
+    def test_no_arrival_times_out_instead_of_claiming_success(self):
+        servo = self.make_endpoint()
+        servo.check_feedback = Mock(return_value=[.1]*7)
+        with self.assertRaises(TimeoutError):
+            servo.move_js([.4]*7)
+        self.assertFalse(servo.events[-1]['delivery_completed'])
+
+    def test_target_outside_live_limits_never_sent(self):
+        servo = self.make_endpoint()
+        with self.assertRaises(ValueError):
+            servo.move_js([3.]*7)
+        servo.robot.move_j.assert_not_called()
+
+    def test_legacy_default_remains_smooth_profile(self):
+        self.assertEqual(delivery_options()['command_mode'], 'smooth_profile')

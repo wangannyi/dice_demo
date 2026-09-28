@@ -63,6 +63,9 @@ def recipe_for(config, action):
         raise ValueError('finger_speed_mode must be timed or max')
     if type(max_wait) not in (int, float) or not math.isfinite(max_wait) or not .65 <= max_wait <= 5:
         raise ValueError('finger_max_wait_s must be 0.65..5')
+    arm_delivery = recipe.get('arm_delivery', config.get('arm_delivery', 'smooth_profile'))
+    if arm_delivery not in ('smooth_profile', 'controller_endpoint'):
+        raise ValueError('arm_delivery must be smooth_profile or controller_endpoint')
     execution = dict(config.get('execution', {}))
     execution.update(recipe.get('execution', {}))
     mode, delay = execution.get('mode', 'arm_then_hand'), execution.get('delay_s', 0.0)
@@ -83,7 +86,7 @@ def recipe_for(config, action):
     from cup_grasp_demo.flow.feedback_sequence import sequence_values
     sequence = deepcopy(recipe.get('hand_sequence'))
     sequence_values(sequence, hand, max_wait if hand_mode == 'max' else duration)
-    return dict(hand_sequence=sequence, gesture=name, joints_deg=list(joints), hand_0_100=list(hand),
+    return dict(arm_delivery=arm_delivery, hand_sequence=sequence, gesture=name, joints_deg=list(joints), hand_0_100=list(hand),
                 speed_percent=speed, finger_duration_s=duration,
                 execution=dict(mode=mode, delay_s=delay),
                 finger_speed_mode=hand_mode, finger_max_wait_s=max_wait)
@@ -94,6 +97,7 @@ def execute_recipe(recipe, cfg, scene, directory, client, planner):
     from cup_grasp_demo.flow.core import write_json
     cfg = deepcopy(cfg)
     cfg['speed_percent'] = recipe['speed_percent']
+    cfg.setdefault('joint_delivery', {})['command_mode'] = recipe.get('arm_delivery', 'smooth_profile')
     cfg['green_cup'].update(finger_duration_s=(recipe['finger_max_wait_s'] if recipe['finger_speed_mode'] == 'max' else recipe['finger_duration_s']),
                             finger_settle_s=0.0, read_hand_feedback=False,
                             require_hand_position=False,

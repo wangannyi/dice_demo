@@ -50,7 +50,7 @@ def read_delivery_limits(robot, options, *, sleep=time.sleep, monotonic=time.mon
 
 def delivery_options(raw=None):
     """Keep legacy defaults; the release config explicitly selects full budget."""
-    options = dict(limit_utilization=.97, acceleration_cap_rad_s2=5.,
+    options = dict(command_mode='smooth_profile', limit_utilization=.97, acceleration_cap_rad_s2=5.,
                    tracking_error_deg=5., tracking_error_action='stop',
                    envelope_margin_deg=5., velocity_cap_deg_s=50., profile='quintic',
                    feedback_freshness_limit_s=.1, limits_read_timeout_s=.5,
@@ -60,6 +60,8 @@ def delivery_options(raw=None):
     if not isinstance(raw, dict) or set(raw) - set(options):
         raise ValueError('Invalid joint_delivery options')
     options.update(raw)
+    if options['command_mode'] not in ('smooth_profile', 'controller_endpoint'):
+        raise ValueError('Invalid joint_delivery.command_mode')
     if options['profile'] not in ('quintic', 'trapezoid'):
         raise ValueError('joint_delivery.profile must be quintic or trapezoid')
     for name, low, high in (('limit_utilization', .1, 1.),
@@ -210,7 +212,8 @@ class ServoJointRobot:
         automatic = self.robot.get_auto_set_motion_mode_enabled()
         try:
             self.robot.set_auto_set_motion_mode_enabled(False)
-            self.robot.set_motion_mode("js")
+            fixed = self.options["command_mode"] == "controller_endpoint"
+            self.robot.set_motion_mode("j" if fixed else "js")
             status = self.demo.read_fresh(self.robot.get_arm_status, 1.0, "MoveJS mode")
             start = self.check_feedback(status)
             event["mode_confirmed"] = True
@@ -275,6 +278,9 @@ class ServoJointRobot:
                          tracking_error_action=self.options['tracking_error_action'],
                          tracking_exceeded_samples=0, tracking_max_error_deg=0.)
             event["motion_started_epoch_s"] = self.wallclock()
+            if fixed:
+                self._controller_endpoint(start, target, bounds, duration, event)
+                return
             began = last_time = self.monotonic()
             peak_speed = normalized_peak * max(abs(b-a) for a, b in zip(start, target))
             sample_period = min(0.02, math.radians(0.5) / peak_speed) if peak_speed else 0.02
@@ -337,8 +343,36 @@ class ServoJointRobot:
         finally:
             self.robot.set_auto_set_motion_mode_enabled(automatic)
 
+    def _controller_endpoint(self, start, target, bounds, duration, event):
+        """MoveJ plans on the controller; never send a large instantaneous JS jump."""
+        event.update(sdk_method="move_j", profile="controller_endpoint")
+        began = self.monotonic()
+        self.robot.move_j(list(target))
+        event["sent_count"] = 1
+        # Continue ticking hand gestures and checking live feedback until arrival.
+        stable = 0
+        while True:
+            if self.on_motion_tick is not None:
+                self.on_motion_tick()
+            actual = self.check_feedback()
+            margin = math.radians(self.options['envelope_margin_deg'])
+            for i, (a, b, observed) in enumerate(zip(start, target, actual)):
+                if not bounds[i][0] <= observed <= bounds[i][1]:
+                    raise RuntimeError(f'J{i+1}: actual angle outside controller limits')
+                if not min(a, b)-margin <= observed <= max(a, b)+margin:
+                    raise RuntimeError(f'J{i+1}: actual angle outside planned envelope')
+            error = math.degrees(max(abs(a-b) for a, b in zip(actual, target)))
+            stable = stable + 1 if error <= 0.5 else 0
+            if stable >= 2:
+                event.update(delivery_completed=True, actual_delivery_s=self.monotonic()-began,
+                             final_error_deg=error)
+                return
+            if self.monotonic()-began > min(120., max(3., duration*3+1)):
+                raise TimeoutError('Controller endpoint did not reach target')
+            self.sleep(.01)
+
     # The shared Nero CLI still names its command "move-j". All its joint writes
-    # are redirected here; this alias never invokes the SDK move_j method.
+    # use smooth JS by default; controller_endpoint explicitly opts into MoveJ.
     move_j = move_js
 
 
