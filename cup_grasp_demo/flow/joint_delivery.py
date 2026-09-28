@@ -4,12 +4,57 @@ import math
 import time
 
 
+_LIMIT_CACHE_ATTR = '_dice_demo_movejs_limit_pairs'
+
+
+def _valid_limit_pairs(value):
+    return (
+        isinstance(value, (list, tuple))
+        and len(value) == 7
+        and all(
+            isinstance(pair, (list, tuple))
+            and len(pair) == 2
+            and pair[0] is not None
+            and pair[1] is not None
+            for pair in value
+        )
+    )
+
+
+def read_delivery_limits(robot, options, *, sleep=time.sleep, monotonic=time.monotonic):
+    """Read one complete limit table, optionally reusing it for this SDK session."""
+    if options['cache_live_limits']:
+        cached = getattr(robot, _LIMIT_CACHE_ATTR, None)
+        if _valid_limit_pairs(cached):
+            return list(cached), 'session_cache'
+
+    from cup_grasp_demo.flow.batched_limits import read_limits
+    pairs = read_limits(
+        robot,
+        timeout_s=options['limits_read_timeout_s'],
+        retries=options['limits_read_retries'],
+        sleep=sleep,
+        monotonic=monotonic,
+    )
+    if not _valid_limit_pairs(pairs):
+        raise RuntimeError('Controller returned an incomplete live limit table')
+    if options['cache_live_limits']:
+        try:
+            setattr(robot, _LIMIT_CACHE_ATTR, tuple(tuple(pair) for pair in pairs))
+        except (AttributeError, TypeError):
+            # Some SDK proxies disallow extension attributes. Delivery still
+            # succeeds; the next action simply performs another live read.
+            pass
+    return list(pairs), 'live'
+
+
 def delivery_options(raw=None):
     """Keep legacy defaults; the release config explicitly selects full budget."""
     options = dict(limit_utilization=.97, acceleration_cap_rad_s2=5.,
                    tracking_error_deg=5., tracking_error_action='stop',
                    envelope_margin_deg=5., velocity_cap_deg_s=50., profile='quintic',
                    feedback_freshness_limit_s=.1, limits_read_timeout_s=.5,
+                   limits_read_retries=1, cache_live_limits=False,
                    scheduling_gap_limit_s=.08)
     raw = raw or {}
     if not isinstance(raw, dict) or set(raw) - set(options):
@@ -33,6 +78,11 @@ def delivery_options(raw=None):
         raise ValueError('joint_delivery.velocity_cap_deg_s must be positive or null')
     if options['tracking_error_action'] not in ('record', 'stop'):
         raise ValueError('joint_delivery.tracking_error_action must be record or stop')
+    retries = options['limits_read_retries']
+    if isinstance(retries, bool) or not isinstance(retries, int) or not 0 <= retries <= 5:
+        raise ValueError('joint_delivery.limits_read_retries must be an integer from 0 to 5')
+    if type(options['cache_live_limits']) is not bool:
+        raise ValueError('joint_delivery.cache_live_limits must be boolean')
     return options
 
 
@@ -168,12 +218,12 @@ class ServoJointRobot:
             event["live_limits"] = []
             limit_started = self.monotonic()
             if self.batch_limits:
-                from cup_grasp_demo.flow.batched_limits import read_limits
-                pairs = read_limits(self.robot,
-                                    timeout_s=self.options['limits_read_timeout_s'],
-                                    sleep=self.sleep, monotonic=self.monotonic)
+                pairs, limits_source = read_delivery_limits(
+                    self.robot, self.options,
+                    sleep=self.sleep, monotonic=self.monotonic)
             else:
                 pairs = None
+                limits_source = 'serial'
             for i in range(7):
                 if pairs is None:
                     v = self.robot.get_joint_angle_vel_limits(
@@ -205,6 +255,7 @@ class ServoJointRobot:
                 bounds.append((low, high))
             event['limits_read_s'] = self.monotonic() - limit_started
             event['limits_batched'] = self.batch_limits
+            event['limits_source'] = limits_source
             duration = smooth_duration(start, target, velocity, acceleration)
             profile = self.options['profile']
             if profile == 'trapezoid':

@@ -104,6 +104,8 @@
     "envelope_margin_deg": 5.0,
     "velocity_cap_deg_s": null,
     "feedback_freshness_limit_s": 0.3,
+    "limits_read_retries": 3,
+    "cache_live_limits": true,
     "scheduling_gap_limit_s": 0.3
   },
   "fast_single_capture": true,

@@ -52,6 +52,8 @@ class DeliveryFreshnessTests(unittest.TestCase):
     def test_options_default_and_bounds(self):
         self.assertEqual(delivery_options()['feedback_freshness_limit_s'], .1)
         self.assertEqual(delivery_options()['scheduling_gap_limit_s'], .08)
+        self.assertEqual(delivery_options()['limits_read_retries'], 1)
+        self.assertIs(delivery_options()['cache_live_limits'], False)
         self.assertEqual(delivery_options(
             {'feedback_freshness_limit_s': .3})['feedback_freshness_limit_s'], .3)
         self.assertEqual(delivery_options(

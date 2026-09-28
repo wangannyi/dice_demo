@@ -2,7 +2,10 @@
 import time
 
 
-def read_limits(robot, *, timeout_s=.5, sleep=time.sleep, monotonic=time.monotonic):
+def read_limits(robot, *, timeout_s=.5, retries=1,
+                sleep=time.sleep, monotonic=time.monotonic):
+    if isinstance(retries, bool) or not isinstance(retries, int) or not 0 <= retries <= 5:
+        raise ValueError('limits retries must be an integer from 0 to 5')
     readers = [(getter, joint) for joint in range(1, 8)
                for getter in (robot.get_joint_angle_vel_limits, robot.get_joint_acc_limits)]
     values = [None] * len(readers)
@@ -14,7 +17,7 @@ def read_limits(robot, *, timeout_s=.5, sleep=time.sleep, monotonic=time.monoton
     # is safe: a busy CAN bus recovers within tens of milliseconds (field run
     # 20260924_170554: the failure hold re-read all limits in 85 ms).
     deadline = monotonic() + timeout_s
-    retried = False
+    retries_used = 0
     while any(value is None for value in values):
         for index, (getter, joint) in enumerate(readers):
             if values[index] is None:
@@ -23,8 +26,8 @@ def read_limits(robot, *, timeout_s=.5, sleep=time.sleep, monotonic=time.monoton
         if all(value is not None for value in values):
             break
         if monotonic() >= deadline:
-            if not retried:
-                retried = True
+            if retries_used < retries:
+                retries_used += 1
                 # Polling uses the SDK's one-second throttle. Extending the
                 # deadline alone does not resend a lost query at this point.
                 # Explicitly resend missing items, then allow a full reply budget.
@@ -36,7 +39,10 @@ def read_limits(robot, *, timeout_s=.5, sleep=time.sleep, monotonic=time.monoton
                 continue
             missing = [f'J{i//2+1} {"angle/velocity" if i%2 == 0 else "acceleration"}'
                        for i, value in enumerate(values) if value is None]
-            raise TimeoutError('Missing live controller limits (after one retry): '
+            retry_text = ('without retry' if retries == 0 else
+                          'after one retry' if retries == 1 else
+                          f'after {retries} retries')
+            raise TimeoutError(f'Missing live controller limits ({retry_text}): '
                                + ', '.join(missing))
         sleep(.001)
     return list(zip(values[::2], values[1::2]))
