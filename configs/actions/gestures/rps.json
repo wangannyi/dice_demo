@@ -140,5 +140,5 @@
   },
   "finger_speed_mode": "max",
   "finger_max_wait_s": 0.65,
-  "arm_delivery": "controller_endpoint"
+  "arm_delivery": "smooth_profile"
 }
