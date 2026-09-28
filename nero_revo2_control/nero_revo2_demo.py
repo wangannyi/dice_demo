@@ -2,6 +2,7 @@
 """Nero 7-axis arm and right Revo2 position-control demo for pyAgxArm."""
 
 import argparse
+from functools import wraps
 from contextlib import contextmanager
 from contextvars import ContextVar
 import json
@@ -370,6 +371,41 @@ def orientation_error(first, second):
     return math.acos(max(-1.0, min(1.0, (trace - 1.0) / 2.0)))
 
 
+def bind_firmware_session(robot):
+    """Scope successful firmware validation to one explicit SDK connection."""
+    robot._demo_firmware_validated = False
+    for name in ("connect", "disconnect"):
+        original = getattr(robot, name)
+
+        def wrap(method):
+            @wraps(method)
+            def lifecycle(*args, **kwargs):
+                # Invalidate before the call, including failed reconnect attempts.
+                robot._demo_firmware_validated = False
+                return method(*args, **kwargs)
+            return lifecycle
+
+        setattr(robot, name, wrap(original))
+    return robot
+
+
+def require_firmware(robot):
+    """Validate before first motion; retry missing replies, never wrong versions."""
+    if getattr(robot, "_demo_firmware_validated", False) is True:
+        return
+    for attempt in range(3):
+        firmware = robot.get_firmware(timeout=1)
+        if firmware is None:
+            continue
+        if firmware.get("software_version") != "1.20":
+            raise RuntimeError(f"this demo expects Nero firmware 1.20, got {firmware}")
+        # Only factory-managed drivers have lifecycle invalidation installed.
+        if hasattr(robot, "_demo_firmware_validated"):
+            robot._demo_firmware_validated = True
+        return
+    raise TimeoutError("Nero firmware query timed out after 3 attempts; no version received")
+
+
 def create_robot(channel):
     """Create the driver for the firmware installed on this Nero."""
     config = create_agx_arm_config(
@@ -378,7 +414,7 @@ def create_robot(channel):
         interface="socketcan",
         channel=channel,
     )
-    return AgxArmFactory.create_arm(config)
+    return bind_firmware_session(AgxArmFactory.create_arm(config))
 
 
 def parse_finger_updates(tokens):
@@ -599,10 +635,7 @@ def run_read_joints(robot):
 
 def require_arm_ready(robot, joints, status):
     """Require an already enabled, normal arm before sending a movement command."""
-    firmware = robot.get_firmware(timeout=3)
-    version = firmware.get("software_version") if firmware else None
-    if version != "1.20":
-        raise RuntimeError(f"this demo expects Nero firmware 1.20, got {firmware}")
+    require_firmware(robot)
     if int(status.arm_status) != 0:
         raise RuntimeError(f"arm is not NORMAL: arm_status={status.arm_status}")
     if int(status.ctrl_mode) not in (1, 3):
@@ -638,10 +671,7 @@ def enable_arm_connected(args, robot, joints, pose, status):
         return
 
     validate_documented_joints(joints)
-    firmware = robot.get_firmware(timeout=3)
-    version = firmware.get("software_version") if firmware else None
-    if version != "1.20":
-        raise RuntimeError(f"this demo expects Nero firmware 1.20, got {firmware}")
+    require_firmware(robot)
     if int(status.arm_status) not in (0, 6):
         raise RuntimeError(f"arm cannot be enabled from arm_status={status.arm_status}")
     if int(status.ctrl_mode) not in (1, 3):
