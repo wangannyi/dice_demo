@@ -9,7 +9,8 @@ def delivery_options(raw=None):
     options = dict(limit_utilization=.97, acceleration_cap_rad_s2=5.,
                    tracking_error_deg=5., tracking_error_action='stop',
                    envelope_margin_deg=5., velocity_cap_deg_s=50., profile='quintic',
-                   feedback_freshness_limit_s=.1, limits_read_timeout_s=.5)
+                   feedback_freshness_limit_s=.1, limits_read_timeout_s=.5,
+                   scheduling_gap_limit_s=.08)
     raw = raw or {}
     if not isinstance(raw, dict) or set(raw) - set(options):
         raise ValueError('Invalid joint_delivery options')
@@ -21,7 +22,8 @@ def delivery_options(raw=None):
                             ('tracking_error_deg', .1, 10.),
                             ('envelope_margin_deg', .1, 10.),
                             ('feedback_freshness_limit_s', .1, .5),
-                            ('limits_read_timeout_s', .1, 5.)):
+                            ('limits_read_timeout_s', .1, 5.),
+                            ('scheduling_gap_limit_s', .08, .5)):
         value = options[name]
         if isinstance(value, bool) or not isinstance(value, (float, int)) or not math.isfinite(value) or not low <= value <= high:
             raise ValueError(f'joint_delivery.{name} must be {low}..{high}')
@@ -227,13 +229,16 @@ class ServoJointRobot:
             sample_period = min(0.02, math.radians(0.5) / peak_speed) if peak_speed else 0.02
             max_phase_step = math.radians(0.9) / peak_speed if peak_speed else 0.08
             phase_elapsed = 0.0
-            event.update(sample_period_s=sample_period, phase_delay_s=0.0)
+            scheduling_gap_limit = self.options['scheduling_gap_limit_s']
+            event.update(sample_period_s=sample_period, phase_delay_s=0.0,
+                         scheduling_gap_limit_s=scheduling_gap_limit)
             last = start
             while True:
                 now = self.monotonic()
-                if now - last_time > 0.08:
+                if now - last_time > scheduling_gap_limit:
                     raise RuntimeError(
-                        "MoveJS scheduling gap exceeds 80 ms; no catch-up jump"
+                        "MoveJS scheduling gap exceeds "
+                        f"{round(scheduling_gap_limit * 1000)} ms; no catch-up jump"
                     )
                 actual = self.check_feedback()
                 margin = math.radians(self.options['envelope_margin_deg'])

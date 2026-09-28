@@ -51,11 +51,16 @@ def make_delivery(options=None, status_age=0.2, joints_age=0.05,
 class DeliveryFreshnessTests(unittest.TestCase):
     def test_options_default_and_bounds(self):
         self.assertEqual(delivery_options()['feedback_freshness_limit_s'], .1)
+        self.assertEqual(delivery_options()['scheduling_gap_limit_s'], .08)
         self.assertEqual(delivery_options(
             {'feedback_freshness_limit_s': .3})['feedback_freshness_limit_s'], .3)
+        self.assertEqual(delivery_options(
+            {'scheduling_gap_limit_s': .3})['scheduling_gap_limit_s'], .3)
         for bad in (0, .05, .6, True, 'fast'):
             with self.assertRaises(ValueError):
                 delivery_options({'feedback_freshness_limit_s': bad})
+            with self.assertRaises(ValueError):
+                delivery_options({'scheduling_gap_limit_s': bad})
 
     def test_configured_limit_accepts_cached_age_inside_window(self):
         servo, demo = make_delivery(
