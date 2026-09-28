@@ -25,6 +25,13 @@ def read_limits(robot, *, timeout_s=.5, sleep=time.sleep, monotonic=time.monoton
         if monotonic() >= deadline:
             if not retried:
                 retried = True
+                # Polling uses the SDK's one-second throttle. Extending the
+                # deadline alone does not resend a lost query at this point.
+                # Explicitly resend missing items, then allow a full reply budget.
+                for index, (getter, joint) in enumerate(readers):
+                    if values[index] is None:
+                        values[index] = getter(joint, timeout=0., min_interval=0.)
+                        sleep(.001)
                 deadline = monotonic() + timeout_s
                 continue
             missing = [f'J{i//2+1} {"angle/velocity" if i%2 == 0 else "acceleration"}'

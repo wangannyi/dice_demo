@@ -95,3 +95,49 @@ class ReadLimitsRetryTests(unittest.TestCase):
                         sleep=clock.sleep, monotonic=clock.monotonic)
         # Two 0.1 s budgets, not two 0.5 s ones.
         self.assertLess(clock.now, 1000.21 + .05)
+
+
+class LostQueryRobot(FakeRobot):
+    """Simulate SDK throttling and a dropped first J7 acceleration response."""
+
+    def __init__(self, clock, drop_all=False):
+        super().__init__(clock)
+        self.sent = {}
+        self.last = {}
+        self.drop_all = drop_all
+
+    def _read(self, kind, joint, min_interval):
+        key = (kind, joint)
+        if key not in self.last or self.clock.now - self.last[key] >= min_interval:
+            self.last[key] = self.clock.now
+            self.sent[key] = self.sent.get(key, 0) + 1
+        if key != ('acc', 7):
+            return (joint, self.clock.now)
+        if self.drop_all or self.sent[key] < 2 or self.clock.now - self.last[key] < .04:
+            return None
+        return (joint, self.clock.now)
+
+    def get_joint_angle_vel_limits(self, joint, *, timeout, min_interval):
+        return self._read('angle', joint, min_interval)
+
+    def get_joint_acc_limits(self, joint, *, timeout, min_interval):
+        return self._read('acc', joint, min_interval)
+
+
+class LostReplyRetryTests(unittest.TestCase):
+    def test_missing_query_is_actually_resent_before_retry_budget(self):
+        clock = Clock()
+        robot = LostQueryRobot(clock)
+        pairs = read_limits(robot, sleep=clock.sleep, monotonic=clock.monotonic)
+        self.assertEqual(len(pairs), 7)
+        self.assertEqual(robot.sent[('acc', 7)], 2)
+        self.assertTrue(all(count == 1 for key, count in robot.sent.items() if key != ('acc', 7)))
+        self.assertLess(clock.now, 1000.7)
+
+    def test_second_lost_reply_still_stops_with_missing_joint(self):
+        clock = Clock()
+        robot = LostQueryRobot(clock, drop_all=True)
+        with self.assertRaisesRegex(TimeoutError, 'J7 acceleration'):
+            read_limits(robot, sleep=clock.sleep, monotonic=clock.monotonic)
+        self.assertEqual(robot.sent[('acc', 7)], 2)
+        self.assertLess(clock.now, 1001.1)
