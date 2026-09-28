@@ -31,7 +31,7 @@
     286.4788975654116,
     286.4788975654116
   ],
-  "cycles": 6,
+  "cycles": 8,
   "limit_utilization": 1,
   "controller_speed_percent": 100,
   "tracking_error_deg": 5.0,
