@@ -72,7 +72,7 @@ def build_menu(shortcuts, gestures):
         lines.append("  其他手势（无快捷键，用 a <名字>）：" + "、".join(others))
     lines += [
         "  l  列出全部可用动作名（含别名）",
-        "  f  reload 重载手势（改完 configs/actions/gestures/ 文件后即时生效，不断连）",
+        "  f  reload 校验并重载参数（默认在下一次动作/新一轮开始前自动加载）",
         "",
         "抓取流程（视觉联动复合任务）：",
         "  g  完整流程（一口气到 RETURN_HOME，结束自动回空闲，再按继续下一局）",
@@ -115,7 +115,8 @@ HINTS = {
     "action_started": "静态动作开始",
     "action_completed": "静态动作完成（保持姿态）",
     "actions": "可用动作名",
-    "actions_reloaded": "手势表已重新加载（拒载明细见常驻进程 stderr 日志）",
+    "actions_reloaded": "参数及手势表已重新加载",
+    "config_reloaded": "新参数已生效",
     "status": "当前状态",
     "pose": "姿态探针",
     "perception_reset": "已退回 CAPTURE：下次 advance 会重新识别与规划",

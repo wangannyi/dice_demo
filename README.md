@@ -12,6 +12,7 @@ HOME → CAPTURE → PLAN → APPROACH → GRIP → LIFT → SHAKE → LOWER →
 - [首次标定、自动重采和相机移动后的恢复](docs/CALIBRATION.md)
 - [分阶段调试与单项测试](docs/DEBUG.md)
 - [上层应用接入接口](docs/INTEGRATION.md)
+- [运行中修改参数（热加载）](docs/HOT_RELOAD.md)
 - [第三方依赖与分发范围](THIRD_PARTY.md)
 
 ## 1. 获取代码

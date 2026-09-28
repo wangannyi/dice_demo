@@ -81,6 +81,8 @@ def validate(cfg):
         raise ValueError('settled_joint_delta_deg must be 0.05..0.5')
     if type(g.get("direct_return_home", False)) is not bool:
         raise ValueError("direct_return_home must be boolean")
+    if type(g.get("hot_reload", True)) is not bool:
+        raise ValueError("hot_reload must be boolean")
     if type(g.get("persistent_runtime", True)) is not bool:
         raise ValueError("persistent_runtime must be boolean")
     if type(g.get("failure_recovery", True)) is not bool:
@@ -201,7 +203,8 @@ class Workflow:
                 self.g.setdefault(key, value)
         # Reject malformed shake recipes before HOME opens the hand or moves.
         # Runtime planning still rechecks the actual limits and held-cup path.
-        joint_trajectory(read_json(ROOT / self.g['joint_test_config']))
+        self._joint_recipe = read_json(ROOT / self.g['joint_test_config'])
+        joint_trajectory(self._joint_recipe)
         # FAST is the only green-cup mode; its tuning is applied unconditionally.
         self.cfg.setdefault('joint_delivery', {})['profile'] = self.g.get('fast_motion_profile', 'quintic')
         self.g['perception']['save_debug_images'] = False
@@ -243,6 +246,11 @@ class Workflow:
             ROOT / self.g["joint_test_config"],
             ROOT / self.g["perception"]["model"],
         ]
+        if "strategy_file" in self.g:
+            strategy = self.g["strategy_file"]
+            self.deps.append(ROOT / strategy if str(strategy).endswith(".json")
+                             else ROOT / "vision/strategy" / f"{strategy}.json")
+        self.deps.append(ROOT / "vision/camera.json")
         self.deps += list(common.HERE.glob("*.py"))
         self.hashes = {str(p.resolve()): digest(p) for p in self.deps}
         self._file_stats = {p: self.file_stamp(p) for p in self.hashes}
@@ -309,6 +317,10 @@ class Workflow:
 
     def unchanged(self):
         for p, h in self.hashes.items():
+            # CONTROL pins these parsed parameters for the whole current cycle.
+            # The dispatcher validates/reloads them only at its next idle boundary.
+            if p in getattr(self, "_hot_reload_paths", ()):
+                continue
             if (self.file_stamp(p) == self._file_stats.get(p)
                     and all(time.time_ns() - t >= 2_000_000_000 for t in self._file_stats[p][-2:])):
                 continue
@@ -793,7 +805,7 @@ class Workflow:
     def build_shake(self, feedback):
         p = joint_plan(
             feedback,
-            read_json(ROOT / self.g["joint_test_config"]),
+            self._joint_recipe,
             self.kin.model.limits_rad,
         )
         qs = [s["q_rad"] for s in p["samples"]]

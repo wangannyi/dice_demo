@@ -38,7 +38,7 @@ class ControlSession:
     """Advance a single state machine; reject skips and duplicate command IDs."""
 
     def __init__(self, flow, state_path, incoming, outgoing, diagnostic,
-                 actions=(), run_action=None, reload_actions=None):
+                 actions=(), run_action=None, reload_actions=None, refresh_parameters=None):
         self.flow = flow
         self.state_path = Path(state_path)
         self.incoming = incoming
@@ -47,6 +47,7 @@ class ControlSession:
         self.actions = tuple(actions)
         self.run_action = run_action
         self.reload_actions = reload_actions
+        self.refresh_parameters = refresh_parameters
         self.next_index = 0
         self.cycle = 1
         self.seen_ids = set()
@@ -235,6 +236,22 @@ class ControlSession:
         self.state = self._new_state()
         save(self.state_path, self.state)
 
+    def _refresh_parameters(self, request_id, *, force=False):
+        if self.refresh_parameters is None:
+            return True
+        try:
+            with redirect_stdout(self.diagnostic):
+                result = self.refresh_parameters(force=force)
+            if result is not None:
+                self.actions, self.run_action, changed = result
+                self.actions = tuple(self.actions)
+                self._reply("config_reloaded", request_id, files=changed,
+                            names=sorted(set(self.actions)))
+        except Exception as exc:
+            self._reject(request_id, "reload_failed", f"{type(exc).__name__}: {exc}")
+            return False
+        return True
+
     def _run_action(self, request_id, name):
         self.state["status"] = "RUNNING"
         self.state["active_action"] = name
@@ -304,7 +321,11 @@ class ControlSession:
         if command == "reload":
             if self.next_index != 0:
                 self._reject(request_id, "flow_in_progress",
-                             f"抓取流程进行中（下一阶段 {self._next_phase()}），跑完后再重载手势")
+                             f"抓取流程进行中（下一阶段 {self._next_phase()}），跑完后再重载参数")
+                return True
+            if self.refresh_parameters is not None:
+                if self._refresh_parameters(request_id, force=True):
+                    self._reply("actions_reloaded", request_id, names=sorted(set(self.actions)))
                 return True
             if self.reload_actions is None:
                 self._reject(request_id, "no_actions", "本会话未接入动作注册器")
@@ -321,15 +342,17 @@ class ControlSession:
             return True
         if command == "action":
             name = request.get("name")
-            if self.run_action is None:
-                self._reject(request_id, "no_actions", "本会话未接入动作执行器")
-                return True
             if not isinstance(name, str) or not name.strip():
                 self._reject(request_id, "invalid_name", "name 必须是动作名字符串")
                 return True
             if self.next_index != 0:
                 self._reject(request_id, "flow_in_progress",
                              f"抓取流程进行中（下一阶段 {self._next_phase()}），跑完后再执行动作")
+                return True
+            if not self._refresh_parameters(request_id):
+                return True
+            if self.run_action is None:
+                self._reject(request_id, "no_actions", "本会话未接入动作执行器")
                 return True
             return self._run_action(request_id, name.strip())
         if command == "refresh_perception":
@@ -358,6 +381,8 @@ class ControlSession:
             if "rounds" in request:
                 self._reject(request_id, "removed",
                              "连跑已移除：一次 advance 一轮，循环由上层按 command_completed 驱动")
+                return True
+            if self.next_index == 0 and not self._refresh_parameters(request_id):
                 return True
             return self._advance(request_id, target_index)
         self._reject(request_id, "invalid_command",
@@ -442,7 +467,7 @@ class ControlSession:
                     return 2 if self.state["status"] == "FAILED" else 0
 
 
-def build_action_runtime(flow, diagnostic):
+def build_action_runtime(flow, diagnostic, *, strict=False, runtime_flow=None):
     """Wire gesture execution onto the resident SDK connection.
 
     Returns (names, run_action).  Raises on unusable config/table; the caller
@@ -455,11 +480,15 @@ def build_action_runtime(flow, diagnostic):
     from cup_grasp_demo.flow.green_cup_planning import arm_plan
 
     registry = load_registry()
+    if strict and registry.errors:
+        raise ValueError("手势参数未通过校验：" + "; ".join(registry.errors))
     for message in registry.errors:
         diagnostic.write(f"[actions] {message}\n")
     table = read_json(ROOT / flow.cfg["green_cup"]["home_table_scene"])
     if table.get("calibration_sha256") != digest(flow.cfg["calibration"]):
         raise ValueError("桌面记录与当前标定不一致，请更新桌面记录")
+
+    runtime_flow = flow if runtime_flow is None else runtime_flow
 
     def run_action(name):
         # home 不再有内建 recipe：统一走注册表（configs/actions/gestures/
@@ -470,7 +499,7 @@ def build_action_runtime(flow, diagnostic):
         directory = new_run(Path(flow.root), "green_action_" + recipe["gesture"])
         started = time.perf_counter()
         execute_recipe(recipe, flow.cfg, table["scene"], directory,
-                       flow._sdk, arm_plan)
+                       runtime_flow._sdk, arm_plan)
         return dict(name=recipe["gesture"], receipt=str(directory / "receipt.json"),
                     elapsed_s=round(time.perf_counter() - started, 3))
 
@@ -526,10 +555,15 @@ def run(args, incoming=None, outgoing=None, diagnostic=None):
                 except Exception as exc:
                     diagnostic.write(f"[actions] 手势执行器不可用：{exc}\n")
                     actions, run_action = (), None
+                refresh_parameters = None
+                if flow.g.get("hot_reload", True):
+                    from cup_grasp_demo.flow.green_hot_reload import ParameterReloader
+                    refresh_parameters = ParameterReloader(flow, diagnostic)
                 server = ControlSession(flow, args.session / "green_pipeline_state.json",
                                         incoming, outgoing, diagnostic,
                                         actions=actions, run_action=run_action,
-                                        reload_actions=lambda: build_action_runtime(flow, diagnostic))
+                                        reload_actions=lambda: build_action_runtime(flow, diagnostic),
+                                        refresh_parameters=refresh_parameters)
                 return server.serve()
             finally:
                 if flow is not None:

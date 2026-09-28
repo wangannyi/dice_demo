@@ -441,7 +441,7 @@ class ControlSessionTest(unittest.TestCase):
                                    until='place', execute=True, mode='control',
                                    session=Path(directory), config=Path(directory) / 'config.json')
             flow = self.fake_flow()
-            flow.g = {'installation_requires_calibration': False}
+            flow.g = {'installation_requires_calibration': False, 'hot_reload': False}
             output = io.StringIO()
             with patch.object(control, 'Workflow', return_value=flow) as factory, \
                  patch.object(control, 'cached_screen_geometry', return_value=nullcontext()):
