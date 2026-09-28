@@ -33,7 +33,11 @@ class ScheduleTests(unittest.TestCase):
         def step(*args):
             if failure:
                 raise RuntimeError('arm failed before streaming')
+            hand.position_time_ctrl.assert_not_called()
             motion.on_motion_tick()
+            # Zero-delay hand commands must be sent on the first arm tick,
+            # not after the arm trajectory completes.
+            self.assertEqual(hand.position_time_ctrl.call_count, 2)
             now[0] += 1
         with patch('cup_grasp_demo.flow.feedback_execution.HandSchedule',
                    side_effect=lambda d,t,s:HandSchedule(d,t,s,clock=lambda:now[0])):

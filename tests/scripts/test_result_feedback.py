@@ -50,7 +50,7 @@ class FeedbackTests(unittest.TestCase):
             self.assertEqual(recipe['joints_deg'], joints)
             self.assertEqual(recipe['speed_percent'], 100)
             self.assertEqual(recipe['finger_speed_mode'], 'max')
-            self.assertEqual(recipe['execution'], dict(mode='together', delay_s=0.9))
+            self.assertEqual(recipe['execution'], dict(mode='together', delay_s=0.0))
             self.assertEqual(recipe['arm_delivery'], 'smooth_profile')
         self.assertEqual(rock['hand_0_100'], [0, 0, 100, 100, 100, 100])
         self.assertFalse(rock['hand_sequence']['return_to_initial'])
