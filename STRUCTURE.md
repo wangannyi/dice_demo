@@ -30,16 +30,19 @@ pipeline 行为不一致，调出来的结论会骗人。
 **关联**：TODO.md #1（测试配置漂移收敛）的完整方案会连带重排这两份 json，
 本项是其中可独立先做且更急的最小子集——真机行为一致性优先。
 
-### S2. `.zcode/` 会话工件被 git 跟踪（已推到远程）
+### S2. ✅（已完成 3facf37，2026-09-29）`.zcode/` 会话工件解除 git 跟踪
 
 **现状**：`.gitignore` 已含 `.zcode/`，但
 `.zcode/plans/plan-sess_7d9db7b4-5d6d-4239-bc6c-dc272f3b7b4b.md`
 是先跟踪后 ignore，规则对已跟踪文件不生效，且已随 2026-09-29 推送进远程。
 
-**修法**：`git rm --cached .zcode/plans/plan-sess_*.md` 后提交（本地文件保留，
-之后被 ignore 兜住）。
+**修法**（3facf37 实录）：`git rm --cached .zcode/plans/plan-sess_*.md`
+后提交并推送，`.gitignore` 的 `.zcode/` 规则恢复生效，本地文件保留。
+**边界说明**：远程**最新树**已无该文件；但它在历史提交（≤ e91aefa）中
+仍存在——按 TODO.md「需拍板」区既有结论，清理历史需改写 git 历史并与
+同事拍板，不在本清单范围。
 
-**验收**：`git ls-files .zcode` 输出为空；`git status` 干净。
+**验收**：`git ls-files .zcode` 输出为空 ✓；推送后远程 hwj_dev 干净 ✓。
 
 ### S3. ✅（已完成 0f0a753，2026-09-29）calibration/ 的 10 个测试文件迁入 tests/calibration/
 
@@ -97,6 +100,7 @@ passed，0 失败**。x86 开发机不作为验收环境（本机 cv2 无
 
 ## 📝 完成记录
 
+- 2026-09-29 **S2** 完成：3facf37 解除跟踪并已推送（e91aefa..3facf37）。
 - 2026-09-29 **S3** 完成：锚点 bf8bc89 → 迁移 0f0a753。测试基线更新为
   **657 collected = 627 passed / 30 skipped / 201 subtests**（板端实测，
   旧基线 482/30 不含标定 89 用例）。
