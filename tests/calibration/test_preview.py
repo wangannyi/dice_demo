@@ -14,7 +14,7 @@ from core import pose_matrix
 from preview import CollectionPreview
 
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[2] / 'calibration'
 
 
 class PreviewTests(unittest.TestCase):

@@ -10,7 +10,7 @@ from core import pose_matrix, matrix_pose, inverse, matrix, tcp_transform, PALM,
 from sensors import CharucoDetector, assert_still, opencv_distortion, NeroFeedback
 from calibrate import read_dataset, read_resume_dataset, write_new, main, capture_sample
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[2] / 'calibration'
 
 
 def synthetic():
