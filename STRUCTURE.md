@@ -41,7 +41,7 @@ pipeline 行为不一致，调出来的结论会骗人。
 
 **验收**：`git ls-files .zcode` 输出为空；`git status` 干净。
 
-### S3. calibration/ 的 10 个测试文件游离在 pytest 常规收集之外（89 用例）
+### S3. ✅（已完成 0f0a753，2026-09-29）calibration/ 的 10 个测试文件迁入 tests/calibration/
 
 **现状**：`calibration/test_apply_result.py` 等 10 个测试与源码同目录存放，
 而 `pytest.ini` 写死 `testpaths = tests`——裸跑 `pytest` 完全不收集它们。
@@ -49,21 +49,23 @@ pipeline 行为不一致，调出来的结论会骗人。
 
 **风险**：改坏标定代码时常规测试全绿，89 个用例的回归保护形同虚设。
 
-**修法**：迁移到 `tests/calibration/`，逐项处理：
-1. 同目录裸 import（如 `from auto_collect import ...`）改为从 calibration
-   导入（calibration 目前无 `__init__.py`，届时决定加包标记或在
-   `tests/calibration/conftest.py` 里补 sys.path，以不改动 calibration 源码
-   的 import 语义为准）；
-2. 测试内相对路径锚点（`Path(__file__).parent` 找 `config/board_*.json`
-   等 fixture）改为指向 `calibration/` 的显式路径；
-3. 迁移后跑一次全量，新基线数字更新到本文件底部。
+**修法**（0f0a753 实录，与预写方案的差异已标注）：
+1. `git mv` 迁至 `tests/calibration/`，测试**保持裸模块导入与裸 patch
+   目标不变**（曾试改包式 `from calibration.x import`，因源码内部仍是
+   裸 import，patch 的包实例与源码的裸实例分裂导致 11 个用例假失败，
+   已回退）；新增 `tests/calibration/conftest.py` 把 calibration/
+   源码目录 append 进 sys.path；
+2. `test_preview` / `test_calibration` 的 ROOT 锚点改为
+   `parents[2] / 'calibration'`，继续解析 `calibration/config/` 板配置；
+3. calibration/ 目录下不再有任何 `test_*.py`。
 
-**备选**：`pytest.ini` 的 testpaths 加 `calibration`（一行搞定，但破坏
-"测试都在 tests/" 的约定，且测试仍与源码混放——不推荐，仅当迁移阻力
-超预期时兜底）。
+**验收**（板端实测）：迁移前基线 `calibration/` 89 passed；迁移后
+`pytest tests/` 收集 **657 = 627 passed / 30 skipped / 201 subtests
+passed，0 失败**。x86 开发机不作为验收环境（本机 cv2 无
+`aruco.detectMarkers`，8 个用例必挂，与代码无关）。
 
-**验收**：裸 `pytest` 收集数 = 原 568 + 89 = 657；全量通过；calibration/
-目录下不再有任何 `test_*.py`。
+**板端跑测试姿势**：
+`PYTHONPATH=$PWD:/home/spacemit/dice-test-deps:$PWD/vendor-site:$PWD/vendor-site-deps:$PWD/vendor-site/pyAgxArm python3 -m pytest tests/ -q`
 
 ## ⏸️ 可选低优先
 
@@ -95,4 +97,6 @@ pipeline 行为不一致，调出来的结论会骗人。
 
 ## 📝 完成记录
 
-（完成后在此追加：日期 + 编号 + 提交号）
+- 2026-09-29 **S3** 完成：锚点 bf8bc89 → 迁移 0f0a753。测试基线更新为
+  **657 collected = 627 passed / 30 skipped / 201 subtests**（板端实测，
+  旧基线 482/30 不含标定 89 用例）。
