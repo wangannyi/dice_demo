@@ -1,5 +1,6 @@
 """Read-only source validation; does not import robot modules or open devices."""
 import ast
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -13,11 +14,34 @@ FORBIDDEN_PATH_TEXT = ('/home/' + 'test2/', '/home/' + 'anny/', '.venv-' + 'gras
                        'agilex-' + 'api-test', '/usr/lib/' + 'python')
 RUNTIME_TREES = {'scripts', 'calibration', 'cup_grasp_demo', 'vision',
                  'nero_revo2_control'}
+# Byte-identical copies kept on purpose (calibration/ stays independently
+# deliverable, the K3 model tree keeps its xacro material). Drift between the
+# two halves silently forks behavior; the check fails loudly instead.
+DUPLICATE_PAIRS = (
+    ('calibration/core.py', 'cup_grasp_demo/flow/transforms.py'),
+    ('calibration/image_profile.py', 'cup_grasp_demo/flow/image_profile.py'),
+)
+
+
+def check_duplicate_pairs(errors):
+    for first, second in DUPLICATE_PAIRS:
+        left, right = ROOT / first, ROOT / second
+        for path in (left, right):
+            if not path.is_file():
+                errors.append(f'{path.relative_to(ROOT)}: missing duplicate-pair member')
+        if left.is_file() and right.is_file():
+            left_hash = hashlib.md5(left.read_bytes()).hexdigest()
+            right_hash = hashlib.md5(right.read_bytes()).hexdigest()
+            if left_hash != right_hash:
+                errors.append(f'{first} and {second} drifted apart '
+                              f'(md5 {left_hash[:12]} vs {right_hash[:12]}); '
+                              'restore byte-identical copies or re-converge deliberately')
 
 
 def main():
     errors = []
     count = 0
+    check_duplicate_pairs(errors)
     for p in ROOT.rglob('*'):
         parts = p.relative_to(ROOT).parts
         if not p.is_file() or any(x in SKIP or x.startswith('.venv') for x in parts):
