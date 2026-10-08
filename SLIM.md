@@ -11,9 +11,13 @@
 1. **改前记锚点**：记下当前提交号（回退基准）；
 2. **找齐引用**：全仓 grep 被动目标（含测试 fixture、文档、shell 脚本、
    JSON 内嵌路径），逐个改指向新真源；
-3. **板上全量回归**：`PYTHONPATH=$PWD:/home/spacemit/dice-test-deps:$PWD/vendor-site:$PWD/vendor-site-deps:$PWD/vendor-site/pyAgxArm python3 -m pytest tests/ -q`
-   必须回到基线 **657 collected = 627 passed / 30 skipped / 201 subtests，0 失败**
-   （x86 开发机不作验收环境：本机 cv2 无 `aruco.detectMarkers`，8 用例必假挂）；
+3. **板上全量回归**（2026-10-08 实测姿势）：ssh spacemit-k3 后在仓库根执行
+   `PYTHONPATH=$PWD:$PWD/third_party/pyAgxArm python3.14 -m pytest tests/ -q`
+   （不要 source env.sh——`PYTHONNOUSERSITE=1` 会屏蔽用户 site 里的 pytest；
+   旧命令引用的 /home/spacemit/dice-test-deps 已不存在）
+   必须回到基线 **691 collected = 661 passed / 30 skipped / 205 subtests，0 失败**
+   （2026-10-08 实测于 3a872b6；x86 开发机不作验收环境：本机 cv2 无
+   `aruco.detectMarkers`，8 用例必假挂）；
 4. **入口冒烟**：视改动面跑 `bash run.sh`（预览模式）、`run.sh control --simulate`、
    `bash calibrate.sh <涉及操作>`；
 5. **残留清零**：`git grep <被删名字>` 无输出；
