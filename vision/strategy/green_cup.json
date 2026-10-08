@@ -33,7 +33,6 @@
   ],
   "finger_duration_s": 1.0,
   "finger_settle_s": 0.0,
-  "fast_finger_duration_s": 0.25,
   "held_cup_margin_mm": 5,
   "place_tolerance_mm": 3,
   "approach_via_above": false,

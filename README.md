@@ -126,12 +126,29 @@ bash run.sh fast --until place --execute  # 放杯并返回 HOME
 | `green_cup.strategy_file` | 抓取策略文件；其中包含 TCP、接触点、腕部、抬杯和手指参数 |
 | `green_cup.fast_speed_percent` | FAST 普通运动速度百分比 |
 | `green_cup.fast_phase_speed_percent` | 指定阶段的速度覆盖值 |
+| `green_cup.fast_finger_duration_s` | FAST 抓握／松手时长，单位秒；当前配置为 `0.3` |
 | `green_cup.place_offset_base_mm` | 放杯目标相对抓取位置的基座坐标系 `[X, Y, Z]` 补偿，单位 mm |
 | `green_cup.perception` | 绿杯模型、尺寸、杯沿和推理后端 |
 | `vision/camera.json` | 彩色、深度、双目分辨率、帧率和裁剪 |
 | `green_cup.joint_test_config` | 摇晃动作配置文件 |
 
 六路手指顺序为：拇指尖、拇指根、食指、中指、无名指、小指。TCP 偏移使用法兰坐标系，不是图像坐标系。
+
+### 配置文件分工与优先级
+
+| 文件 | 修改内容 |
+| --- | --- |
+| [`configs/green_cup.json`](configs/green_cup.json) | 硬件接口、标定和 HOME 路径、运动速度、手指时长、放杯补偿、感知和控制器限制 |
+| [`vision/strategy/green_cup.json`](vision/strategy/green_cup.json) | 杯子抓取参数：接触点／TCP 偏移、腕部参考角、抬杯高度、六路抓握／松手目标及路径间距 |
+| [`vision/camera.json`](vision/camera.json) | 相机分辨率、帧率和裁剪 |
+| [`configs/actions/joint_shake.json`](configs/actions/joint_shake.json) | 摇晃动作的关节、幅度、速度和周期 |
+| [`configs/actions/gestures/`](configs/actions/gestures/) | 猜拳和胜负反馈动作 |
+
+`green_cup.strategy_file` 指向策略文件。加载时，策略字段只补充主配置 `green_cup` 中缺少的字段；同名字段以主配置为准。参数只保留一处定义：例如修改抓握／松手时长时，修改主配置的 `green_cup.fast_finger_duration_s`，不要再在策略文件中添加同名字段。
+
+当前绿杯 Pipeline 始终使用 FAST 参数：普通运动读取 `green_cup.fast_speed_percent`；手指时长优先读取 `green_cup.fast_finger_duration_s`，缺省时才使用策略中的 `finger_duration_s`。运行时固定 `finger_settle_s = 0`、`require_arm_position = false`，因此这些策略字段不能用于增加 FAST 阶段等待。
+
+主配置中的动作调参和策略中的抓取参数支持热加载，在下次独立动作或新一轮 HOME 前生效，不会修改正在执行的轨迹。相机、标定和 HOME 等受保护配置的生效规则见[参数热加载说明](docs/HOT_RELOAD.md)。
 
 ### 摇晃动作
 
