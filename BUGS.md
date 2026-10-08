@@ -269,9 +269,13 @@ main 侧另有失败页归位/开机归位兜底（dice_game 49103f5/564ce81/d3b
 - [ ] **P3-16** `vision/capture/config.py:38-44`：`calibration_file`/`calibration_digest()`
   无人调用，README:52 却宣称它做一致性校验——真正生效的是
   `configs/green_cup.json:7` 的 `calibration` 键。二选一：接线或删字段改 README。
-- [ ] **P3-17** `cup_grasp_demo/flow/planar_scene.py` 成为零引用死代码
-  （table_capture/register_home_table 已随脚本瘦身删除；将来找回登记工具时
-  连同修复路径基准问题：会话路径以调用者 cwd 为基准、采集子进程以 ROOT 为基准）。
+- [x] **P3-17** `cup_grasp_demo/flow/planar_scene.py` 成为零引用死代码
+  （table_capture/register_home_table 已随脚本瘦身删除…）✅ 记录已修正
+  （2026-10-08）：**该前提过期，planar_scene.py 是活代码，勿删**——
+  `calibration/tools/register_home_table.py:13`、`calibration/tools/table_capture.py:11`
+  均在导入并调用，`tests/calibration/test_table_registration.py:73` 有覆盖。
+  原条目所述"路径基准问题"（会话路径以调用者 cwd 为基准、采集子进程以
+  ROOT 为基准）仍待将来做桌面登记工具时核实。
 
 ### 时钟/字段一致性
 
