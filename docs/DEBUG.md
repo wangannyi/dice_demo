@@ -84,11 +84,11 @@ python3 scripts/set_camera_profile.py usb3
 相机、桌面或基座变化后执行：
 
 ```bash
-"$DICE_VISION_PYTHON" scripts/table_capture.py \
+"$DICE_VISION_PYTHON" calibration/tools/table_capture.py \
   --config "$CFG" \
   --session "$RUN"
 
-"$CALIB_PYTHON" scripts/register_home_table.py \
+"$CALIB_PYTHON" calibration/tools/register_home_table.py \
   --config "$CFG" \
   --table-scene "$RUN/planar_table_scene.json"
 ```

@@ -19,6 +19,8 @@ for key in ('home','calibration','tcp_candidate','orientation_reference','grasp_
 for key in ('reference','home_table_scene','joint_test_config'):
     assert (root/cfg['green_cup'][key]).is_file(), key
 for relative in ('calibration/auto_collect.py',
+                 'calibration/tools/table_capture.py',
+                 'calibration/tools/register_home_table.py',
                  'calibration/config/board_hand_redcloth.json',
                  'calibration/config/board_hand_redcloth_cover_fixed.json',
                  'calibration/config/board_reference_redcloth.json'):

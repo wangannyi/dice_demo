@@ -124,6 +124,8 @@ apply 先保存 pipeline_config.json、handeye_result.json 和 home_table_scene.
 
 如果桌面采集失败，解决相机占用或桌面遮挡后执行 `bash calibrate.sh table`。不要只改哈希或手动清除等待标记。
 
+桌面采集和绑定入口位于 `calibration/tools/table_capture.py`、`calibration/tools/register_home_table.py`。`apply` 在修改标定前确认这两个工具存在；旧版若在标定安装后因缺少工具停止，更新仓库后运行 `bash calibrate.sh table` 补完桌面登记，无需重新采样或再次应用标定。
+
 回滚时先停止抓取进程，将同一次备份的三个文件分别恢复到 pipeline_config 指定的配置文件、原 calibration 文件和原 home_table_scene 文件。三者必须一起恢复，再重启会话。
 
 完成后先预览，再由现场人员启动实际抓取：

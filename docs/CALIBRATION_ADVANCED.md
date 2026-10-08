@@ -255,11 +255,11 @@ cd "$DICE_ROOT"
 ```bash
 RUN="$DICE_ROOT/cup_grasp_demo/datasets/green_current"
 
-"$DICE_VISION_PYTHON" scripts/table_capture.py \
+"$DICE_VISION_PYTHON" calibration/tools/table_capture.py \
   --config configs/green_cup.json \
   --session "$RUN"
 
-"$CALIB_PYTHON" scripts/register_home_table.py \
+"$CALIB_PYTHON" calibration/tools/register_home_table.py \
   --config configs/green_cup.json \
   --table-scene "$RUN/planar_table_scene.json"
 ```

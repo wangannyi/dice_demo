@@ -13,6 +13,7 @@ from pathlib import Path
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
+TABLE_TOOLS = ('calibration/tools/table_capture.py', 'calibration/tools/register_home_table.py')
 sys.path.insert(0, str(ROOT))
 from calibration.apply_result import atomic_bytes
 
@@ -211,6 +212,9 @@ class Workflow:
                           '--observation', out/'observation.json', '--output', out/'registration.json', *opt)
                 self.save(registration=out/'registration.json')
         elif action in ('apply', 'table'):
+            for script in TABLE_TOOLS:
+                if not (ROOT/script).is_file():
+                    raise ValueError(f'桌面登记工具不存在：{script}；请更新完整仓库后重试')
             config = resolve(c['pipeline_config'])
             if action == 'apply':
                 result = self.selected('result')
@@ -227,8 +231,8 @@ class Workflow:
                     print(f'备份：{backup}', flush=True)
                 self.call('calibration/apply_result.py', '--result', result, '--config', config)
             out = self.new('table')
-            self.call('scripts/table_capture.py', '--config', config, '--session', out)
-            self.call('scripts/register_home_table.py', '--config', config, '--table-scene', out/'planar_table_scene.json')
+            self.call(TABLE_TOOLS[0], '--config', config, '--session', out)
+            self.call(TABLE_TOOLS[1], '--config', config, '--table-scene', out/'planar_table_scene.json')
             self.save(table=out/'planar_table_scene.json')
         print('完成' + ('（仅预览，未执行）' if self.dry else ''), flush=True)
 

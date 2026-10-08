@@ -101,13 +101,37 @@ class WorkflowTests(unittest.TestCase):
             backup = Path(w.state['backup'])
             self.assertEqual((backup/'handeye_result.json').read_text(), 'old calibration')
             self.assertEqual((backup/'home_table_scene.json').read_text(), 'old table')
-            if script == 'scripts/table_capture.py':
+            if script == 'calibration/tools/table_capture.py':
                 raise RuntimeError('camera busy')
         with patch('workflow.require_idle'), patch.object(w, 'call', side_effect=call):
             with self.assertRaisesRegex(RuntimeError, 'camera busy'):
                 w.run('apply')
-        self.assertEqual(calls, ['calibration/apply_result.py', 'scripts/table_capture.py'])
+        self.assertEqual(calls, ['calibration/apply_result.py', 'calibration/tools/table_capture.py'])
         self.assertNotIn('table', w.state)
+
+    def test_missing_table_tools_stop_before_install_or_backup(self):
+        result = self.root/'result.json'; result.write_text('{"quality_passed":true}')
+        self.cfg['result'] = str(result); self.write()
+        w = workflow.Workflow(self.path)
+        with patch('workflow.require_idle'), patch.object(workflow, 'ROOT', self.root), \
+             patch.object(w, 'call') as call:
+            with self.assertRaisesRegex(ValueError, '桌面登记工具不存在'):
+                w.run('apply')
+            call.assert_not_called()
+        self.assertFalse((self.root/'runs').exists())
+        self.assertFalse(w.state_path.exists())
+
+    def test_table_retry_uses_existing_tools_and_records_only_complete_capture(self):
+        w = workflow.Workflow(self.path)
+        scripts = []
+        def call(script, *args, **kwargs):
+            self.assertTrue((workflow.ROOT/script).is_file())
+            scripts.append(script)
+        with patch('workflow.require_idle'), patch.object(w, 'call', side_effect=call):
+            w.run('table')
+        self.assertEqual(scripts, list(workflow.TABLE_TOOLS))
+        self.assertIn('table', w.state)
+        self.assertNotIn('backup', w.state)
 
     def test_first_solves_and_tracks_new_teaching_calibration(self):
         w = workflow.Workflow(self.path)
