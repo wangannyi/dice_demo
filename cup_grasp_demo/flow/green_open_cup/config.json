@@ -161,7 +161,7 @@
       "min_arc_deg": 160,
       "min_area_px": 500,
       "model": "cup_grasp_demo/models/best_green.q.onnx",
-      "confidence": 0.35,
+      "confidence":0.25,
       "iou_threshold": 0.45,
       "mask_threshold": 0.5,
       "geometry_method": "image_rim_depth",
