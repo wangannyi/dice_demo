@@ -6,7 +6,7 @@
 
 ## 🎯 值得做（按建议修复顺序排列）
 
-### S1. 摇骰配置双份已漂移，debug.py 调试走旧参数
+### S1. ✅（已完成，2026-10-08）摇骰配置双份已漂移，debug.py 调试走旧参数
 
 **现状**：摇晃动作配置存在两份，内容已漂移：
 
@@ -100,6 +100,11 @@ passed，0 失败**。x86 开发机不作为验收环境（本机 cv2 无
 
 ## 📝 完成记录
 
+- 2026-10-08 **S1** 完成（SLIM 收敛轮）：green_open_cup 两份 json 的
+  `joint_test_config` 重指向 `configs/actions/joint_shake.json`，
+  删除 `flow/joint_test_config.json` 旧副本；test_delivery 的"双配方独立
+  调参"断言随单一真源决策改为单配方校验。debug.py preview 板上冒烟通过，
+  pytest 659/30/205 基线一致。
 - 2026-09-29 **S2** 完成：3facf37 解除跟踪并已推送（e91aefa..3facf37）。
 - 2026-09-29 **S3** 完成：锚点 bf8bc89 → 迁移 0f0a753。测试基线更新为
   **657 collected = 627 passed / 30 skipped / 201 subtests**（板端实测，

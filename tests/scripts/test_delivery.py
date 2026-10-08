@@ -31,13 +31,10 @@ class DeliveryTests(unittest.TestCase):
         self.assertEqual(cfg['green_cup']['joint_test_config'], 'configs/actions/joint_shake.json')
         self.assertTrue((ROOT/cfg['green_cup']['joint_test_config']).is_file())
 
-    def test_shake_configurations_are_valid_independent_recipes(self):
-        release = json.loads((ROOT/'configs/actions/joint_shake.json').read_text())
-        current = json.loads((ROOT/'cup_grasp_demo/flow/joint_test_config.json').read_text())
+    def test_shake_configuration_is_a_valid_recipe(self):
         from cup_grasp_demo.flow.joint_profile import options
-        # Operators may tune the development and release recipes independently.
-        for recipe in (release, current):
-            self.assertEqual(options(recipe)["joints"], recipe["joints"])
+        release = json.loads((ROOT/'configs/actions/joint_shake.json').read_text())
+        self.assertEqual(options(release)["joints"], release["joints"])
 
     def test_feedback_uses_release_system_configuration(self):
         from scripts.result_feedback import DEFAULT_SYSTEM

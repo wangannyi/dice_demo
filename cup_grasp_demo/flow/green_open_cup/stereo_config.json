@@ -133,7 +133,7 @@
     ],
     "finger_duration_s": 1.0,
     "finger_settle_s": 0.0,
-    "joint_test_config": "cup_grasp_demo/flow/joint_test_config.json",
+    "joint_test_config": "configs/actions/joint_shake.json",
     "held_cup_margin_mm": 5,
     "place_tolerance_mm": 3,
     "perception": {
