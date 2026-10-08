@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "package": "pyrealsense2",
+  "version": "2.57.7",
+  "python": "cp314",
+  "architecture": "riscv64",
+  "wheel": "pyrealsense2-2.57.7-cp314-cp314-manylinux_2_39_riscv64.manylinux_2_43_riscv64.whl",
+  "wheel_tags": [
+    "cp314-cp314-manylinux_2_39_riscv64",
+    "cp314-cp314-manylinux_2_43_riscv64"
+  ],
+  "sha256": "0b54dc77c672af47a948253cf85588dc9fa62f5404257229247bda046391c04a",
+  "size_bytes": 5562542,
+  "license": "Apache-2.0",
+  "license_file": "LICENSE.librealsense",
+  "upstream": "https://github.com/realsenseai/librealsense/releases/tag/v2.57.7",
+  "provenance": "Rebuilt on the current K3 from its previously validated pyrealsense2 2.57.7 installation. An isolated target install, clean-environment import, and ldd verification completed before commit."
+}

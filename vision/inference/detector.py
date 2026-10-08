@@ -55,7 +55,7 @@ def configured_session(opts):
     if not path.is_relative_to(ROOT):
         raise ValueError("Model must be inside dice_demo")
     sha = hashlib.sha256(path.read_bytes()).hexdigest()
-    return session(str(path), sha, opts["ort_package_dir"], *runtime_settings(opts))
+    return session(str(path), sha, opts.get("ort_package_dir"), *runtime_settings(opts))
 
 
 @lru_cache(maxsize=2)
@@ -65,7 +65,7 @@ def session(path, sha, package, threads=1, provider="cpu", cpu_ids=()):
     try:
         ort = importlib.import_module("onnxruntime")
     except ModuleNotFoundError:
-        if package not in sys.path:
+        if package and package not in sys.path:
             sys.path.append(package)
         ort = importlib.import_module("onnxruntime")
     runtime_settings(dict(inference_threads=threads, inference_provider=provider, inference_cpu_ids=cpu_ids))

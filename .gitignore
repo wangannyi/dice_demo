@@ -23,5 +23,6 @@ spacemitk3-dice_demo/
 .zcode/
 .code/
 vendor-site-deps/
+third_party/python/
 .vscode/
 .v2c/

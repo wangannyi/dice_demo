@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 DEBUG_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$DEBUG_ROOT/scripts/env.sh"
 export OPENBLAS_NUM_THREADS=1
 export QT_X11_NO_MITSHM=1
 export PYTHONNOUSERSITE=1
@@ -25,5 +26,5 @@ if [[ ${1:-} == pipeline ]]; then
     fi
   fi
 fi
-exec "${DICE_VISION_PYTHON:-/usr/bin/python3}" \
+exec "$DICE_VISION_PYTHON" \
   "$DEBUG_ROOT/cup_grasp_demo/flow/debug.py" "$@"

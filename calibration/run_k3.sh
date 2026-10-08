@@ -1,7 +1,5 @@
-#!/bin/sh
-set -eu
-CALIB_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-CALIB_PYTHON=${CALIB_PYTHON:-"$HOME/.venv-grasp/bin/python"}
-NERO_SDK_DIR=${NERO_SDK_DIR:-"$HOME/agilex-api-test/pyAgxArm"}
-export PYTHONPATH="$CALIB_DIR/.deps:$NERO_SDK_DIR${PYTHONPATH:+:$PYTHONPATH}"
+#!/usr/bin/env bash
+set -euo pipefail
+CALIB_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+source "$CALIB_DIR/../scripts/env.sh"
 exec "$CALIB_PYTHON" "$CALIB_DIR/calibrate.py" "$@"

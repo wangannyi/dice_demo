@@ -1,8 +1,11 @@
-# On riscv64 use compatible system/vendor builds; this is not a wheel lockfile.
+# On riscv64 prefer compatible system packages. This is a dependency manifest,
+# not a request to copy a virtual environment between machines.
 numpy
 scipy
 opencv-contrib-python
 pyrealsense2
 onnxruntime
 python-can>=3.3.4
+wrapt
+packaging
 typing-extensions

@@ -1,0 +1,3 @@
+# Preserve the vendored upstream SDK byte-for-byte. Its original whitespace is
+# covered by the pinned commit and license rather than this repository's style.
+third_party/pyAgxArm/** -whitespace
