@@ -223,8 +223,9 @@ main 侧另有失败页归位/开机归位兜底（dice_game 49103f5/564ce81/d3b
 
 ### 配置卫生
 
-- [ ] **P3-4** `configs/green_cup.json:88-98`：`shake_study` 零引用死键（真源是
-  `shake.joint_motion_cost`）。
+- [x] **P3-4** `configs/green_cup.json:88-98`：`shake_study` 零引用死键（真源是
+  `shake.joint_motion_cost`）。✅ 已修（2026-10-08，连同 green_open_cup 两份副本
+  同段删除；大夹具内嵌副本已随 SLIM L3 夹具删除先行消解）
 - [ ] **P3-5** 出厂绝对路径残留 3 处：`green_open_cup/home_table_scene.json:23` 的
   `source: /home/test2/...`、`configs/calibration/handeye_result.json:262` 与
   `configs/installation/camera.json:262` 的 `source_dataset: /home/test2/...`。

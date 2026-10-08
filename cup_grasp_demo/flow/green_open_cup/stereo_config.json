@@ -85,17 +85,6 @@
   },
   "fast_record_shake_video": false,
   "fast_capture_reuse_max_age_s": 120,
-  "shake_study": {
-    "joint_motion_cost": [
-      1,
-      4,
-      4,
-      1,
-      4,
-      4,
-      1
-    ]
-  },
   "joint_delivery": {
     "limit_utilization": 1.0,
     "acceleration_cap_rad_s2": 5.0,
