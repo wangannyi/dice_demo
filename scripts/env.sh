@@ -34,7 +34,14 @@ export DICE_VISION_PYTHON="${DICE_VISION_PYTHON:-$DICE_PYTHON}"
 export DICE_SDK_PYTHON="${DICE_SDK_PYTHON:-$DICE_PYTHON}"
 export NERO_SDK_DIR="${NERO_SDK_DIR:-$DICE_ROOT/third_party/pyAgxArm}"
 export CALIB_PYTHON="${CALIB_PYTHON:-$DICE_VISION_PYTHON}"
+if ! _dice_locked_env="$(/usr/bin/python3 "$DICE_ROOT/scripts/k3_runtime.py" shell)"; then
+    return 1 2>/dev/null || exit 1
+fi
+# The helper emits only shlex-quoted exports from the verified dependency lock.
+eval "$_dice_locked_env"
+unset _dice_locked_env
 _python_paths=("$DICE_ROOT" "$NERO_SDK_DIR")
+[[ -n "${DICE_LOCKED_PYTHON:-}" ]] && _python_paths=("$DICE_LOCKED_PYTHON" "${_python_paths[@]}")
 [[ -d "$DICE_ROOT/third_party/python" ]] && _python_paths+=("$DICE_ROOT/third_party/python")
 [[ -n "${DICE_PYTHON_EXTRA:-}" ]] && _python_paths+=("$DICE_PYTHON_EXTRA")
 _joined_path="$(IFS=:; echo "${_python_paths[*]}")"

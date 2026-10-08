@@ -30,7 +30,7 @@ K3 上一键安装系统依赖：
 sudo bash scripts/bootstrap_k3.sh
 ```
 
-脚本通过 Bianbu 安装 NumPy、SciPy、OpenCV、ONNX Runtime、python-can 等系统包，并安装仓库附带且经过校验的 K3/CPython 3.14 RealSense wheel。项目默认使用系统 `python3`；NERO SDK 固定在 `third_party/pyAgxArm/`。不要复制其他机器的虚拟环境。
+脚本通过 Bianbu 安装 NumPy、SciPy、OpenCV、python-can 等通用系统包，并安装经过校验的 K3/CPython 3.14 RealSense wheel。识别加速依赖按 `configs/k3_runtime.lock.json` 固定为 SpaceMIT `2.0.6` 和 TCM `3.0.0+5`，独立安装至仓库 `runtime/`，不改变语音服务的系统依赖。项目默认使用系统 `python3`；NERO SDK 固定在 `third_party/pyAgxArm/`。
 
 ```bash
 source scripts/env.sh --system

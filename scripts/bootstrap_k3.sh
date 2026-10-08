@@ -40,8 +40,10 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y \
   python3-numpy python3-scipy python3-opencv python3-pip \
-  python3-can python3-wrapt python3-packaging python3-typing-extensions \
-  spacemit-onnxruntime python3-spacemit-ort
+  python3-can python3-wrapt python3-packaging python3-typing-extensions
+# Extract exact, checksummed inference packages without upgrading shared TTS
+# or system libraries. Missing pinned archives are an error, never an upgrade.
+/usr/bin/python3 "$ROOT/scripts/k3_runtime.py" install
 
 WHEEL="$WHEEL_DIR/$(/usr/bin/python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["wheel"])' "$MANIFEST")"
 SYSTEM_SITE="$(/usr/bin/python3 - <<'PY'
@@ -75,7 +77,7 @@ env -i PATH=/usr/bin:/bin PYTHONNOUSERSITE=1 DICE_ROOT="$ROOT" \
   /usr/bin/python3 - <<'PY'
 import importlib
 from pathlib import Path
-for name in ('numpy', 'scipy', 'cv2', 'pyrealsense2', 'onnxruntime',
+for name in ('numpy', 'scipy', 'cv2', 'pyrealsense2',
              'can', 'wrapt', 'packaging', 'typing_extensions'):
     module = importlib.import_module(name)
     print(name, getattr(module, '__version__', 'installed'), Path(module.__file__).resolve())

@@ -1,0 +1,20 @@
+{
+  "id": "spacemit-2.0.6-tcm-3.0.0-5-cp314",
+  "architecture": "riscv64",
+  "python_abi": "cpython-314",
+  "python_path": "usr/lib/python3.14/dist-packages",
+  "native_path": "usr/lib",
+  "tcm": "usr/lib/libspine_tcm.so.3.0.0",
+  "packages": [
+    {"name": "spacemit-onnxruntime", "version": "2.0.6", "file": "spacemit-onnxruntime_2.0.6_riscv64.deb", "sha256": "c83d41450ec31e3eb0654ef644f36c133239b42b920d19ef2a01af537e60025a"},
+    {"name": "python3-spacemit-ort", "version": "2.0.6", "file": "python3-spacemit-ort_2.0.6_riscv64.deb", "sha256": "d5618817ce8d08234ea03276dc63ac3f28aa74fed67c9c9b997d105da7c95aca"},
+    {"name": "spacemit-tcm", "version": "3.0.0+5", "file": "spacemit-tcm_3.0.0+5_riscv64.deb", "sha256": "c43b4ca220f5e6d9fb91dce5126e3a38a8a7293ae2beeffe721b06bc43d2f55d"}
+  ],
+  "libraries": {
+    "usr/lib/libonnxruntime.so.1.24.2+spacemit.a1": "076d9e8364dfa39f7b975f91b3c96eaa39634ce966d3abceeebce5703ce6639e",
+    "usr/lib/libspacemit_ep.so.2.0.6": "d8fa3633536db78e7956312e985574ee9162d1363f9cef81426aba686a97d8af",
+    "usr/lib/libspine_tcm.so.3.0.0": "4d57014a3e6ab335a0b7149c9ddcd3c78a97fc01ac14d8071b65ba8c79f9ec5f",
+    "usr/lib/python3.14/dist-packages/onnxruntime/capi/libonnxruntime.so.1.24.2+spacemit.a1": "411ecb0924683f10dbe0e539bb2dea2ae167268a02676b03181b6758689494d3",
+    "usr/lib/python3.14/dist-packages/spacemit_ort/libspacemit_ep.so.2.0.6": "9a4c9a3b58536abc828247cdf8a4c30c78600c5138a2bcf707eaa10a2728257e"
+  }
+}

@@ -47,7 +47,9 @@ def configured_library_paths():
     if ort_packages != ep_packages:
         raise ValueError('onnxruntime and spacemit_ort must use the same Python package directory')
     cache = Path(tempfile.gettempdir()) / f'dice-ort-libraries-{os.getuid()}'
-    return prepare_library_paths(ort_packages, cache)
+    locked = os.environ.get('DICE_LOCKED_RUNTIME')
+    native = Path(locked) / 'usr/lib' if locked else Path('/usr/lib')
+    return prepare_library_paths(ort_packages, cache, native)
 
 
 if __name__ == '__main__':

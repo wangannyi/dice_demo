@@ -33,6 +33,32 @@ bash scripts/check_environment.sh
 
 安装脚本会先检查 `riscv64`、CPython 3.14 和随仓库 wheel 的 SHA256，然后通过 Bianbu 安装通用系统包，并从系统 Python 的模块搜索路径中自动选择 `/usr/local` 下的安装目录来安装 RealSense 扩展，最后运行无硬件环境检查。它不会创建虚拟环境，也不会打开相机或 CAN。
 
+### 识别加速依赖锁定
+
+识别使用 `configs/k3_runtime.lock.json` 中锁定的依赖：
+
+| 包 | 固定版本 |
+| --- | --- |
+| `spacemit-onnxruntime` | `2.0.6` |
+| `python3-spacemit-ort` | `2.0.6` |
+| `spacemit-tcm` | `3.0.0+5`（库文件版本 `3.0.0`） |
+
+安装脚本将这些包解压至本仓库的 `runtime/`，校验包和库文件的 SHA256，不替换系统共享库。APT 中的系统版本可以保持较新，语音服务继续使用其现有环境。仓库不提交解压后的二进制。
+
+已安装通用依赖的 K3 可只安装或核对锁定库：
+
+```bash
+python3 scripts/k3_runtime.py install
+source scripts/env.sh --system
+bash scripts/check_environment.sh
+```
+
+安装优先使用 `/var/cache/apt/archives`，缺包时只下载锁文件中的精确版本；版本不可用或校验失败会停止，不会自动改用最新版。`run.sh`、`calibrate.sh` 通过 `env.sh` 自动加载锁定库，普通重启仍生效。库缺失或发生变化时，启动会报错并给出安装命令。
+
+上层应用启动原生 YOLO 裁决进程时，可执行 `python3 scripts/k3_runtime.py environment --native` 获取 JSON 格式的 `LD_LIBRARY_PATH` 和 `LD_PRELOAD`，仅合入该视觉子进程的环境。Python 杯子识别与原生 YOLO 分别使用各自软件包中的 ORT 核心，避免混用。不要把这些环境变量设置到整个上层应用或 TTS 服务。
+
+需要升级时修改锁文件中的精确版本及校验值，完成连续游戏回归后再发布；`apt upgrade` 不会改变本仓库已安装的识别运行库。
+
 ## 3. 系统 Python 依赖
 
 项目不要求创建虚拟环境，默认使用 `PATH` 中的 `python3`。在 K3 系统镜像中安装以下包：
@@ -48,8 +74,8 @@ K3 系统仓库可用时，优先通过系统包管理器安装：
 ```bash
 sudo apt update
 sudo apt install python3-numpy python3-scipy python3-opencv \
-  python3-can python3-wrapt python3-packaging python3-typing-extensions \
-  spacemit-onnxruntime python3-spacemit-ort
+  python3-can python3-wrapt python3-packaging python3-typing-extensions
+python3 scripts/k3_runtime.py install
 ```
 
 `pyrealsense2` 包含与架构和 CPython 版本绑定的二进制扩展。仓库附带的 wheel 只适用于 K3 的 riscv64/CPython 3.14，安装脚本会拒绝不匹配的平台。

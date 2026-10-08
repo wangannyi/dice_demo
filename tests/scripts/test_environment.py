@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from scripts import runtime_library_path
+from scripts import k3_runtime, runtime_library_path
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -35,7 +35,11 @@ class EnvironmentScriptTests(unittest.TestCase):
         self.assertEqual(values[1:4], [expected_python] * 3)
         self.assertEqual(values[4], str(ROOT / 'third_party/pyAgxArm'))
         self.assertNotIn('/home/should-not-be-used', '\n'.join(values))
-        self.assertTrue(values[5].startswith(f'{ROOT}:{ROOT}/third_party/pyAgxArm'))
+        expected_paths = [str(ROOT), str(ROOT / 'third_party/pyAgxArm')]
+        locked = k3_runtime.runtime_root()
+        if locked is not None:
+            expected_paths.insert(0, str(locked / k3_runtime.read_lock()['python_path']))
+        self.assertEqual(values[5].split(':')[:len(expected_paths)], expected_paths)
 
     def test_explicit_interpreter_and_extra_packages_are_honored(self):
         with tempfile.TemporaryDirectory() as directory:
