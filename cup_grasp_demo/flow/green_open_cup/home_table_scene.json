@@ -1,25 +1,25 @@
 {
   "scene": {
     "cup_support_base_m": [
-      -0.0010614747642611333,
-      0.3546392386403369,
-      -0.03165065583327875
+      -0.005895258474269555,
+      0.3688232525788135,
+      -0.029945058169600802
     ],
     "cup_normal_base": [
-      -0.02444718150454208,
-      -0.04083108651325518,
-      0.9988669369293546
+      -0.02626674813789491,
+      -0.0448505676346431,
+      0.9986483287549796
     ],
     "cup_envelope_radius_m": 0,
     "geometry": {
       "height_m": 0
     },
     "table_fit": {
-      "inlier_fraction": 0.932,
-      "rms_mm": 2.764262745686515
+      "inlier_fraction": 0.9366666666666666,
+      "rms_mm": 2.5720694262194246
     }
   },
-  "calibration_sha256": "7883bfc1591fa59c47373e9e2309a0a8cd3bca39514e558f5e06ab88354f69f7",
-  "source": "/home/spacemit/projects/dice-game/dice_demo/calibration/datasets/workflow/20261008_113931_table_961c30/planar_table_scene.json",
+  "calibration_sha256": "51f475980ad6fbcd1d290c423e0f6ad2215fc659e6520eba53308144f054bcf1",
+  "source": "/home/spacemit/projects/dice-game/dice_demo/calibration/datasets/workflow/20261008_172228_table_647b1a/planar_table_scene.json",
   "requires_fixed_base_and_table": true
 }

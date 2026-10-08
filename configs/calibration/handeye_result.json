@@ -5,22 +5,22 @@
   "direction": "T_base_camera maps camera optical coordinates into arm base",
   "T_base_camera": [
     [
-      0.042596633165314035,
-      -0.9966848137115027,
-      0.06931745061560039,
-      -0.06781530676075607
+      0.04336950810204481,
+      -0.9964531672342922,
+      0.0721122130830501,
+      -0.06977581652856535
     ],
     [
-      -0.9966132104916865,
-      -0.03750392968616095,
-      0.07318171856104905,
-      0.3445583529857945
+      -0.9966026988383464,
+      -0.0380915535663756,
+      0.07302119017809301,
+      0.3448815516050976
     ],
     [
-      -0.07033943073719523,
-      -0.07219998182106467,
-      -0.9949067931764289,
-      0.6820755843605033
+      -0.07001533000073547,
+      -0.0750341192768235,
+      -0.9947199276727305,
+      0.6823531447578488
     ],
     [
       0.0,
@@ -82,12 +82,12 @@
     ]
   ],
   "pose_base_camera_m_rad": [
-    -0.06781530676075607,
-    0.3445583529857945,
-    0.6820755843605033,
-    -3.0691500509869347,
-    0.07039756256818158,
-    -1.5280809360820562
+    -0.06977581652856535,
+    0.3448815516050976,
+    0.6823531447578488,
+    -3.066302830614815,
+    0.07007266079416777,
+    -1.5273064164469934
   ],
   "rotation_diversity_singular_values": [
     2.5395021572300145,
@@ -338,5 +338,36 @@
     },
     "method": "Original marker detection and corner interpolation; measured X/Y grid points for PnP. Original flange poses, sample order, holdouts and gates retained.",
     "scope": "Offline derived observations; not a resumable capture session or a live board config."
+  },
+  "created_unix_s": 1791451332.198116,
+  "extrinsic_method": "fixed_reference_restore",
+  "reference_id": "table_reference_main",
+  "provisional_opt_in": true,
+  "reference_observation_quality": {
+    "frame_count": 20,
+    "max_position_deviation_mm": 0.3372351732894718,
+    "max_angle_deviation_deg": 0.3169866912498092,
+    "max_reprojection_rms_px": 0.1328379457981046
+  },
+  "independent_accuracy_verified": false,
+  "residual_scope": "Retained residuals describe the source hand-eye fit, not the restored camera pose.",
+  "sources": {
+    "registration": {
+      "path": "/home/spacemit/projects/dice-game/dice_demo/calibration/datasets/workflow/20261008_113142_register_771429/registration.json",
+      "sha256": "d663ef0244f12520f3fd9d6b6f5da900fdf356b619cf042b9747d30a884e8f5f"
+    },
+    "observation": "/home/spacemit/projects/dice-game/dice_demo/calibration/datasets/workflow/20261008_172200_restore_102815/observation.json"
+  },
+  "home_start": {
+    "joints_rad": [
+      0.002181661564992912,
+      -1.2276471425602915,
+      -1.5729256284823296,
+      1.7419607665379806,
+      -0.16664403698041858,
+      -0.09079202768874502,
+      0.08833111344343302
+    ],
+    "collision_checked": false
   }
 }

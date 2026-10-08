@@ -114,25 +114,9 @@ bash run.sh fast --until place --execute  # 放杯并返回 HOME
 
 ## 5. 主要配置
 
-主配置为 [`configs/green_cup.json`](configs/green_cup.json)。下表只列出这个文件中的字段。
+主配置为 [`configs/green_cup.json`](configs/green_cup.json)。
 
-字段路径中的 `.` 表示 JSON 嵌套层级，不是键名的一部分。例如 `green_cup.fast_speed_percent` 表示先找到 `"green_cup"` 对象，再修改其中的 `"fast_speed_percent"`。文件结构节选如下：
-
-```json
-{
-  "serial": "346222071954",
-  "channel": "can0",
-  "green_cup": {
-    "strategy_file": "vision/strategy/green_cup.json",
-    "fast_speed_percent": 30,
-    "fast_finger_duration_s": 0.3
-  }
-}
-```
-
-这是结构示例，省略了其他字段；修改时保留原文件的完整内容。`serial`、`channel` 位于最外层，`fast_speed_percent` 等位于 `green_cup` 内。
-
-| 主配置中的字段路径 | 含义 |
+| 字段路径 | 含义 |
 | --- | --- |
 | `serial`、`channel` | RealSense 序列号和 CAN 接口 |
 | `calibration` | 当前安装的手眼标定结果 |
