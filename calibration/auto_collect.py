@@ -603,7 +603,9 @@ def run_plan(plan_path, output, channel, speed_percent, fps=None,
         output.mkdir(parents=True)
         write_new(output/'AUTO_INCOMPLETE.json', {'started_unix_s': time.time(),
                   'plan': str(plan_path.resolve()), 'reason': 'run has not completed all waypoints'})
-        write_new(output/'manifest.json', {**manifest, 'created_unix_s': time.time(),
+        # These observations are detected now, not by the teaching runtime.
+        write_new(output/'manifest.json', {**manifest, 'opencv_version': cv2.__version__,
+                  'source_opencv_version': manifest.get('opencv_version'), 'created_unix_s': time.time(),
                   'sampling': 'automatic replay with image-window monitoring',
                   'source_dataset': str(source), 'auto_plan': str(plan_path.resolve())})
         robot = arm.robot

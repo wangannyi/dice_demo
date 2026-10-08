@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+import cv2
 import numpy as np
 
 from auto_collect import (AutoCollectionView, board_corners, capture_after_settling,
@@ -304,6 +305,11 @@ class AutoCollectionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             source, calibration = self.make_taught_session(root)
+            source_manifest_path = source/'manifest.json'
+            source_manifest = json.loads(source_manifest_path.read_text())
+            source_manifest['opencv_version'] = 'teaching-runtime-version'
+            source_manifest_path.write_text(json.dumps(source_manifest))
+            source_manifest_bytes = source_manifest_path.read_bytes()
             plan_path, output = root/'plan.json', root/'automatic'
             with patch('auto_collect.load_model', return_value=FakeModel()):
                 plan = make_plan(source, calibration, plan_path, margin_px=5.)
@@ -329,6 +335,10 @@ class AutoCollectionTests(unittest.TestCase):
             self.assertGreater(move.call_count, 8)
             self.assertEqual(len(list(output.glob('sample_*.json'))), 8)
             self.assertFalse((output/'AUTO_INCOMPLETE.json').exists())
+            collected_manifest = json.loads((output/'manifest.json').read_text())
+            self.assertEqual(collected_manifest['opencv_version'], cv2.__version__)
+            self.assertEqual(collected_manifest['source_opencv_version'], 'teaching-runtime-version')
+            self.assertEqual(source_manifest_path.read_bytes(), source_manifest_bytes)
             arm.close.assert_called_once()
             camera.close.assert_called_once()
             (source/'teaching_frames.jsonl').write_text('changed\n')
