@@ -86,6 +86,14 @@ source scripts/env.sh
 
 `DICE_PYTHON_EXTRA` 是部署接口，不是固定安装路径。普通安装不应设置它。
 
+K3 的动态库路径由 `scripts/runtime_library_path.py` 根据 `DICE_VISION_PYTHON`
+中的 `onnxruntime` 和 `spacemit_ort` 自动生成。两者必须来自同一个 Python
+包目录。脚本在系统临时目录创建用户专属的库别名，使插件依赖的
+`libonnxruntime.so`、`libonnxruntime.so.1` 指向 Python 绑定配套的同一个核心库，
+随后加入该包的 `capi`、插件目录及 `/usr/lib`。已有 `LD_LIBRARY_PATH` 放在后面并去重，
+避免 `/usr/local/lib` 的旧推理库抢先被加载；其他架构保持原有加载路径。
+这一步不安装或升级系统包。库更新后，下次启动会自动选择新的别名目录。
+
 ## 5. 环境验证
 
 ```bash
@@ -94,6 +102,7 @@ bash scripts/check_environment.sh
 ```
 
 检查脚本会输出每个模块的版本和实际来源，验证 ArUco、配置、模型、几何文件和仓库内的 `pyAgxArm`，不会打开相机或 CAN。所有模块都应由系统目录或当前仓库提供，不应来自旧项目目录或用户虚拟环境。
+使用 SpaceMIT 推理时，还会核对进程实际加载的 ONNX Runtime 核心库，混入其他版本会使检查失败。
 
 进一步执行无硬件预览：
 

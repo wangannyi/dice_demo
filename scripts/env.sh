@@ -43,3 +43,28 @@ unset _dice_system_reset _python_default _python_paths _joined_path
 export OPENBLAS_NUM_THREADS=1
 export QT_X11_NO_MITSHM=1
 export PYTHONNOUSERSITE=1
+# Resolve with the selected interpreter before it starts loading native code.
+# The alias directory binds the EP's generic libonnxruntime.so dependency to
+# the exact core bundled with Python ORT, ahead of stale /usr/local libraries.
+if ! _dice_native_paths="$("$DICE_VISION_PYTHON" "$DICE_ROOT/scripts/runtime_library_path.py")"; then
+    echo "Unable to select matching K3 inference libraries" >&2
+    unset _dice_native_paths
+    return 1 2>/dev/null || exit 1
+fi
+if [[ -n "$_dice_native_paths" ]]; then
+    _dice_native_merged="$_dice_native_paths"
+    _dice_native_old="${LD_LIBRARY_PATH:-}"
+    while [[ -n "$_dice_native_old" ]]; do
+        _dice_native_entry="${_dice_native_old%%:*}"
+        if [[ ":$_dice_native_merged:" != *":$_dice_native_entry:"* && -n "$_dice_native_entry" ]]; then
+            _dice_native_merged="$_dice_native_merged:$_dice_native_entry"
+        fi
+        if [[ "$_dice_native_old" == *:* ]]; then
+            _dice_native_old="${_dice_native_old#*:}"
+        else
+            _dice_native_old=""
+        fi
+    done
+    export LD_LIBRARY_PATH="$_dice_native_merged"
+fi
+unset _dice_native_paths _dice_native_merged _dice_native_old _dice_native_entry

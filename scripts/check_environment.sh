@@ -26,6 +26,14 @@ for relative in ('calibration/auto_collect.py',
                  'calibration/config/board_reference_redcloth.json'):
     assert (root/relative).is_file(), relative
 assert (root/cfg['green_cup']['perception']['model']).is_file()
+if sys.platform == 'linux' and cfg['green_cup']['perception'].get('inference_provider') == 'spacemit':
+    import spacemit_ort
+    capi = Path(importlib.import_module('onnxruntime').__file__).resolve().parent/'capi'
+    expected = {p.resolve() for p in capi.glob('libonnxruntime.so*') if p.is_file()}
+    loaded = {Path(line.split()[-1]).resolve() for line in Path('/proc/self/maps').read_text().splitlines()
+              if '/libonnxruntime.so' in line}
+    assert len(expected) == 1 and loaded == expected, f'Mixed ONNX Runtime cores: {loaded}; expected {expected}'
+    print('Matching ONNX Runtime core:', next(iter(loaded)))
 sdk=(root/'third_party/pyAgxArm/pyAgxArm').resolve()
 assert sdk.is_dir(), sdk
 assert Path(importlib.import_module('pyAgxArm').__file__).resolve().is_relative_to(sdk)
