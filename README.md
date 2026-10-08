@@ -114,9 +114,25 @@ bash run.sh fast --until place --execute  # 放杯并返回 HOME
 
 ## 5. 主要配置
 
-主配置为 [`configs/green_cup.json`](configs/green_cup.json)。常用字段如下：
+主配置为 [`configs/green_cup.json`](configs/green_cup.json)。下表只列出这个文件中的字段。
 
-| 配置 | 含义 |
+字段路径中的 `.` 表示 JSON 嵌套层级，不是键名的一部分。例如 `green_cup.fast_speed_percent` 表示先找到 `"green_cup"` 对象，再修改其中的 `"fast_speed_percent"`。文件结构节选如下：
+
+```json
+{
+  "serial": "346222071954",
+  "channel": "can0",
+  "green_cup": {
+    "strategy_file": "vision/strategy/green_cup.json",
+    "fast_speed_percent": 30,
+    "fast_finger_duration_s": 0.3
+  }
+}
+```
+
+这是结构示例，省略了其他字段；修改时保留原文件的完整内容。`serial`、`channel` 位于最外层，`fast_speed_percent` 等位于 `green_cup` 内。
+
+| 主配置中的字段路径 | 含义 |
 | --- | --- |
 | `serial`、`channel` | RealSense 序列号和 CAN 接口 |
 | `calibration` | 当前安装的手眼标定结果 |
@@ -129,7 +145,6 @@ bash run.sh fast --until place --execute  # 放杯并返回 HOME
 | `green_cup.fast_finger_duration_s` | FAST 抓握／松手时长，单位秒；当前配置为 `0.3` |
 | `green_cup.place_offset_base_mm` | 放杯目标相对抓取位置的基座坐标系 `[X, Y, Z]` 补偿，单位 mm |
 | `green_cup.perception` | 绿杯模型、尺寸、杯沿和推理后端 |
-| `vision/camera.json` | 彩色、深度、双目分辨率、帧率和裁剪 |
 | `green_cup.joint_test_config` | 摇晃动作配置文件 |
 
 六路手指顺序为：拇指尖、拇指根、食指、中指、无名指、小指。TCP 偏移使用法兰坐标系，不是图像坐标系。
