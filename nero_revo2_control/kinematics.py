@@ -439,7 +439,8 @@ def load_model(urdf_path: str | Path | None = None) -> NeroModel:
     source = (
         Path(urdf_path)
         if urdf_path is not None
-        else Path(__file__).resolve().parent / "models" / "nero_description.urdf"
+        else Path(__file__).resolve().parent
+        / "models" / "hand_geometry" / "nero" / "urdf" / "nero_description.urdf"
     )
     root = ElementTree.parse(source).getroot()
     joints = []

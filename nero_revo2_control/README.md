@@ -29,6 +29,6 @@ cd nero_revo2_control
 
 ## 4. 运动学模型
 
-`models/nero_description.urdf` 用于机械臂运动学，终点 link7 为模型法兰参考；保留原模型 [MIT 许可证](models/LICENSE)。手部 TCP 需叠加安装变换及当前配置的偏移。FK 和 IK 数值通过不等于真实场景碰撞或接触精度验收。
+`models/hand_geometry/nero/urdf/nero_description.urdf` 用于机械臂运动学，终点 link7 为模型法兰参考；保留原模型 [MIT 许可证](models/LICENSE)。手部 TCP 需叠加安装变换及当前配置的偏移。FK 和 IK 数值通过不等于真实场景碰撞或接触精度验收。
 
 标定及 TCP 配置见[标定指南](../docs/CALIBRATION.md)，逐阶段检查见[调试指南](../docs/DEBUG.md)。
