@@ -1,5 +1,6 @@
 """HOME -> green open-cup GRASP -> lifted joint SHAKE -> PLACE -> HOME."""
 
+import hashlib
 import json
 import math
 import os
@@ -21,7 +22,7 @@ from cup_grasp_demo.flow.core import (
     write_json,
 )
 from vision.geometry.cup_height import detect
-from vision.inference.detector import infer, runtime_settings
+from vision.inference.detector import YOLOOutputError, infer, runtime_settings
 from cup_grasp_demo.flow.green_cup_planning import (
     arm_plan,
     held_cup_clearance,
@@ -157,6 +158,8 @@ def validate(cfg):
         raise ValueError("Place offset >100 mm")
     p = g["perception"]
     runtime_settings(p)
+    if type(p.get("cpu_recheck_on_detection_failure", False)) is not bool:
+        raise ValueError("green_cup.perception.cpu_recheck_on_detection_failure must be boolean")
     for key in ("confidence", "iou_threshold", "mask_threshold"):
         if (
             not isinstance(p[key], (int, float))
@@ -469,6 +472,29 @@ class Workflow:
                     reason=str(exc), retry=1, action='capture_fresh_frame'))
                 # Reuse the running stream: no restart, sleep or extra discarded frames.
 
+    def _cpu_recheck_enabled(self):
+        p = self.g["perception"]
+        return (p.get("cpu_recheck_on_detection_failure", False)
+                and p.get("inference_provider", "cpu") == "spacemit")
+
+    def _infer_cpu_recheck(self, run, image, reason, diagnostic, initial):
+        """Recheck this recorded frame once, keeping all detection/geometry limits."""
+        report = dict(action="cpu_inference_same_frame", reason=str(reason),
+                      input_sha256=hashlib.sha256(image.tobytes()).hexdigest(),
+                      initial=initial)
+        diagnostic["inference_recheck"] = report
+        opts = dict(self.g["perception"], inference_provider="cpu", inference_cpu_ids=[])
+        try:
+            instances, model_info = infer(image, opts)
+            report.update(status="completed", model=model_info, candidates=len(instances))
+            return instances, model_info
+        except Exception as exc:
+            report.update(status="failed", error=f"{type(exc).__name__}: {exc}")
+            raise
+        finally:
+            # Keep the primary AI result immutable for diagnosing the backend.
+            write_json(run / "yolo_cpu_recheck.json", report)
+
     def _capture_once(self):
         run = common.new_run(self.root, "green_capture")
         # Invalidate before acquisition too: camera/model failure cannot expose an old target.
@@ -482,6 +508,7 @@ class Workflow:
             "green_mask.png",
         ):
             (self.root / name).unlink(missing_ok=True)
+        diagnostic = {}
         try:
             if getattr(self, '_vision', None) is not None:
                 self._vision.capture(run / 'rgbd', self.g['perception'].get('frame_count', 5))
@@ -494,36 +521,58 @@ class Workflow:
             else:
                 meta, depth, image, _ = load_batch(run)
             camera, quality = common.camera_transform(meta, self.cfg)
-            instances, model_info = infer(image, self.g["perception"])
+            try:
+                instances, model_info = infer(image, self.g["perception"])
+            except YOLOOutputError as exc:
+                if not self._cpu_recheck_enabled():
+                    raise
+                primary = dict(error=f"{type(exc).__name__}: {exc}", candidates=None)
+                write_json(run / "yolo_seg.json", primary)
+                instances, model_info = self._infer_cpu_recheck(
+                    run, image, exc, diagnostic, primary)
         except Exception as exc:
             failure = dict(
-                valid=False, source_run=str(run), error=f"{type(exc).__name__}: {exc}"
+                diagnostic, valid=False, source_run=str(run), error=f"{type(exc).__name__}: {exc}"
             )
             save(self.root / "green_rim_diagnostics.json", failure)
             write_json(run / "rim_diagnostics.json", failure)
             raise
-        write_json(
-            run / "yolo_seg.json", dict(model=model_info, candidates=len(instances))
-        )
+        primary = dict(model=model_info, candidates=len(instances))
+        if "inference_recheck" not in diagnostic:
+            write_json(run / "yolo_seg.json", primary)
         from cup_grasp_demo.flow.green_image_rim import overlay
 
-        diagnostic = {}
         try:
             if self.g["perception"].get("geometry_method") == "stereo_rim":
                 from vision.geometry.circle_rim import detect_stereo, table_from_base_scene
                 fixed_table = None
                 if self.g.get('table_plane_source', 'live_depth') == 'calibrated':
                     fixed_table = table_from_base_scene(self.table_scene, camera)
-                geo, mask, contour = detect_stereo(
-                    run, depth, image, meta, self.g["perception"],
-                    self.cfg["plane_tolerance_mm"], instances, diagnostic,
-                    fixed_table=fixed_table)
+                try:
+                    geo, mask, contour = detect_stereo(
+                        run, depth, image, meta, self.g["perception"],
+                        self.cfg["plane_tolerance_mm"], instances, diagnostic,
+                        fixed_table=fixed_table)
+                except ValueError as exc:
+                    if (str(exc) != "Stereo rim requires one YOLO cup in the red workspace"
+                            or not self._cpu_recheck_enabled()
+                            or "inference_recheck" in diagnostic):
+                        raise
+                    instances, model_info = self._infer_cpu_recheck(
+                        run, image, exc, diagnostic, primary)
+                    report = diagnostic["inference_recheck"]
+                    diagnostic.clear()
+                    diagnostic["inference_recheck"] = report
+                    geo, mask, contour = detect_stereo(
+                        run, depth, image, meta, self.g["perception"],
+                        self.cfg["plane_tolerance_mm"], instances, diagnostic,
+                        fixed_table=fixed_table)
             else:
                 geo, mask, contour = detect(
                     depth, image, meta, self.g["perception"],
                     self.cfg["plane_tolerance_mm"], instances=instances,
                     diagnostics=diagnostic)
-        except ValueError as exc:
+        except Exception as exc:
             diagnostic["error"] = str(exc)
             from vision.geometry.circle_rim import RimEdgeQualityError
             if isinstance(exc, RimEdgeQualityError):

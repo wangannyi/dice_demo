@@ -79,6 +79,15 @@ python3 scripts/set_camera_profile.py usb3
 
 切换分辨率或裁剪后按标定文档重新标定。切换帧率后重新采图，不复用旧杯位。
 
+`configs/green_cup.json` 中的 `green_cup.perception.cpu_recheck_on_detection_failure`
+控制异常复核。发布配置启用此项；省略时保持原行为。SpaceMIT 推理返回无效张量，
+或双目定位没有找到红色区域内唯一杯子时，用 CPU 对同一张已保存的彩色图复核一次。
+正常推理不增加复核耗时。CPU 沿用模型、置信度、掩码和几何质量门槛；杯子仍缺失、
+候选仍不唯一或杯沿质量不合格时继续停止，不使用上一局的杯位。
+
+每次复核的 `runs/*/yolo_cpu_recheck.json` 记录原因、原始结果、输入哈希及 CPU 结果；
+原 `yolo_seg.json` 保留，`rim_diagnostics.json` 的 `inference_recheck` 关联同一次复核。
+
 ## 4. 单独登记桌面
 
 相机、桌面或基座变化后执行：

@@ -175,6 +175,7 @@
       "fixed_min_valid_frames": 3,
       "inference_threads": 2,
       "inference_provider": "spacemit",
+      "cpu_recheck_on_detection_failure": true,
       "inference_cpu_ids": [
         12,
         13
