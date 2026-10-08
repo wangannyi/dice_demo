@@ -350,7 +350,7 @@ def detect_stereo(run, depth, image, meta, opts, plane_tolerance_mm, instances, 
     cv2.drawContours(workspace, [max(contours, key=cv2.contourArea)], -1, 1, cv2.FILLED)
     eligible = [item for item in instances if np.count_nonzero(item['mask']) >= opts['min_area_px']
                 and np.count_nonzero(np.asarray(item['mask'], bool) & (workspace > 0)) /
-                np.count_nonzero(item['mask']) >= .9]
+                np.count_nonzero(item['mask']) >= opts.get('min_workspace_fraction', .9)]
     if len(eligible) != 1:
         raise ValueError('Stereo rim requires one YOLO cup in the red workspace')
     mask = np.asarray(eligible[0]['mask'], bool)

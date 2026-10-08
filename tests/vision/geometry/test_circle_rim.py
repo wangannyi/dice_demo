@@ -204,3 +204,42 @@ class FixedQuorumTest(unittest.TestCase):
         for invalid in (True,2,6,3.5):
             with self.assertRaises(ValueError):
                 fit_fixed_sequence([],[],[],[],[],[],QUALITY,.065,invalid,{})
+
+
+class WorkspaceGateTest(unittest.TestCase):
+    """Red-workspace admission threshold is configurable; default stays .9."""
+
+    def setUp(self):
+        from pathlib import Path
+        import tempfile
+        from vision.geometry.circle_rim import detect_stereo
+        self.detect_stereo = detect_stereo
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.run = Path(directory.name)
+        self.image = np.zeros((40, 40, 3), np.uint8)
+        self.image[:, :20] = (0, 0, 255)  # red cloth fills the left half
+        mask = np.zeros((40, 40), bool)
+        mask[:, 5:25] = True  # 75% of the cup mask lies inside the red region
+        self.instances = [dict(mask=mask)]
+        self.meta = {'intrinsics': dict(fx=600., fy=600., cx=20., cy=20.)}
+        self.fixed_table = dict(point=[0, 0, .665], normal=[0, 0, 1],
+                                fit=dict(inlier_fraction=.9, rms_mm=2.))
+
+    def detect(self, opts):
+        return self.detect_stereo(self.run, None, self.image, self.meta, opts,
+                                  6, self.instances, {}, fixed_table=self.fixed_table)
+
+    def test_default_threshold_rejects_partial_overlap(self):
+        opts = dict(min_area_px=100, stereo_rim={})
+        with self.assertRaisesRegex(ValueError, 'red workspace'):
+            self.detect(opts)
+
+    def test_lowered_threshold_admits_partial_overlap(self):
+        from unittest.mock import patch
+        opts = dict(min_area_px=100, stereo_rim={}, min_workspace_fraction=.1)
+        with patch('vision.geometry.circle_rim.image_contour',
+                   side_effect=ValueError('synthetic no contour')):
+            # The gate passed; the failure moves to the next pipeline stage.
+            with self.assertRaisesRegex(ValueError, 'No complete image contour'):
+                self.detect(opts)

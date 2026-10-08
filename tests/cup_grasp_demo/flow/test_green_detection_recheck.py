@@ -158,6 +158,13 @@ class DetectionRecheckTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "cpu_recheck_on_detection_failure"):
                 flow.validate(cfg)
 
+    def test_min_workspace_fraction_requires_fraction(self):
+        for bad in (1.5, 0, -1, True, "0.1", None):
+            cfg = load_config(ROOT / "configs/green_cup.json")
+            cfg["green_cup"]["perception"]["min_workspace_fraction"] = bad
+            with self.assertRaisesRegex(ValueError, "min_workspace_fraction"):
+                flow.validate(cfg)
+
     def test_invalid_output_has_specific_error_type(self):
         detection = np.zeros((1, 38, 8400), np.float32)
         proto = np.zeros((1, 32, 160, 160), np.float32)

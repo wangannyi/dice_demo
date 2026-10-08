@@ -120,6 +120,7 @@
       "confidence": 0.25,
       "iou_threshold": 0.45,
       "mask_threshold": 0.5,
+      "min_workspace_fraction": 0.1,
       "geometry_method": "stereo_rim",
       "reference_dimensions_mm": {
         "height": 65,

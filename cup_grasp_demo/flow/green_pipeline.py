@@ -167,6 +167,11 @@ def validate(cfg):
             or not 0 < p[key] < 1
         ):
             raise ValueError("green_cup.perception." + key)
+    if "min_workspace_fraction" in p:
+        value = p["min_workspace_fraction"]
+        if (not isinstance(value, (int, float)) or isinstance(value, bool)
+                or not 0 < value < 1):
+            raise ValueError("green_cup.perception.min_workspace_fraction must be between 0 and 1")
     for key in ("height_range_mm", "diameter_range_mm"):
         v = np.asarray(p[key], dtype=float)
         if v.shape != (2,) or not np.isfinite(v).all() or not 0 < v[0] < v[1]:
