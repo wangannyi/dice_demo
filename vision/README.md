@@ -5,7 +5,7 @@
 | 层 | 目录 | 内容 |
 |---|---|---|
 | 采集 | `capture/` | `camera.json`（相机唯一配置源）、`realsense_session.py`（D435i 采集+常驻读帧+推流）、`frame_io.py`（帧数据读写）、`config.py`（配置加载器+标定绑定） |
-| 推理 | `inference/` | `detector.py`（YOLO 推理+provenance）、`model_adapter.py`（模型输出自动适配）、`yolo_seg.py`（前处理+解码） |
+| 推理 | `inference/` | `detector.py`（YOLO 推理+provenance）、`model_adapter.py`（模型输出自动适配）、`yolo_seg.py`（letterbox 前处理；解码在 `cup_grasp_demo/flow/cup_perception.py` 产线路径） |
 | 几何 | `geometry/` | `circle_rim.py`（圆口立体拟合）、`cup_height.py`（深度带杯高）、`table_plane.py`（通用几何基元） |
 | 策略 | `strategy/` | `green_cup.json`（抓取参数）、`loader.py`（策略加载） |
 

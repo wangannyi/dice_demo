@@ -258,9 +258,11 @@ main 侧另有失败页归位/开机归位兜底（dice_game 49103f5/564ce81/d3b
   （偶发 1s 停帧）；SIGKILL 可能残留 gst-launch 子进程。
 - [ ] **P3-14** `realsense_session.py:161-193`：在途请求保护可被绕过（读线程开始服务
   即清 `_request`，第二次并发调用会通过检查）——当前 Workflow 单线程，潜伏。
-- [ ] **P3-15** `vision/inference/yolo_seg.py`：三个解码器 + `YoloSegmentor` 死代码，
+- [x] **P3-15** `vision/inference/yolo_seg.py`：三个解码器 + `YoloSegmentor` 死代码，
   测试只覆盖死路径（产线走 `cup_perception.decode`）；`decode_standard2` 掩码用
-  `logits>0` 与产线 `sigmoid>threshold` 不等价。
+  `logits>0` 与产线 `sigmoid>threshold` 不等价。✅ 已修（2026-10-08，死符号连同
+  死路径测试删除，`preprocess` 保留并新增 letterbox 契约测试；死码间的掩码语义
+  差异随之消解）
 - [ ] **P3-16** `vision/capture/config.py:38-44`：`calibration_file`/`calibration_digest()`
   无人调用，README:52 却宣称它做一致性校验——真正生效的是
   `configs/green_cup.json:7` 的 `calibration` 键。二选一：接线或删字段改 README。
