@@ -15,9 +15,10 @@
    `PYTHONPATH=$PWD:$PWD/third_party/pyAgxArm python3.14 -m pytest tests/ -q`
    （不要 source env.sh——`PYTHONNOUSERSITE=1` 会屏蔽用户 site 里的 pytest；
    旧命令引用的 /home/spacemit/dice-test-deps 已不存在）
-   必须回到基线 **691 collected = 661 passed / 30 skipped / 205 subtests，0 失败**
-   （2026-10-08 实测于 3a872b6；x86 开发机不作验收环境：本机 cv2 无
-   `aruco.detectMarkers`，8 用例必假挂）；
+   必须回到基线 **689 collected = 659 passed / 30 skipped / 205 subtests，0 失败**
+   （2026-10-08 SLIM 收敛后口径：起始 691=661/30/205 实测于 3a872b6，
+   L4/P3-15 删 4 个死路径测试 + 补 2 个 preprocess 契约测试后为 689=659；
+   x86 开发机不作验收环境：本机 cv2 无 `aruco.detectMarkers`，8 用例必假挂）；
 4. **入口冒烟**：视改动面跑 `bash run.sh`（预览模式）、`run.sh control --simulate`、
    `bash calibrate.sh <涉及操作>`；
 5. **残留清零**：`git grep <被删名字>` 无输出；
@@ -25,7 +26,7 @@
 
 ## 🎯 新发现（本次盘点新增，按建议顺序）
 
-### L1. 字节级双活副本：`calibration/core.py` ≡ `cup_grasp_demo/flow/transforms.py`
+### L1. ✅（已完成 80e2d23，2026-10-08）字节级双活副本：`calibration/core.py` ≡ `cup_grasp_demo/flow/transforms.py`
 
 **现状**：md5 完全相同（20ba1f37…），两边都在产线运行：
 - flow 侧：`planning.py`、`hand_geometry.py`、`flow/grasp.py`、`flow/direct_grasp.py`、
@@ -48,7 +49,7 @@
 **验收**：板上 pytest 基线不变；`bash calibrate.sh` 至少一个只读操作
 （如 preview）冒烟通过；`git grep 'from core import'` 清零（方案 b）。
 
-### L2. 字节级双活副本：`calibration/image_profile.py` ≡ `cup_grasp_demo/flow/image_profile.py`
+### L2. ✅（已完成 80e2d23，2026-10-08，与 L1 绑定）字节级双活副本：`calibration/image_profile.py` ≡ `cup_grasp_demo/flow/image_profile.py`
 
 **现状**：md5 完全相同（89f8b98c…）。flow 侧被
 `vision/capture/realsense_session.py` 导入（产线采集在用）；calibration 侧被
@@ -56,7 +57,7 @@
 
 **风险/方案/验收**：同 L1，与其绑定处理（同一个"calibration 独立交付"拍板）。
 
-### L3. 孤儿测试夹具 1.1MB：`failed_request.json` + `failed_actual.json`
+### L3. ✅（已完成 477aaca，2026-10-08）孤儿测试夹具 1.1MB：`failed_request.json` + `failed_actual.json`
 
 **现状**：`tests/cup_grasp_demo/flow/fixtures/` 下两份摇骰失败回放数据
 （659,925 + 439,824 字节，git 跟踪文件体积 TOP1/TOP2）。全仓 `.py/.sh/.md`
@@ -68,7 +69,7 @@
 
 **验收**：板上 pytest 基线不变；`git grep failed_request` 清零。
 
-### L4. urdf 双副本：`models/nero_description.urdf` ≡ `hand_geometry/nero/urdf/nero_description.urdf`
+### L4. ✅（已完成 b87593a，2026-10-08，删除根治）urdf 双副本：`models/nero_description.urdf` ≡ `hand_geometry/nero/urdf/nero_description.urdf`
 
 **现状**：md5 相同（d6a5c1cb…，各 9KB）。顶层份是 `kinematics.py` 的默认加载
 路径（`load_model()` 无参时）；hand_geometry/ 份被 xacro include 链使用
@@ -97,17 +98,22 @@
   2026-10-08 实测：主配置 confidence 已改 0.25，stereo_config 仍 0.35——漂移
   正在继续发生。
 - **STRUCTURE.md S1**：`flow/joint_test_config.json` 摇骰参数旧副本。
+  ✅ 已完成（9b23f61，2026-10-08）。
 - **BUGS.md P3-7**：`configs/installation/camera.json` 过期标定副本。
+  ✅ 已完成（051386f，2026-10-08）。
 - **BUGS.md P2-20**：`fast_finger_duration_s` 四处三个值，strategy 被静默遮蔽。
 
 **死代码族**（零引用或未接线，删除前各自清单内有先修条件）：
 
 - **BUGS.md P3-15**：`vision/inference/yolo_seg.py` 三个解码器 + YoloSegmentor
   死代码（产线走 `cup_perception.decode`）。
+  ✅ 已完成（cbbbc6f，2026-10-08，preprocess 保留并补契约测试）。
 - **BUGS.md P3-17**：`planar_scene.py` 零引用。
+  ✅ 记录已修正（fa69bbc，2026-10-08）——实为活代码（3 处活引用），勿删。
 - **BUGS.md P3-16**：`vision/capture/config.py` 的 `calibration_file`/
   `calibration_digest()` 无人调用。
 - **BUGS.md P3-4**：`configs/green_cup.json` 的 `shake_study` 死键。
+  ✅ 已完成（bd8f8b0，2026-10-08，三份配置同删）。
 - **BUGS.md P2-22 / TODO.md**：`model_adapter.py` 未接线且有 bug。
 
 **体积大头**（需拍板区，见 TODO.md）：
@@ -136,4 +142,24 @@
 
 ## 📝 完成记录
 
-（暂无。完成后在此记录提交号与验证结论。）
+- 2026-10-08 **首轮 SLIM 收敛**（起点 3a872b6，决策：范围 L1-L4+顺手死代码；
+  calibration 需独立交付 → L1/L2 双份保留 + 检测为终态）：
+  - **L1/L2** 80e2d23：check_source.py 增 DUPLICATE_PAIRS 字节级漂移检测
+    （core.py≡transforms.py、image_profile 两对），人为漂移验证报错有效；
+  - **L3** 477aaca：删零引用孤儿夹具 1.1MB；
+  - **L4** b87593a：urdf 收敛 hand_geometry 单份真源，零位 FK 改前后逐位一致；
+  - **P3-15** cbbbc6f：yolo_seg 死代码删除 + preprocess 契约测试；
+  - **P3-4** bd8f8b0：三份配置 shake_study 死键删除；
+  - **P3-7** 051386f：configs/installation/ 整目录删除；
+  - **S1** 9b23f61：joint_test_config 收敛单一真源（debug.py 链同步）；
+  - **P3-17** fa69bbc：过期记录修正——planar_scene.py 实为活代码，勿删
+    （唯一一次"执行前 grep 复核拦下文档误导"，铁律流程必要性的实证）。
+  - 收敛后基线 **689 collected = 659 passed / 30 skipped / 205 subtests**，
+    每步板端全量回归通过；git 跟踪体积 36.43→35.36MB（净减 1.07MB，
+    18 文件 -894 行；重量大头在历史，见下方"体积大头"区）。
+  - **如实记录**：收尾第 4 轮全量跑出现 1 次 failed（未捕获用例名，仅存
+    tail 摘要——操作失误），随后全量 3 遍 + 易偶发子集（tests/scripts +
+    detection_recheck）5 遍全部复绿，未复现。该次失败时点在纯 .md 改动
+    （Step 8/9）之后、所有代码/配置步均已单独回归通过，无因果路径；
+    疑为板端既有的时序/IO 偶发。后续若再现，按"捕获用例名→查 BUGS.md
+    →立 flaky 条目"处理。
