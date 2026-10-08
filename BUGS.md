@@ -235,8 +235,10 @@ main 侧另有失败页归位/开机归位兜底（dice_game 49103f5/564ce81/d3b
 - [ ] **P3-6** `configs/green_cup.json:131` 与 `cup_perception.py:24` 双处硬编码
   `/usr/lib/python3.14/dist-packages`（板上 3.12/3.14 混跑）；`detector.py:65-70`
   的 ORT 兜底还缺 `exc.name` 判断、把版本相关路径 append 进 sys.path。
-- [ ] **P3-7** `configs/installation/camera.json` 是过期副本（sha256 与活动标定不一致），
-  仅打包时被覆盖——建议改为打包时直接复制活动标定。
+- [x] **P3-7** `configs/installation/camera.json` 是过期副本（sha256 与活动标定不一致），
+  仅打包时被覆盖——建议改为打包时直接复制活动标定。✅ 已随目录删除消解
+  （2026-10-08；唯一读写方 package_release.py 已先于本条删除于 3031f5d，
+  复核零引用后整目录移除，git 历史可找回）。
 
 ### 打包与交付
 
