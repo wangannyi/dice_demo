@@ -5,13 +5,13 @@
     60
   ],
   "tcp_offset_flange_mm": [
-    25,
+    27,
     0,
     0
   ],
   "wrist_reference_deg": [
     0,
-    -13,
+    -15,
     5
   ],
   "lift_mm": 50,
@@ -26,9 +26,9 @@
   "grip_targets_0_100": [
     0,
     80,
-    40,
-    40,
-    40,
+    50,
+    50,
+    50,
     100
   ],
   "finger_duration_s": 1.0,
