@@ -45,25 +45,15 @@ green_image_rim）的断言是"测试专属设定"还是"历史漂移"，前者�
 setdefault 静默遮蔽，`green_control.py:392` 兜底 0.25，stereo_config 0.25。
 按 README 改 strategy 该键无效且无警告。修法：load_strategy 加同名冲突检测
 （不同值 raise）+ 删重复键 + 修 test_green_fast_overhead 的同义反复断言。
+注意：现在生效值是主配置 0.5，收敛必须保留 0.5 为唯一真值。
 
-### 3. P3-16 —— `vision/capture/config.py` 死字段
-
-`calibration_digest()` 无人调用；README 宣称的"一致性校验"不存在，真正生效
-的是 `configs/green_cup.json` 的 `calibration` 键。二选一：接线或删函数改 README
-（test_green_capture.py:18 只是把 calibration_file 当必填键构造，不涉及 digest）。
-
-### 4. `model_adapter.py` 未接线（需拍板）
+### 3. `model_adapter.py` 未接线（需拍板）
 
 `vision/inference/model_adapter.py` 零引用，但 TODO.md 记为"接新物体时一并做"
 的占位，且自身有 bug（BUGS P2-22）。**拍板项**：若确认不再接新物体可删；
 否则留待接线时连同 P2-22 修。
 
-### 5. S4 —— test_delivery.py 名不副实
-
-实际测 run.sh/run_feedback.sh 包装器，改名 test_run_wrappers.py（git mv），
-确认无别处 import。5 分钟顺手项。
-
-### 6. 数据资产（需拍板，非冗余但有减重空间）
+### 4. 数据资产（需拍板，非冗余但有减重空间）
 
 - `calibration/trajectories/` 3.5MB：活跃数据（calibration_workflow.json 引用），
   留 git 有交付可追溯价值；若拍板移出，加 .gitignore 即可。
@@ -85,6 +75,10 @@ setdefault 静默遮蔽，`green_control.py:392` 兜底 0.25，stereo_config 0.2
 
 ## 📝 完成记录
 
+- 2026-10-09 **第二轮顺手项**：P3-16（70444b7，camera.json 死字段+
+  calibration_digest 删除）、S4（9bd602c，test_delivery→test_run_wrappers）；
+  双模型入库（新模型 09-29 版为当前生产权重 + 09-20 版归档跟踪，
+  models/README 版本记录改正）。
 - 2026-10-08 **首轮 SLIM 收敛**：L1-L4、S1、P3-15/4/7/17 全部完成，
   详见 git 提交链 21ff3e9..ea4af73（逐项验收结论在各自 commit message 与
   历史 SLIM.md 版本中）。基线 689=659/30/205。
