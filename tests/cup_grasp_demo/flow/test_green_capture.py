@@ -14,8 +14,7 @@ class CaptureProfileTest(unittest.TestCase):
         base = dict(serial="test-serial", color_resolution=[1280, 720],
                     depth_resolution=[1280, 720], fps=6,
                     crop_xywh=[220, 0, 960, 720], warmup_frames=5,
-                    fresh_discard_frames=0,
-                    calibration_file="configs/calibration/handeye_result.json")
+                    fresh_discard_frames=0)
         base.update(overrides)
         return base
 
@@ -46,7 +45,8 @@ class CaptureProfileTest(unittest.TestCase):
         with patch('vision.capture.config.CAMERA_CONFIG') as mock_path:
             for bad in (self._camera(fps=25), self._camera(depth_resolution=[100, 200]),
                         self._camera(warmup_frames=100),
-                        self._camera(serial=""), self._camera(unknown_key=1)):
+                        self._camera(serial=""), self._camera(unknown_key=1),
+                        self._camera(calibration_file="configs/calibration/handeye_result.json")):
                 mock_path.read_text.return_value = json.dumps(bad)
                 with self.assertRaises(ValueError):
                     load_camera_config()

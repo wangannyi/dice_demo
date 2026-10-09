@@ -47,7 +47,6 @@ cp vision/strategy/green_cup.json vision/strategy/<物体名>.json
 | `crop_xywh` | [x,y,w,h] | 彩色图裁剪窗口 |
 | `warmup_frames` | int | 常驻启动预热帧数（1~60） |
 | `fresh_discard_frames` | int | 正式采集前丢弃帧数（0~5） |
-| `calibration_file` | str | 标定结果路径（换相机配置后须重做桌面登记） |
 
 **换配置须知**：改分辨率或裁剪后必须重新标定和桌面登记（工具随标定流程提供，
 见 `docs/CALIBRATION.md`）。

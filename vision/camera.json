@@ -5,6 +5,5 @@
   "fps": 6,
   "crop_xywh": [220, 0, 960, 720],
   "warmup_frames": 5,
-  "fresh_discard_frames": 0,
-  "calibration_file": "configs/calibration/handeye_result.json"
+  "fresh_discard_frames": 0
 }

@@ -266,9 +266,11 @@ main 侧另有失败页归位/开机归位兜底（dice_game 49103f5/564ce81/d3b
   `logits>0` 与产线 `sigmoid>threshold` 不等价。✅ 已修（2026-10-08，死符号连同
   死路径测试删除，`preprocess` 保留并新增 letterbox 契约测试；死码间的掩码语义
   差异随之消解）
-- [ ] **P3-16** `vision/capture/config.py:38-44`：`calibration_file`/`calibration_digest()`
+- [x] **P3-16** `vision/capture/config.py:38-44`：`calibration_file`/`calibration_digest()`
   无人调用，README:52 却宣称它做一致性校验——真正生效的是
   `configs/green_cup.json:7` 的 `calibration` 键。二选一：接线或删字段改 README。
+  ✅ 已修（2026-10-09，删字段路线：calibration_digest 函数、camera.json
+  calibration_file 键、REQUIRED 集合同步；测试把该键转为未知键负例）
 - [x] **P3-17** `cup_grasp_demo/flow/planar_scene.py` 成为零引用死代码
   （table_capture/register_home_table 已随脚本瘦身删除…）✅ 记录已修正
   （2026-10-08）：**该前提过期，planar_scene.py 是活代码，勿删**——

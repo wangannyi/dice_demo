@@ -1,17 +1,15 @@
 """Camera configuration loader; the single source of truth for acquisition."""
 import json
 from pathlib import Path
-import hashlib
 
 CAMERA_CONFIG = Path(__file__).resolve().parents[1] / "camera.json"
 
 
 def load_camera_config():
-    """Read vision/camera.json; validate structure and calibration binding."""
+    """Read vision/camera.json and validate its structure."""
     raw = json.loads(CAMERA_CONFIG.read_text())
     required = {"serial", "color_resolution", "depth_resolution", "fps",
-                "crop_xywh", "warmup_frames", "fresh_discard_frames",
-                "calibration_file"}
+                "crop_xywh", "warmup_frames", "fresh_discard_frames"}
     unknown = set(raw) - required
     if unknown:
         raise ValueError(f"Unknown camera.json keys: {sorted(unknown)}")
@@ -33,12 +31,3 @@ def load_camera_config():
         if type(value) is not int or not 0 <= value <= (60 if "warmup" in key else 5):
             raise ValueError(f"camera.json {key} out of range")
     return raw
-
-
-def calibration_digest():
-    """sha256 of the calibration file bound in camera.json."""
-    raw = load_camera_config()
-    calibration = Path(__file__).resolve().parents[2] / raw["calibration_file"]
-    if not calibration.is_file():
-        raise ValueError(f"camera.json calibration_file not found: {calibration}")
-    return hashlib.sha256(calibration.read_bytes()).hexdigest()
