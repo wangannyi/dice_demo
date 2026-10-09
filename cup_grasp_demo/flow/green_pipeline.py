@@ -108,8 +108,14 @@ def validate(cfg):
     if type(g.get("fast_speed_percent", 100)) is not int or not 1 <= g.get("fast_speed_percent", 100) <= 100:
         raise ValueError("fast_speed_percent must be 1..100")
     phase_speeds = g.get('fast_phase_speed_percent', {})
-    if not isinstance(phase_speeds, dict) or set(phase_speeds) - {'approach', 'return_home'} or any(type(v) is not int or not 1 <= v <= 100 for v in phase_speeds.values()):
-        raise ValueError('fast_phase_speed_percent: approach/return_home must be 1..100')
+    if not isinstance(phase_speeds, dict) or set(phase_speeds) - {'approach', 'lower', 'return_home'} or any(type(v) is not int or not 1 <= v <= 100 for v in phase_speeds.values()):
+        raise ValueError('fast_phase_speed_percent: approach/lower/return_home must be 1..100')
+    if g.get('lower_command_mode', 'smooth_profile') not in ('smooth_profile', 'controller_endpoint'):
+        raise ValueError('lower_command_mode must be smooth_profile or controller_endpoint')
+    interval = g.get('fast_file_check_interval_s', 0.)
+    if (isinstance(interval, bool) or not isinstance(interval, (int, float))
+            or not math.isfinite(interval) or not 0 <= interval <= 1):
+        raise ValueError('fast_file_check_interval_s must be 0..1')
     fast_finger = g.get('fast_finger_duration_s', g['finger_duration_s'])
     if isinstance(fast_finger, bool) or not isinstance(fast_finger, (int, float)) or not math.isfinite(fast_finger) or not .25 <= fast_finger <= 2.55:
         raise ValueError('fast_finger_duration_s must be 0.25..2.55')
@@ -323,7 +329,13 @@ class Workflow:
         s = Path(path).stat()
         return (s.st_dev, s.st_ino, s.st_size, s.st_mtime_ns, s.st_ctime_ns)
 
-    def unchanged(self):
+    def unchanged(self, *, force=False):
+        # Coalesce duplicate phase-entry/request scans, never hardware checks.
+        now = time.monotonic()
+        interval = getattr(self, 'g', {}).get('fast_file_check_interval_s', 0.)
+        last = getattr(self, '_files_checked_monotonic', None)
+        if not force and last is not None and 0 <= now-last < interval:
+            return
         for p, h in self.hashes.items():
             # CONTROL pins these parsed parameters for the whole current cycle.
             # The dispatcher validates/reloads them only at its next idle boundary.
@@ -334,6 +346,7 @@ class Workflow:
                 continue
             if digest(p) != h:
                 raise ValueError("运行期间配置/程序发生变化，请停止后重新开始：" + p)
+        self._files_checked_monotonic = now
 
     def snapshot(self):
         # Reuse only a just-returned physical SDK receipt; the executor still
@@ -387,6 +400,14 @@ class Workflow:
             request['allow_lift_start_drift'] = True
         if label in self.g.get('fast_phase_speed_percent', {}):
             request['config'] = dict(self.cfg, speed_percent=self.g['fast_phase_speed_percent'][label])
+        if label == 'lower':
+            # Scope controller planning to placement; never leak it into LIFT,
+            # SHAKE, correction moves or HOME in the persistent SDK session.
+            request['config'] = dict(request['config'], joint_delivery=dict(
+                request['config'].get('joint_delivery', {}),
+                command_mode=self.g.get('lower_command_mode', 'smooth_profile')))
+        if label == 'lower' and self.g.get('lower_command_mode') == 'controller_endpoint':
+            request['config']['joint_delivery']['endpoint_resend_interval_s'] = .05
         write_json(run / "request.json", request)
         try:
             actual = self.bridge(

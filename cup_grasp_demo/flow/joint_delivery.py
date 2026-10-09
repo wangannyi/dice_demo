@@ -50,7 +50,7 @@ def read_delivery_limits(robot, options, *, sleep=time.sleep, monotonic=time.mon
 
 def delivery_options(raw=None):
     """Keep legacy defaults; the release config explicitly selects full budget."""
-    options = dict(command_mode='smooth_profile', limit_utilization=.97, acceleration_cap_rad_s2=5.,
+    options = dict(start_drift_tolerance_deg=.1, endpoint_resend_interval_s=0., command_mode='smooth_profile', limit_utilization=.97, acceleration_cap_rad_s2=5.,
                    tracking_error_deg=5., tracking_error_action='stop',
                    envelope_margin_deg=5., velocity_cap_deg_s=50., profile='quintic',
                    feedback_freshness_limit_s=.1, limits_read_timeout_s=.5,
@@ -62,9 +62,14 @@ def delivery_options(raw=None):
     options.update(raw)
     if options['command_mode'] not in ('smooth_profile', 'controller_endpoint'):
         raise ValueError('Invalid joint_delivery.command_mode')
+    interval = options['endpoint_resend_interval_s']
+    if (isinstance(interval, bool) or not isinstance(interval, (int, float))
+            or not math.isfinite(interval) or not (interval == 0 or .02 <= interval <= .2)):
+        raise ValueError('endpoint_resend_interval_s must be 0 or 0.02..0.2')
     if options['profile'] not in ('quintic', 'trapezoid'):
         raise ValueError('joint_delivery.profile must be quintic or trapezoid')
-    for name, low, high in (('limit_utilization', .1, 1.),
+    for name, low, high in (('start_drift_tolerance_deg', .1, .5),
+                            ('limit_utilization', .1, 1.),
                             ('acceleration_cap_rad_s2', .1, 5.),
                             ('tracking_error_deg', .1, 10.),
                             ('envelope_margin_deg', .1, 10.),
@@ -259,6 +264,17 @@ class ServoJointRobot:
             event['limits_read_s'] = self.monotonic() - limit_started
             event['limits_batched'] = self.batch_limits
             event['limits_source'] = limits_source
+            observed = self.check_feedback()
+            drift = math.degrees(max(abs(a-b) for a, b in zip(start, observed)))
+            event['start_drift_deg'] = drift
+            event['start_drift_tolerance_deg'] = self.options['start_drift_tolerance_deg']
+            if drift > self.options['start_drift_tolerance_deg']:
+                raise RuntimeError("MoveJS starting posture changed while querying limits")
+            if any(not low <= q <= high for q, (low, high) in zip(observed, bounds)):
+                raise RuntimeError("MoveJS refreshed start outside controller limits")
+            # Recompute the complete profile from fresh feedback, rather than
+            # tolerating a stale start and sending a discontinuous first sample.
+            start = observed
             duration = smooth_duration(start, target, velocity, acceleration)
             profile = self.options['profile']
             if profile == 'trapezoid':
@@ -267,12 +283,6 @@ class ServoJointRobot:
                 normalized_peak = 1.875 / duration
             if duration > 120:
                 raise ValueError("MoveJS transition exceeds 120 seconds")
-            if max(
-                abs(a - b) for a, b in zip(start, self.check_feedback())
-            ) > math.radians(0.1):
-                raise RuntimeError(
-                    "MoveJS starting posture changed while querying limits"
-                )
             event.update(duration_s=duration, profile=profile, start_q_rad=start,
                          acceleration_budget_rad_s2=acceleration,
                          tracking_error_action=self.options['tracking_error_action'],
@@ -349,6 +359,9 @@ class ServoJointRobot:
         began = self.monotonic()
         self.robot.move_j(list(target))
         event["sent_count"] = 1
+        last_send = began
+        resend_interval = self.options['endpoint_resend_interval_s']
+        event['endpoint_resend_interval_s'] = resend_interval
         # Continue ticking hand gestures and checking live feedback until arrival.
         stable = 0
         while True:
@@ -362,6 +375,8 @@ class ServoJointRobot:
                 if not min(a, b)-margin <= observed <= max(a, b)+margin:
                     raise RuntimeError(f'J{i+1}: actual angle outside planned envelope')
             error = math.degrees(max(abs(a-b) for a, b in zip(actual, target)))
+            event.update(last_actual_q_rad=list(actual), final_error_deg=error,
+                         actual_delivery_s=self.monotonic()-began)
             stable = stable + 1 if error <= 0.5 else 0
             if stable >= 2:
                 event.update(delivery_completed=True, actual_delivery_s=self.monotonic()-began,
@@ -369,6 +384,12 @@ class ServoJointRobot:
                 return
             if self.monotonic()-began > min(120., max(3., duration*3+1)):
                 raise TimeoutError('Controller endpoint did not reach target')
+            if resend_interval and error > 0.5 and self.monotonic()-last_send >= resend_interval:
+                # Repeat the same seven-axis endpoint, never interpolate or
+                # change the target. All feedback/envelope checks above apply.
+                self.robot.move_j(list(target))
+                event['sent_count'] += 1
+                last_send = self.monotonic()
             self.sleep(.01)
 
     # The shared Nero CLI still names its command "move-j". All its joint writes

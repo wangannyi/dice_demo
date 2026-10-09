@@ -2,6 +2,8 @@
 
 本页只包含可重复执行的调试入口。安装和标定分别见[环境文档](ENVIRONMENT.md)和[标定文档](CALIBRATION.md)。
 
+抓取、速度、放杯模式和检查策略的配置位置见[参数配置参考](CONFIGURATION.md)。
+
 ## 1. 准备
 
 ```bash
@@ -102,7 +104,7 @@ python3 scripts/set_camera_profile.py usb3
   --table-scene "$RUN/planar_table_scene.json"
 ```
 
-完整顺序见[标定文档](CALIBRATION.md#7-应用结果并登记桌面)。
+完整顺序见[标定文档](CALIBRATION.md#常用命令)。
 
 ## 5. 常见问题
 

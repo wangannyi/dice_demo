@@ -47,7 +47,7 @@ class ParameterReloader:
         from cup_grasp_demo.flow.green_control import build_action_runtime
 
         flow = self.flow
-        flow.unchanged()  # Source/installation changes must never be re-baselined.
+        flow.unchanged(force=True)  # Source/installation changes must never be re-baselined.
         if digest(ROOT / 'vision/camera.json') != self.camera_hash:
             raise ValueError('相机配置已变化，请停止应用，核对标定后重启')
         before = self.manifest()
@@ -79,7 +79,7 @@ class ParameterReloader:
             for p in candidate._hot_reload_paths:
                 if candidate.hashes[p] != before[p]:
                     raise ValueError('参数保存尚未完成，请保存完毕后重试')
-            candidate.unchanged()
+            candidate.unchanged(force=True)
             if digest(ROOT / 'vision/camera.json') != self.camera_hash:
                 raise ValueError('相机配置已变化，请核对标定后重启')
         except BaseException:

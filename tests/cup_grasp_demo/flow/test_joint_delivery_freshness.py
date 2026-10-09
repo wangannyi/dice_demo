@@ -141,3 +141,66 @@ class ControllerEndpointTests(unittest.TestCase):
 
     def test_legacy_default_remains_smooth_profile(self):
         self.assertEqual(delivery_options()['command_mode'], 'smooth_profile')
+
+    def test_partial_first_packet_is_completed_by_identical_endpoint_resend(self):
+        servo = self.make_endpoint()
+        servo.options['endpoint_resend_interval_s'] = .05
+        def observed(*args):
+            count = servo.robot.move_j.call_count
+            if count == 0:
+                return [.1]*7
+            return [.4]*7 if count >= 2 else [.4, .4, .1, .1, .1, .1, .1]
+        servo.check_feedback = Mock(side_effect=observed)
+        servo.move_js([.4]*7)
+        self.assertEqual(servo.robot.move_j.call_count, 2)
+        for call in servo.robot.move_j.call_args_list:
+            self.assertEqual(call.args, ([.4]*7,))
+        self.assertTrue(servo.events[-1]['delivery_completed'])
+        self.assertEqual(servo.events[-1]['final_error_deg'], 0)
+        servo.robot.move_js.assert_not_called()
+
+    def test_resending_does_not_hide_stuck_joint_or_disable_timeout(self):
+        servo = self.make_endpoint()
+        servo.options['endpoint_resend_interval_s'] = .05
+        servo.check_feedback = Mock(return_value=[.1]*7)
+        with self.assertRaises(TimeoutError):
+            servo.move_js([.4]*7)
+        event = servo.events[-1]
+        self.assertFalse(event['delivery_completed'])
+        self.assertGreater(event['sent_count'], 1)
+        timeout = min(120., max(3., event['duration_s']*3+1))
+        self.assertLessEqual(event['sent_count'], int(timeout/.05)+1)
+        self.assertLessEqual(event['actual_delivery_s'], timeout+.02)
+        self.assertGreater(event['final_error_deg'], .5)
+
+    def test_resend_interval_validation(self):
+        for value in (-1, .001, .3, float('nan'), True):
+            with self.assertRaises(ValueError):
+                delivery_options({'endpoint_resend_interval_s': value})
+        self.assertEqual(delivery_options()['endpoint_resend_interval_s'], 0)
+
+    def test_small_start_drift_rebases_profile_before_command(self):
+        import math
+        servo = self.make_endpoint()
+        servo.options['start_drift_tolerance_deg'] = .25
+        observed = [.1 + math.radians(.2)]*7
+        servo.check_feedback = Mock(side_effect=[[.1]*7, observed, [.4]*7, [.4]*7])
+        servo.move_js([.4]*7)
+        self.assertEqual(servo.events[-1]['start_q_rad'], observed)
+        self.assertAlmostEqual(servo.events[-1]['start_drift_deg'], .2)
+        self.assertTrue(servo.events[-1]['delivery_completed'])
+
+    def test_large_start_drift_still_prevents_motion(self):
+        import math
+        servo = self.make_endpoint()
+        servo.options['start_drift_tolerance_deg'] = .25
+        servo.check_feedback = Mock(side_effect=[[.1]*7, [.1+math.radians(.3)]*7])
+        with self.assertRaisesRegex(RuntimeError, 'starting posture'):
+            servo.move_js([.4]*7)
+        servo.robot.move_j.assert_not_called()
+
+    def test_start_drift_bounds_and_legacy_default(self):
+        for value in (.09, .51, True, float('nan')):
+            with self.assertRaises(ValueError):
+                delivery_options({'start_drift_tolerance_deg': value})
+        self.assertEqual(delivery_options()['start_drift_tolerance_deg'], .1)

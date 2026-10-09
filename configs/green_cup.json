@@ -95,7 +95,8 @@
     "feedback_freshness_limit_s": 0.3,
     "limits_read_retries": 3,
     "cache_live_limits": true,
-    "scheduling_gap_limit_s": 0.3
+    "scheduling_gap_limit_s": 0.3,
+    "start_drift_tolerance_deg": 0.25
   },
   "fast_single_capture": true,
   "fast_reuse_table": true,
@@ -203,8 +204,9 @@
     ],
     "direct_return_home": true,
     "fast_phase_speed_percent": {
-      "approach": 60,
-      "return_home": 60
+      "approach": 100,
+      "return_home": 100,
+      "lower": 100
     },
     "precision_error_action": "record",
     "hand_start_tolerance_deg": 1.0,
@@ -221,6 +223,8 @@
     "strategy_file": "vision/strategy/green_cup.json",
     "lower_recovery_attempts": 0,
     "home_execution_mode": "together",
-    "fast_finger_duration_s": 0.3
+    "fast_finger_duration_s": 0.3,
+    "lower_command_mode": "controller_endpoint",
+    "fast_file_check_interval_s": 0.25
   }
 }

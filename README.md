@@ -12,6 +12,7 @@ HOME → CAPTURE → PLAN → APPROACH → GRIP → LIFT → SHAKE → LOWER →
 - [首次标定、自动重采和相机移动后的恢复](docs/CALIBRATION.md)
 - [分阶段调试与单项测试](docs/DEBUG.md)
 - [上层应用接入接口](docs/INTEGRATION.md)
+- [参数配置参考](docs/CONFIGURATION.md)
 - [运行中修改参数（热加载）](docs/HOT_RELOAD.md)
 - [第三方依赖与分发范围](THIRD_PARTY.md)
 
@@ -30,16 +31,12 @@ K3 上一键安装系统依赖：
 sudo bash scripts/bootstrap_k3.sh
 ```
 
-脚本通过 Bianbu 安装 NumPy、SciPy、OpenCV、python-can 等通用系统包，并安装经过校验的 K3/CPython 3.14 RealSense wheel。识别加速依赖按 `configs/k3_runtime.lock.json` 固定为 SpaceMIT `2.0.6` 和 TCM `3.0.0+5`，独立安装至仓库 `runtime/`，不改变语音服务的系统依赖。项目默认使用系统 `python3`；NERO SDK 固定在 `third_party/pyAgxArm/`。
+安装内容、依赖锁定及解释器选择见[运行环境文档](docs/ENVIRONMENT.md)。
 
 ```bash
 source scripts/env.sh --system
 bash scripts/check_environment.sh
 ```
-
-脚本不依赖仓库所在的绝对路径，也不会搜索用户主目录中的虚拟环境。`--system` 会清除当前终端遗留的旧虚拟环境配置。需要使用非默认解释器时，显式设置 `DICE_PYTHON` 并省略 `--system`。
-
-完整依赖和环境变量见[运行环境文档](docs/ENVIRONMENT.md)。
 
 ## 3. 硬件准备
 
@@ -101,57 +98,19 @@ bash run.sh fast --execute
 | `fast` | 一次连续执行到目标阶段，复用 SDK、相机和模型 |
 | `control` | 进程常驻，通过逐行 JSON 命令推进阶段 |
 
-`fast` 可用以下停止点：
+分阶段停止与单项测试见[调试指南](docs/DEBUG.md#2-分阶段运行)；常驻进程协议见[接入文档](docs/INTEGRATION.md)。
 
-```bash
-bash run.sh fast --until ready --execute  # 到抓取位置
-bash run.sh fast --until grip --execute   # 闭手后停止
-bash run.sh fast --until shake --execute  # 摇晃后停止，可能仍持杯
-bash run.sh fast --until place --execute  # 放杯并返回 HOME
-```
+## 5. 配置入口
 
-这些命令每次都从 HOME 开始，不支持跨进程续跑。需要停在某阶段并保留连接时使用 `control`，协议见[接入文档](docs/INTEGRATION.md)。
-
-## 5. 主要配置
-
-主配置为 [`configs/green_cup.json`](configs/green_cup.json)。
-
-| 字段路径 | 含义 |
+| 文件 | 用途 |
 | --- | --- |
-| `serial`、`channel` | RealSense 序列号和 CAN 接口 |
-| `calibration` | 当前安装的手眼标定结果 |
-| `home` | HOME 七轴姿态 |
-| `green_cup.home_table_scene` | 已登记的桌面平面 |
-| `green_cup.installation_requires_calibration` | `true` 时禁止真机 Pipeline，需先完成标定和桌面登记 |
-| `green_cup.strategy_file` | 抓取策略文件；其中包含 TCP、接触点、腕部、抬杯和手指参数 |
-| `green_cup.fast_speed_percent` | FAST 普通运动速度百分比 |
-| `green_cup.fast_phase_speed_percent` | 指定阶段的速度覆盖值 |
-| `green_cup.fast_finger_duration_s` | FAST 抓握／松手时长，单位秒；当前配置为 `0.3` |
-| `green_cup.place_offset_base_mm` | 放杯目标相对抓取位置的基座坐标系 `[X, Y, Z]` 补偿，单位 mm |
-| `green_cup.perception` | 绿杯模型、尺寸、杯沿和推理后端 |
-| `green_cup.joint_test_config` | 摇晃动作配置文件 |
-
-六路手指顺序为：拇指尖、拇指根、食指、中指、无名指、小指。TCP 偏移使用法兰坐标系，不是图像坐标系。
-
-### 配置文件分工与优先级
-
-| 文件 | 修改内容 |
-| --- | --- |
-| [`configs/green_cup.json`](configs/green_cup.json) | 硬件接口、标定和 HOME 路径、运动速度、手指时长、放杯补偿、感知和控制器限制 |
-| [`vision/strategy/green_cup.json`](vision/strategy/green_cup.json) | 杯子抓取参数：接触点／TCP 偏移、腕部参考角、抬杯高度、六路抓握／松手目标及路径间距 |
+| [`configs/green_cup.json`](configs/green_cup.json) | 主配置：硬件、标定路径、运动速度、放杯和识别参数 |
+| [`vision/strategy/green_cup.json`](vision/strategy/green_cup.json) | 抓取策略：TCP、腕部姿态、抬杯高度和手指目标 |
 | [`vision/camera.json`](vision/camera.json) | 相机分辨率、帧率和裁剪 |
-| [`configs/actions/joint_shake.json`](configs/actions/joint_shake.json) | 摇晃动作的关节、幅度、速度和周期 |
+| [`configs/actions/joint_shake.json`](configs/actions/joint_shake.json) | 摇晃动作 |
 | [`configs/actions/gestures/`](configs/actions/gestures/) | 猜拳和胜负反馈动作 |
 
-`green_cup.strategy_file` 指向策略文件。加载时，策略字段只补充主配置 `green_cup` 中缺少的字段；同名字段以主配置为准。参数只保留一处定义：例如修改抓握／松手时长时，修改主配置的 `green_cup.fast_finger_duration_s`，不要再在策略文件中添加同名字段。
-
-当前绿杯 Pipeline 始终使用 FAST 参数：普通运动读取 `green_cup.fast_speed_percent`；手指时长优先读取 `green_cup.fast_finger_duration_s`，缺省时才使用策略中的 `finger_duration_s`。运行时固定 `finger_settle_s = 0`、`require_arm_position = false`，因此这些策略字段不能用于增加 FAST 阶段等待。
-
-主配置中的动作调参和策略中的抓取参数支持热加载，在下次独立动作或新一轮 HOME 前生效，不会修改正在执行的轨迹。相机、标定和 HOME 等受保护配置的生效规则见[参数热加载说明](docs/HOT_RELOAD.md)。
-
-### 摇晃动作
-
-[`configs/actions/joint_shake.json`](configs/actions/joint_shake.json) 配置参与关节、幅度、速度、加速度、周期和目标更新频率。`command_rate_hz` 是七轴位置目标的发送频率，不是杯子的往返频率。实际频率受行程、轨迹和控制器限制。
+字段含义、优先级和放杯模式见[参数配置参考](docs/CONFIGURATION.md)；修改后何时生效见[热加载说明](docs/HOT_RELOAD.md)。
 
 ## 6. 骰子反馈与猜拳动作
 
@@ -214,6 +173,16 @@ docs/                          标定、调试、环境和集成文档
 tests/                         回归测试
 ```
 
-## 简化标定入口
+## 9. 标定与外参恢复
 
-在仓库根目录运行 `bash calibrate.sh first`（首次人工示教）、`bash calibrate.sh auto --execute`（自动标定）或 `bash calibrate.sh restore --execute`（固定板恢复）。参数统一编辑 `configs/calibration_workflow.json`。`bash calibrate.sh apply` 自动备份、应用结果并登记桌面；完整步骤见 [标定指南](docs/CALIBRATION.md)。 内置 20 姿态轨迹首次使用前运行 `bash calibrate.sh plan`。
+在仓库根目录执行以下命令，参数统一在 [`configs/calibration_workflow.json`](configs/calibration_workflow.json) 中配置。
+
+| 场景 | 命令 |
+| --- | --- |
+| 首次标定：人工示教采样并求解 | `bash calibrate.sh first` |
+| 自动标定：沿已有示教路线采样并求解 | `bash calibrate.sh auto --execute` |
+| 相机移动后：通过已登记的固定板恢复外参 | `bash calibrate.sh restore --execute` |
+
+复用内置 20 姿态轨迹时，先确认满足[标定指南](docs/CALIBRATION.md)中的安装条件，再运行 `bash calibrate.sh plan` 生成本机计划。
+
+得到标定结果后，按指南完成现场准备，再运行 `bash calibrate.sh apply`，自动备份原结果、应用新结果并登记桌面。完整流程与配置说明见[标定指南](docs/CALIBRATION.md)。
