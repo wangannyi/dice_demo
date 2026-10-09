@@ -1,4 +1,4 @@
-"""Delivery checks without camera/CAN access: python3 -m unittest scripts.test_delivery."""
+"""Run-wrapper checks without camera/CAN access: python3 -m pytest tests/scripts/test_run_wrappers.py."""
 import json
 import os
 import subprocess

@@ -72,11 +72,10 @@ passed，0 失败**。x86 开发机不作为验收环境（本机 cv2 无
 
 ## ⏸️ 可选低优先
 
-### S4. `tests/scripts/test_delivery.py` 名不副实
+### S4. ✅（已完成，2026-10-09）`tests/scripts/test_delivery.py` 名不副实
 
-`scripts/` 里并没有 delivery.py；该文件实际测的是 `run.sh` / `run_feedback.sh`
-包装器。改名 `test_run_wrappers.py`（`git mv`），并确认无别处 import 该模块名。
-纯改名，5 分钟的事，等顺手时机。
+原文件实际测的是 `run.sh` / `run_feedback.sh` 包装器。已改名
+`test_run_wrappers.py`（git mv），全仓无模块名残留引用，docstring 同步。
 
 ### S5. `cup_grasp_demo/flow/green_open_cup/` 策略数据目录迁移
 
@@ -100,6 +99,8 @@ passed，0 失败**。x86 开发机不作为验收环境（本机 cv2 无
 
 ## 📝 完成记录
 
+- 2026-10-09 **S4** 完成：test_delivery.py → test_run_wrappers.py（纯改名，
+  docstring 同步，无引用残留）。
 - 2026-10-08 **S1** 完成（SLIM 收敛轮）：green_open_cup 两份 json 的
   `joint_test_config` 重指向 `configs/actions/joint_shake.json`，
   删除 `flow/joint_test_config.json` 旧副本；test_delivery 的"双配方独立
