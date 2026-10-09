@@ -5,13 +5,13 @@
     60
   ],
   "tcp_offset_flange_mm": [
-    27,
+    30,
     0,
     0
   ],
   "wrist_reference_deg": [
-    0,
-    -15,
+    15,
+    -13,
     5
   ],
   "lift_mm": 50,
