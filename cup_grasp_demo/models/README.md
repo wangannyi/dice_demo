@@ -1,16 +1,23 @@
 # 绿杯分割模型
 
-`best_green.q.onnx` 当前使用 2026-09-20 版本，恢复自 Git 提交
-`9edc200^` 的 `cup_grasp_demo/models/green_20260920_1934/best_green.q.onnx`。
-文件 SHA-256：
+`best_green.q.onnx` 当前使用 **2026-09-29 版本**，SHA-256：
+
+```text
+66ab24e84bf97ce8ce01bf4118fc7ba03ab3839cc4a7ca910b7f2eb9eb74a34d
+```
+
+历史沿革：2026-09-29 的 `9edc200` 引入此权重；2026-10-08 曾回退至
+2026-09-20 版做现场识别回归（`00a19c8`）；2026-10-09 换回 09-29 版作为
+当前生产权重（现场拍板"目前先用新模型"）。
+
+09-20 旧权重作为现场快速回退手段归档为 `best_green-old.q.onnx`（git 跟踪），
+SHA-256：
 
 ```text
 f0b06ae6866fae3630e0670885df5243ff6cec1af4acdf5f3b37259ae55044bc
 ```
 
-2026-09-29 的 `9edc200` 同时移动了文件并替换权重，旧权重在此恢复，
-供 K3 现场回归验证。2026-09-29 版本仍可从该提交取回，其 SHA-256 为
-`66ab24e84bf97ce8ce01bf4118fc7ba03ab3839cc4a7ca910b7f2eb9eb74a34d`。
+两者均另可从 git 历史取回（`git show 9edc200^:cup_grasp_demo/models/green_20260920_1934/best_green.q.onnx` 等）。
 
 输入为 `[1, 3, 640, 640]`，输出为 `[1, 38, 8400]` 和
 `[1, 32, 160, 160]`，类别为 `cap=0`、`ground=1`。沿用现有模型路径、
