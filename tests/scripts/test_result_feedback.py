@@ -52,9 +52,11 @@ class FeedbackTests(unittest.TestCase):
         # 起步时拇指 0.1s 出发会与半路的食指相撞——2026-10-10 现场两轮实测）。
         ready = registry.recipe("rps-ready")
         self.assertEqual(ready["hand_0_100"], [0, 0, 100, 100, 100, 100])
+        # 拇指收拢但留松量（85）：预备态长时间压死（100）会让 home 开手时
+        # 食指中指挣脱预紧而弹跳；rock 出拳时才全闭压紧（[100]*6 不变）。
         self.assertEqual(ready["hand_sequence"]["poses"],
-                         [[0, 0, 100, 100, 100, 100], [100] * 6])
-        self.assertEqual(ready["hand_sequence"]["interval_s"], .45)
+                         [[0, 0, 100, 100, 100, 100], [85, 85, 100, 100, 100, 100]])
+        self.assertEqual(ready["hand_sequence"]["interval_s"], .4)
         self.assertFalse(ready["hand_sequence"]["return_to_initial"])
         self.assertEqual(ready["hand_sequence"]["cycles"], 1)
         for recipe in (rock, paper, scissors):
