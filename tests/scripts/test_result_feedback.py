@@ -46,6 +46,8 @@ class FeedbackTests(unittest.TestCase):
         paper = registry.recipe('paper')
         scissors = registry.recipe('scissors')
         self.assertEqual(registry.recipe("rps-ready")["arm_delivery"], "smooth_profile")
+        # 抬臂同时握拳：六路全闭（0=张开，100=闭合）。
+        self.assertEqual(registry.recipe("rps-ready")["hand_0_100"], [100] * 6)
         for recipe in (rock, paper, scissors):
             self.assertEqual(recipe['joints_deg'], joints)
             self.assertEqual(recipe['speed_percent'], 100)
