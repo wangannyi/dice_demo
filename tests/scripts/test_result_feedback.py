@@ -54,7 +54,7 @@ class FeedbackTests(unittest.TestCase):
         self.assertEqual(ready["hand_0_100"], [0, 0, 100, 100, 100, 100])
         self.assertEqual(ready["hand_sequence"]["poses"],
                          [[0, 0, 100, 100, 100, 100], [100] * 6])
-        self.assertEqual(ready["hand_sequence"]["interval_s"], .4)
+        self.assertEqual(ready["hand_sequence"]["interval_s"], .45)
         self.assertFalse(ready["hand_sequence"]["return_to_initial"])
         self.assertEqual(ready["hand_sequence"]["cycles"], 1)
         for recipe in (rock, paper, scissors):
