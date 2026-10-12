@@ -176,50 +176,18 @@ tests/                         回归测试
 
 ## 9. 标定与外参恢复
 
-### Web 标定工作台
-
-在 K3 上需要应用标定结果的 `dice_demo` 仓库根目录启动，电脑通过浏览器访问：
+标定工具运行在 K3，电脑通过浏览器操作。按 [Web 工具说明](docs/CALIBRATION_WEB.md)完成首次配置后，在仓库根目录启动：
 
 ```bash
-# 首次使用时设置工程师 PIN；已有 PIN 时跳过。
-bash calibrate_web.sh --set-pin
 bash scripts/calibration_web_service.sh start
-bash scripts/calibration_web_service.sh status
 ```
 
-打开 `http://<K3地址>:8091`，先正常退出占用相机、机械臂的程序，再点击“连接并检查设备”。准备完成后，按页面提示进入下一步。独立工具只更新页面底部显示的配置路径，不会同步到另一份 `dice_demo`。
+访问 `http://<K3地址>:8091`，退出占用设备的程序，再按页面引导选择任务：
 
-| 入口 | 适用情况 | 操作顺序 |
-| --- | --- | --- |
-| 首次安装 | 新安装，或基座、末端板安装关系改变 | 设备检查 → 人工示教 → 画可见范围 → 生成路线 → 自动采样 → 登记固定板 → 应用并登记桌面 |
-| 重新标定 | 安装关系不变，复用已有示教路线 | 设备检查 → 生成路线 → 自动采样 → 登记固定板 → 应用并登记桌面 |
-| 相机位置变了 | 仅移动相机，已登记的桌面固定板和基座均未移动 | 设备检查 → 恢复相机位置 → 应用并登记桌面 |
+- **首次安装**：人工示教，建立相机与机械臂的位置关系。
+- **重新标定**：沿已保存的示教路线重新采样。
+- **相机位置变了**：基座和已登记的固定板未移动时，通过固定板恢复外参。
 
-人工示教会保存关节路线和采样数据，生成路线后可用于下次自动标定；Web 优先使用已保存的新示教。修改示教、对应标定或可见范围后需重新生成路线。绿色框表示图像中的采样可见范围，不能代替现场检查 HOME 往返路径和机械臂活动空间。
+完成后检查结果，再应用标定并登记桌面。
 
-自动标定启动及 HOME 姿态无需看见标定板，到达采样姿态后才检查。采样时固定末端板并遮挡桌面同型板。Web 求解后自动回 HOME，并向灵巧手发送六路归零指令；不等待手指位置反馈。确认机械臂到位、静止后，再露出固定板进行登记。
-
-### 检查和应用结果
-
-“标定结果”显示质量、误差和有效样本数；“每组标定误差”和“标定检测图片”默认收起，可展开查看逐组误差、原图、检测标注及下载数据。全样本拟合反映已有数据的一致性，留出验证检查未参与该次拟合的样本；两者都不能直接等同于实际抓取误差。
-
-当前验收门槛为 **15 mm / 5°**，在 [`configs/calibration_workflow.json`](configs/calibration_workflow.json) 的 `quality_thresholds` 中修改，修改后重启服务。超限结果用于关键步骤时，需要工程师 PIN、确认误差并填写原因；同一结果和门槛的批准可复用，质量仍标记为未达标。
-
-求解和外参恢复均不会自动应用结果。“应用并登记桌面”先备份原配置，再应用标定、重新采集并绑定桌面。操作前拆下末端板，确认机械臂在 HOME、红布桌面露出；桌面登记失败可重试。相机移动后必须重新登记桌面，不能继续使用旧桌面数据。固定板或基座也移动、相机更换或内参改变时，需重新做手眼标定。
-
-采样、逐帧检测图片、结果、备份和操作记录保存在 `calibration/datasets/web/`。作业期间保持启动页面连接；关闭页面或心跳中断超过 10 秒会请求停止，重连后检查设备，不自动续跑。停止服务使用 `bash scripts/calibration_web_service.sh stop`。部署、数据格式和停止行为见 [Web 工具说明](docs/CALIBRATION_WEB.md)。
-
-### 命令行入口
-
-命令在仓库根目录执行，参数统一配置在 [`configs/calibration_workflow.json`](configs/calibration_workflow.json)。CLI 与 Web 的状态目录独立，CLI 的 HOME 只控制机械臂，自动采样后不自动回 HOME。
-
-| 目的 | 命令 |
-| --- | --- |
-| 人工示教并求解 | `bash calibrate.sh first` |
-| 画可见范围 / 生成自动路线 | `bash calibrate.sh window` / `bash calibrate.sh plan` |
-| 沿已有路线自动采样并求解 | `bash calibrate.sh auto --execute` |
-| 登记固定板 / 相机移动后恢复外参 | `bash calibrate.sh register` / `bash calibrate.sh restore --execute` |
-| 应用结果并登记桌面 / 重试桌面登记 | `bash calibrate.sh apply` / `bash calibrate.sh table` |
-| 用已有样本重新求解 / 查看状态 | `bash calibrate.sh solve` / `bash calibrate.sh status` |
-
-任意操作加 `--dry-run` 可预览命令，不连接设备。复用仓库内置 20 姿态轨迹前，须核对原安装条件，并在本机重新生成计划；新场地不能直接沿用。完整命令顺序、路径选择及固定板恢复条件见[标定指南](docs/CALIBRATION.md)。
+详细操作、参数和命令见 [Web 工具说明](docs/CALIBRATION_WEB.md)和[命令行标定指南](docs/CALIBRATION.md)。
