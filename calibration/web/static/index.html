@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>手眼标定 · NERO</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a class="brand" href="/" aria-label="标定工作台首页"
+        ><span class="brand-symbol" aria-hidden="true">⌖</span
+        ><span>NERO <small>标定工作台</small></span></a
+      >
+      <div class="sidebar-label">选择你的任务</div>
+      <nav aria-label="标定任务" id="modes">
+        <button type="button" data-mode="first" aria-current="page">
+          <span class="nav-symbol" aria-hidden="true">01</span
+          ><span>首次安装<small>建立相机与机械臂的关系</small></span>
+        </button>
+        <button type="button" data-mode="auto">
+          <span class="nav-symbol" aria-hidden="true">02</span
+          ><span>重新标定<small>沿已有示教路线重新采样</small></span>
+        </button>
+        <button type="button" data-mode="restore">
+          <span class="nav-symbol" aria-hidden="true">03</span
+          ><span>相机位置变了<small>通过桌面固定板恢复位置</small></span>
+        </button>
+      </nav>
+      <div class="sidebar-bottom">
+        <span class="small-dot" aria-hidden="true"></span> 固定相机 · 末端标定板
+        <p>浏览器是操作界面。<br />硬件急停请使用现场急停装置。</p>
+        <button type="button" class="engineer-toggle" id="engineer-open">
+          工程师入口 <span aria-hidden="true">↗</span>
+        </button>
+      </div>
+    </aside>
+    <main>
+      <header class="topbar">
+        <span>设备调试 / 手眼标定</span>
+        <div>
+          <span id="connection" role="status">正在连接服务…</span
+          ><button type="button" class="quiet" id="refresh">重新检测</button>
+        </div>
+      </header>
+      <div class="page-content">
+        <section class="page-heading">
+          <div>
+            <p class="eyebrow">HAND–EYE CALIBRATION</p>
+            <h1 id="title">首次安装</h1>
+            <p id="subtitle">
+              跟随引导完成示教、采样和验证，让相机准确定位机械臂周围的物体。
+            </p>
+          </div>
+          <span class="version-label">NERO · RealSense</span>
+        </section>
+        <div id="global-notice" class="notice" role="status" hidden></div>
+        <div id="error" class="error" role="alert" hidden></div>
+        <ol id="steps" class="steps" aria-label="操作步骤"></ol>
+        <div class="workspace">
+          <section class="panel live-panel" aria-labelledby="camera-title">
+            <div class="panel-heading">
+              <h2 id="camera-title">相机画面</h2>
+              <span id="frame-status" class="badge">未连接相机</span>
+            </div>
+            <div class="camera-stage">
+              <img id="live-image" alt="标定相机实时画面" hidden />
+              <svg id="live-range" class="live-range" preserveAspectRatio="xMidYMid meet" aria-hidden="true" hidden>
+                <rect id="live-range-box" fill="none" stroke="#31f1b3" stroke-width="3" vector-effect="non-scaling-stroke"></rect>
+              </svg>
+              <div id="camera-empty" class="empty-state">
+                <span class="camera-icon" aria-hidden="true">▣</span>
+                <h3>先检查设备，再开始标定</h3>
+                <p>设备检查会读取相机和关节反馈，<br />不会驱动机械臂。</p>
+                <button type="button" class="primary" id="inspect-start">
+                  连接并检查设备
+                </button>
+              </div>
+            </div>
+            <div class="image-footer" id="image-footer" hidden>
+              <span>RGB 画面</span><span id="image-size"></span>
+            </div>
+            <p id="live-range-caption" class="caption"></p>
+            <div class="camera-details">
+              <div>
+                <span class="small-label">标定板</span
+                ><strong id="detection-label">等待检测</strong>
+              </div>
+              <div>
+                <span class="small-label">已保存样本</span
+                ><strong id="sample-count">—</strong>
+              </div>
+              <div>
+                <span class="small-label">重投影误差</span
+                ><strong id="reprojection">—</strong>
+              </div>
+            </div>
+            <p id="detection-reason" class="caption">
+              采手眼数据时，末端板必须固定牢固，并遮挡桌面固定板。
+            </p>
+          </section>
+          <section class="panel guide-panel" aria-labelledby="step-title">
+            <div class="panel-heading">
+              <span class="eyebrow" id="step-number">步骤 01</span
+              ><span id="job-badge" class="badge">待开始</span>
+            </div>
+            <div id="completion-notice" class="completion-notice" role="status" hidden>
+              <p id="completion-title" class="completion-title"></p>
+              <p id="completion-message"></p>
+              <a id="completion-result-link" href="#result-title" hidden>查看标定结果和每组误差 ↓</a>
+            </div>
+            <h2 id="step-title">准备设备与工作区</h2>
+            <p id="step-description" class="muted"></p>
+            <p id="quality-policy" class="muted" hidden></p>
+            <div id="preparation"></div>
+            <div id="prerequisite" class="inline-note"></div>
+            <div id="progress-area" hidden>
+              <label for="sample-progress"
+                >采样进度 <span id="progress-label"></span></label
+              ><progress id="sample-progress" max="20" value="0"></progress>
+              <p id="progress-message" role="status"></p>
+            </div>
+            <button type="button" class="secondary" id="return-home">回 HOME，为后续登记做准备</button>
+            <div class="guide-actions">
+              <button type="button" class="primary" id="start-action">
+                连接并检查设备</button
+              ><button type="button" class="primary" id="capture" hidden>
+                保存当前姿态</button
+              ><button type="button" class="secondary" id="finish" hidden>
+                结束采样并求解</button
+              ><button type="button" class="stop" id="cancel" hidden>
+                请求停止</button
+              ><button type="button" class="secondary" id="next-step">
+                下一步 <span aria-hidden="true">→</span>
+              </button>
+            </div>
+            <p class="caption" id="stop-status">
+              断线超过 10 秒会请求停止，重新连接后不会自动续跑。
+            </p>
+          </section>
+        </div>
+        <section
+          class="panel"
+          id="window-panel"
+          hidden
+          aria-labelledby="window-title"
+        >
+          <div class="panel-heading">
+            <h2 id="window-title">绘制标定板可见范围</h2>
+            <span class="badge">原始图像坐标</span>
+          </div>
+          <p class="muted">
+            在首张采样图上拖出矩形，覆盖示教过程中整块末端板可能出现的范围。也可使用下方坐标输入。此范围用于路线可见性检查，不是碰撞检查。
+          </p>
+          <canvas
+            id="window-canvas"
+            width="960"
+            height="720"
+            aria-label="标定板可见范围，可使用下方四个坐标输入完成同样操作"
+          ></canvas>
+          <div class="roi-inputs">
+            <label
+              >左边 X<input
+                id="roi-x0"
+                type="number"
+                min="0"
+                step="1"
+                value="0" /></label
+            ><label
+              >上边 Y<input
+                id="roi-y0"
+                type="number"
+                min="0"
+                step="1"
+                value="0" /></label
+            ><label
+              >右边 X<input
+                id="roi-x1"
+                type="number"
+                min="1"
+                step="1"
+                value="960" /></label
+            ><label
+              >下边 Y<input
+                id="roi-y1"
+                type="number"
+                min="1"
+                step="1"
+                value="720" /></label
+            ><button class="primary" id="save-window" type="button">
+              保存可见范围
+            </button>
+          </div>
+          <p id="window-message" role="status"></p>
+        </section>
+        <section class="panel result-panel" aria-labelledby="result-title">
+          <div class="panel-heading">
+            <h2 id="result-title">标定结果</h2>
+            <span id="result-badge" class="badge">尚无结果</span>
+          </div>
+          <div id="result-empty" class="muted">
+            完成采样和求解后，这里会显示误差与质量判定。求解完成不会自动应用结果。
+          </div>
+          <div id="result-content" hidden>
+            <p id="result-context" class="muted"></p>
+            <div class="result-metrics">
+              <div>
+                <span class="small-label">最大位置误差</span
+                ><strong id="position-error">—</strong
+                ><small id="position-threshold">门槛 —</small>
+              </div>
+              <div>
+                <span class="small-label">最大角度误差</span
+                ><strong id="angle-error">—</strong><small id="angle-threshold">门槛 —</small>
+              </div>
+              <div>
+                <span class="small-label">有效样本</span
+                ><strong id="result-samples">—</strong
+                ><small>含留出验证样本</small>
+              </div>
+              <div>
+                <span class="small-label">配置状态</span
+                ><strong id="application-status">未应用</strong
+                ><small id="table-status">等待桌面登记</small>
+              </div>
+            </div>
+            <p id="result-message" class="inline-note"></p>
+            <div class="result-actions">
+              <button type="button" class="secondary" id="solve-again">
+                用已有样本重新求解</button
+              ><button type="button" class="secondary" id="retry-table" hidden>
+                重试桌面登记
+              </button>
+            </div>
+            <h3>每组标定误差</h3>
+            <p class="muted">每组均显示位置和角度误差；留出验证使用未参与该次拟合的样本，单独列出。任一误差超过门槛即为“未通过”。</p>
+            <div id="residuals" tabindex="0" role="region" aria-label="每组标定误差表"></div>
+            <details>
+              <summary>坐标变换矩阵与完整结果</summary>
+              <pre id="matrix"></pre>
+              <p>
+                <a href="/api/result" download="handeye_result.json"
+                  >下载完整结果 JSON</a
+                >
+              </p>
+              <p id="result-source" class="caption"></p>
+            </details>
+          </div>
+        </section>
+        <details class="panel history-panel">
+          <summary>操作记录与诊断</summary>
+          <div id="history"></div>
+          <pre id="job-log">尚无作业日志。</pre>
+        </details>
+        <footer>
+          <span>结果只应用到以下配置，不会自动同步到其他仓库</span
+          ><code id="target-path">正在读取配置…</code>
+        </footer>
+      </div>
+    </main>
+    <dialog id="confirm-dialog" aria-labelledby="confirm-title">
+      <form id="confirm-form">
+        <h2 id="confirm-title">确认开始</h2>
+        <p id="confirm-description"></p>
+        <div id="motion-confirm" hidden>
+          <label class="check"
+            ><input id="motion-checked" type="checkbox" /><span
+              >工作区已清空，路线已经现场检查，急停装置可及；允许机械臂运动。</span
+            ></label
+          >
+        </div>
+        <div id="quality-confirm" hidden>
+          <div id="quality-detail" class="notice"></div>
+          <label class="check"
+            ><input id="quality-checked" type="checkbox" /><span
+              >我已核对当前误差，接受本次临时精度，质量标记保持“未达标”。</span
+            ></label
+          ><label class="field"
+            >临时使用原因<textarea
+              id="reason"
+              minlength="5"
+              maxlength="500"
+              rows="3"
+              aria-describedby="confirm-error"
+            ></textarea>
+          </label>
+        </div>
+        <p id="confirm-error" class="error" role="alert" hidden></p>
+        <div class="dialog-actions">
+          <button type="button" class="secondary" id="confirm-back">
+            返回检查</button
+          ><button type="submit" class="primary" id="confirm-submit">
+            确认开始
+          </button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="engineer-dialog" aria-labelledby="engineer-title">
+      <form id="engineer-form">
+        <h2 id="engineer-title">工程师解锁</h2>
+        <p class="muted">
+          解锁有效期为 10 分钟。同一结果与门槛仅需批准一次，后续步骤自动复用；结果或门槛变化后重新判断。
+        </p>
+        <label class="field"
+          >工程师 PIN<input
+            id="pin"
+            type="password"
+            inputmode="numeric"
+            minlength="8"
+            maxlength="20"
+            autocomplete="current-password"
+            required
+            aria-describedby="pin-error"
+        /></label>
+        <p id="pin-error" class="error" role="alert" hidden></p>
+        <p id="pin-help" class="caption"></p>
+        <div class="dialog-actions">
+          <button type="button" class="secondary" id="engineer-close">
+            关闭</button
+          ><button type="submit" class="primary">解锁</button
+          ><button type="button" class="secondary" id="engineer-lock">
+            锁定
+          </button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>

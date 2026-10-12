@@ -1,5 +1,9 @@
 {
   "schema": 1,
+  "quality_thresholds": {
+    "position_mm": 15,
+    "angle_deg": 5
+  },
   "serial": "346222071954",
   "channel": "can0",
   "tcp": "flange",

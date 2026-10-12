@@ -10,6 +10,7 @@ HOME → CAPTURE → PLAN → APPROACH → GRIP → LIFT → SHAKE → LOWER →
 
 - [运行环境与安装](docs/ENVIRONMENT.md)
 - [首次标定、自动重采和相机移动后的恢复](docs/CALIBRATION.md)
+- [浏览器手眼标定工作台](docs/CALIBRATION_WEB.md)
 - [分阶段调试与单项测试](docs/DEBUG.md)
 - [上层应用接入接口](docs/INTEGRATION.md)
 - [参数配置参考](docs/CONFIGURATION.md)
@@ -174,6 +175,8 @@ tests/                         回归测试
 ```
 
 ## 9. 标定与外参恢复
+
+现场操作员可使用独立 Web 工具：在 K3 执行 `bash calibrate_web.sh --set-pin` 设置工程师 PIN，再执行 `bash scripts/calibration_web_service.sh start`，从电脑访问 `http://<K3地址>:8091`。包含首次安装、重新标定和相机位置恢复；设备占用时需先正常退出原程序。部署、停止、质量确认及断线行为见 [Web 工具说明](docs/CALIBRATION_WEB.md)。
 
 在仓库根目录执行以下命令，参数统一在 [`configs/calibration_workflow.json`](configs/calibration_workflow.json) 中配置。
 

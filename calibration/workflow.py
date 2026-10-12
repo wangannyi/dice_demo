@@ -30,6 +30,10 @@ def resolve(value):
 def validate(c):
     if c['schema'] != 1:
         raise ValueError('Unsupported workflow schema')
+    for key, default, upper in (('position_mm', 5., 1000), ('angle_deg', 2., 180)):
+        value = c.get('quality_thresholds', {}).get(key, default)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 < value < upper:
+            raise ValueError(f'Invalid quality_thresholds.{key}')
     for key in ('show', 'allow_provisional', 'capture_only_visibility'):
         if type(c[key]) is not bool:
             raise ValueError(f'{key} must be boolean')
@@ -115,14 +119,17 @@ class Workflow:
         if not self.dry:
             out.parent.mkdir(parents=True, exist_ok=True)
         m = self.c['measurement']
+        thresholds = self.c.get('quality_thresholds', {})
+        gates = ['--max-position-mm', thresholds.get('position_mm', 5.),
+                 '--max-angle-deg', thresholds.get('angle_deg', 2.)]
         if m:
             self.call('calibration/tools/reprocess_dimensions.py', '--dataset', dataset,
-                      '--output', out, '--width-mm', m['width_mm'], '--height-mm', m['height_mm'], quality_exit=True)
+                      '--output', out, '--width-mm', m['width_mm'], '--height-mm', m['height_mm'], *gates, quality_exit=True)
         else:
             if not self.dry:
                 out.mkdir()
             self.call('calibration/calibrate.py', 'solve', '--dataset', dataset,
-                      '--output', out/'result.json', quality_exit=True)
+                      '--output', out/'result.json', *gates, quality_exit=True)
         if not self.dry and not (out/'result.json').is_file():
             raise ValueError('求解没有产生结果文件')
         self.save(result=out/'result.json')

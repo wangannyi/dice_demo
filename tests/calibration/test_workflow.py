@@ -31,6 +31,29 @@ class WorkflowTests(unittest.TestCase):
                 workflow.Workflow(self.path)
             run.assert_not_called()
 
+    def test_thresholds_reach_both_solvers_and_legacy_defaults_remain(self):
+        for measurement in (None, {'width_mm': 86.5, 'height_mm': 108}):
+            for thresholds, expected in ((None, (5., 2.)),
+                                         ({'position_mm': 15, 'angle_deg': 5}, (15, 5))):
+                self.cfg['measurement'] = measurement
+                self.cfg.pop('quality_thresholds', None)
+                if thresholds is not None:
+                    self.cfg['quality_thresholds'] = thresholds
+                self.write()
+                w = workflow.Workflow(self.path, True)
+                with patch.object(w, 'call') as call:
+                    w.solve('/unused')
+                args = call.call_args.args
+                self.assertEqual(args[args.index('--max-position-mm')+1], expected[0])
+                self.assertEqual(args[args.index('--max-angle-deg')+1], expected[1])
+
+    def test_invalid_thresholds_fail_before_work_starts(self):
+        for value in (0, -1, float('nan'), float('inf'), True, 1000):
+            self.cfg['quality_thresholds'] = {'position_mm': value, 'angle_deg': 5}
+            self.write()
+            with self.assertRaisesRegex(ValueError, 'quality_thresholds'):
+                workflow.Workflow(self.path)
+
     def test_dry_run_auto_never_changes_files_or_calls_hardware(self):
         self.cfg['plan'] = 'some_plan.json'; self.write()
         w = workflow.Workflow(self.path, True)

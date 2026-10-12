@@ -26,6 +26,20 @@ def synthetic():
 
 
 class CalibrationTests(unittest.TestCase):
+    def test_configured_quality_gates_preserve_residuals_and_transforms(self):
+        _, _, samples = synthetic()
+        with patch('core.distance', return_value=(.0119, 2.65)):
+            original = solve(samples, np.eye(4))
+            relaxed = solve(samples, np.eye(4), .015, 5.)
+        self.assertFalse(original['quality_passed'])
+        self.assertTrue(relaxed['quality_passed'])
+        self.assertEqual(relaxed['thresholds'], {'position_m': .015, 'angle_deg': 5.})
+        for key in ('T_base_camera', 'T_tcp_board', 'holdout_errors_m_deg', 'all_sample_errors_m_deg'):
+            self.assertEqual(original[key], relaxed[key])
+        for residual in ((.01501, 1), (.001, 5.01)):
+            with patch('core.distance', return_value=residual):
+                self.assertFalse(solve(samples, np.eye(4), .015, 5.)['quality_passed'])
+
     def make_collection_session(self, path, poses=None):
         board = json.loads((ROOT/'config/board_perceptive.json').read_text())
         camera = {'backend': 'realsense', 'serial': 'test-camera', 'frame': 'color_optical',

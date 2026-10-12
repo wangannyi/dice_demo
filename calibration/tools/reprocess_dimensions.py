@@ -69,6 +69,8 @@ def main(argv=None):
     parser.add_argument('--output', type=Path, required=True, help='New output directory')
     parser.add_argument('--width-mm', type=float, required=True, help='Grid width without white border')
     parser.add_argument('--height-mm', type=float, required=True, help='Grid height without white border')
+    parser.add_argument('--max-position-mm', type=float, default=5.)
+    parser.add_argument('--max-angle-deg', type=float, default=2.)
     args = parser.parse_args(argv)
     meta, samples = read_dataset(args.dataset)
     if meta.get('opencv_version') != cv2.__version__:
@@ -97,10 +99,10 @@ def main(argv=None):
                    'spacing_y_mm': args.height_mm/meta['board']['squares_y'],
                    'source_dataset': str(args.dataset.resolve()), 'opencv_version': cv2.__version__,
                    'recorded_board_config': meta['board'], 'source_sha256': hashes,
-                   'method': 'Original marker detection and corner interpolation; measured X/Y grid points for PnP. Original flange poses, sample order, holdouts and gates retained.',
+                   'method': 'Original marker detection and corner interpolation; measured X/Y grid points for PnP. Original flange poses, sample order and holdouts retained; residual gates recorded in result.thresholds.',
                    'scope': 'Offline derived observations; not a resumable capture session or a live board config.'}
-    baseline = solve(samples, meta['T_flange_tcp'])
-    result = solve(observations, meta['T_flange_tcp'])
+    baseline = solve(samples, meta['T_flange_tcp'], args.max_position_mm/1000, args.max_angle_deg)
+    result = solve(observations, meta['T_flange_tcp'], args.max_position_mm/1000, args.max_angle_deg)
     result.update({'sample_count': len(samples), 'camera': meta['camera'],
                    'tcp': meta['tcp'], 'board_measurement': measurement})
     delta = distance(np.asarray(baseline['T_base_camera']), np.asarray(result['T_base_camera']))
