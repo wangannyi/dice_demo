@@ -142,6 +142,28 @@ class ControllerEndpointTests(unittest.TestCase):
     def test_legacy_default_remains_smooth_profile(self):
         self.assertEqual(delivery_options()['command_mode'], 'smooth_profile')
 
+    def test_smooth_throw_advances_all_joints_on_one_timeline(self):
+        servo = self.make_endpoint()
+        servo.options['command_mode'] = 'smooth_profile'
+        start = [.1] * 7
+        target = [.8, -.4, -1., .6, -.1, .15, .05]
+        servo.check_feedback = Mock(side_effect=lambda *args: (
+            list(servo.robot.move_js.call_args.args[0])
+            if servo.robot.move_js.called else start))
+        servo.on_motion_tick = Mock()
+        servo.move_js(target)
+        commands = [call.args[0] for call in servo.robot.move_js.call_args_list]
+        self.assertGreater(len(commands), 2)
+        for q in commands:
+            progress = [(v-a)/(b-a) for v, a, b in zip(q, start, target)]
+            for value in progress:
+                self.assertAlmostEqual(value, progress[0], places=10)
+        for actual, expected in zip(commands[-1], target):
+            self.assertAlmostEqual(actual, expected)
+        servo.robot.move_j.assert_not_called()
+        self.assertGreaterEqual(servo.on_motion_tick.call_count, len(commands)-2)
+        self.assertTrue(servo.events[-1]['delivery_completed'])
+
     def test_partial_first_packet_is_completed_by_identical_endpoint_resend(self):
         servo = self.make_endpoint()
         servo.options['endpoint_resend_interval_s'] = .05
@@ -158,6 +180,68 @@ class ControllerEndpointTests(unittest.TestCase):
         self.assertTrue(servo.events[-1]['delivery_completed'])
         self.assertEqual(servo.events[-1]['final_error_deg'], 0)
         servo.robot.move_js.assert_not_called()
+
+    def test_bounded_blend_keeps_sync_lead_step_velocity_and_acceleration_limits(self):
+        import math
+        from cup_grasp_demo.flow.joint_delivery import trapezoid_profile, trapezoid_position
+        for profile in ('quintic', 'trapezoid'):
+            for target in ([.8, -.4, -1., .6, -.1, .15, .1], [.101]*7, [.1]*7):
+                with self.subTest(profile=profile, target=target):
+                    servo = self.make_endpoint()
+                    servo.speed = 100
+                    servo.options.update(command_mode='bounded_blend', profile=profile,
+                                         limit_utilization=1., velocity_cap_deg_s=None)
+                    start, rows = [.1]*7, []
+                    servo.robot.move_js.side_effect = lambda q: rows.append((servo.monotonic(), list(q)))
+                    servo.check_feedback = Mock(side_effect=lambda *args: rows[-1][1] if rows else start)
+                    servo.on_motion_tick = Mock()
+                    servo.move_js(target)
+                    event = servo.events[-1]
+                    duration = event['duration_s']
+                    scale = event['blend_time_scale']
+                    _, ramp, peak = trapezoid_profile(start, target, [2.]*7, [5.]*7)
+                    leads = []
+                    for elapsed, q in rows:
+                        t = min(1., elapsed/duration)
+                        base = (trapezoid_position(elapsed, duration, ramp*scale, peak/scale)
+                                if profile == 'trapezoid' else 10*t**3-15*t**4+6*t**5)
+                        progress = []
+                        for value, a, b in zip(q, start, target):
+                            self.assertGreaterEqual(value, min(a, b)-1e-12)
+                            self.assertLessEqual(value, max(a, b)+1e-12)
+                            if a == b:
+                                self.assertEqual(value, a)
+                            else:
+                                progress.append((value-a)/(b-a))
+                            leads.append(abs(value-(a+(b-a)*base)))
+                        if progress:
+                            self.assertLess(max(progress)-min(progress), 1e-10)
+                    self.assertLessEqual(max(leads), math.radians(.5)+1e-10)
+                    if start != target:
+                        self.assertGreater(max(leads), 0)
+                    velocities = []
+                    for (ta, a), (tb, b) in zip(rows, rows[1:]):
+                        self.assertGreater(tb, ta)
+                        self.assertLessEqual(max(abs(y-x) for x, y in zip(a, b)), math.radians(1))
+                        v = [(y-x)/(tb-ta) for x, y in zip(a, b)]
+                        self.assertLessEqual(max(map(abs, v)), 2.+1e-8)
+                        velocities.append(((ta+tb)/2, v))
+                    for (ta, a), (tb, b) in zip(velocities, velocities[1:]):
+                        self.assertLessEqual(max(abs(y-x)/(tb-ta) for x, y in zip(a, b)), 5.+1e-7)
+                    for value, expected in zip(rows[-1][1], target):
+                        self.assertAlmostEqual(value, expected)
+                    servo.robot.move_j.assert_not_called()
+                    self.assertGreater(servo.on_motion_tick.call_count, 1)
+                    self.assertTrue(event['delivery_completed'])
+
+    def test_blend_validation_and_legacy_defaults(self):
+        for name, values in [('endpoint_blend', (-.1, .21, True, float('nan'))),
+                             ('endpoint_lead_max_deg', (-1, 1.1, True, float('inf')))]:
+            for value in values:
+                with self.subTest(name=name, value=value), self.assertRaises(ValueError):
+                    delivery_options({name: value})
+        self.assertEqual(delivery_options()['command_mode'], 'smooth_profile')
+        self.assertEqual(delivery_options({'command_mode': 'controller_endpoint'})['endpoint_resend_interval_s'], 0)
 
     def test_resending_does_not_hide_stuck_joint_or_disable_timeout(self):
         servo = self.make_endpoint()

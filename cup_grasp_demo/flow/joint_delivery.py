@@ -55,12 +55,13 @@ def delivery_options(raw=None):
                    envelope_margin_deg=5., velocity_cap_deg_s=50., profile='quintic',
                    feedback_freshness_limit_s=.1, limits_read_timeout_s=.5,
                    limits_read_retries=1, cache_live_limits=False,
-                   scheduling_gap_limit_s=.08)
+                   scheduling_gap_limit_s=.08, endpoint_blend=.2,
+                   endpoint_lead_max_deg=.5)
     raw = raw or {}
     if not isinstance(raw, dict) or set(raw) - set(options):
         raise ValueError('Invalid joint_delivery options')
     options.update(raw)
-    if options['command_mode'] not in ('smooth_profile', 'controller_endpoint'):
+    if options['command_mode'] not in ('smooth_profile', 'controller_endpoint', 'bounded_blend'):
         raise ValueError('Invalid joint_delivery.command_mode')
     interval = options['endpoint_resend_interval_s']
     if (isinstance(interval, bool) or not isinstance(interval, (int, float))
@@ -69,6 +70,8 @@ def delivery_options(raw=None):
     if options['profile'] not in ('quintic', 'trapezoid'):
         raise ValueError('joint_delivery.profile must be quintic or trapezoid')
     for name, low, high in (('start_drift_tolerance_deg', .1, .5),
+                            ('endpoint_blend', 0., .2),
+                            ('endpoint_lead_max_deg', 0., 1.),
                             ('limit_utilization', .1, 1.),
                             ('acceleration_cap_rad_s2', .1, 5.),
                             ('tracking_error_deg', .1, 10.),
@@ -135,6 +138,15 @@ def trapezoid_position(elapsed, duration, ramp, peak):
     if elapsed > duration - ramp:
         return 1 - .5 * peak / ramp * (duration - elapsed)**2
     return peak * (elapsed - .5 * ramp)
+
+
+def bounded_blend_progress(progress, blend):
+    """One monotone seven-axis phase; advance fades to zero at both endpoints.
+
+    For 0 <= blend <= .2, f' is positive, max f' = 1+4*blend,
+    and abs(f'') = 8*blend. These bounds are used to retime the base curve.
+    """
+    return progress + blend * 4 * progress * (1 - progress)
 
 
 class ServoJointRobot:
@@ -281,9 +293,30 @@ class ServoJointRobot:
                 duration, ramp, normalized_peak = trapezoid_profile(start, target, velocity, acceleration)
             else:
                 normalized_peak = 1.875 / duration
+            blend = 0.
+            if self.options['command_mode'] == 'bounded_blend':
+                extent = max(abs(b-a) for a, b in zip(start, target))
+                blend = min(self.options['endpoint_blend'],
+                            math.radians(self.options['endpoint_lead_max_deg']) / extent) if extent else 0.
+                # The lead must not silently exceed the base velocity/acceleration
+                # budgets. Retiming uses the chain rule for f(u(t)), including
+                # the extra f'' * velocity**2 term, for either base profile.
+                base_acc = (normalized_peak / ramp if profile == 'trapezoid'
+                            else (10 / math.sqrt(3)) / duration**2)
+                velocity_factor = 1 + 4 * blend
+                scale = max(velocity_factor, math.sqrt(
+                    velocity_factor + 8 * blend * normalized_peak**2 / base_acc)) if base_acc else 1.
+                event.update(base_duration_s=duration, blend_time_scale=scale,
+                             effective_endpoint_blend=blend,
+                             endpoint_lead_max_deg=self.options['endpoint_lead_max_deg'])
+                duration *= scale
+                normalized_peak *= velocity_factor / scale
+                if profile == 'trapezoid':
+                    ramp *= scale
             if duration > 120:
                 raise ValueError("MoveJS transition exceeds 120 seconds")
             event.update(duration_s=duration, profile=profile, start_q_rad=start,
+                         command_mode=self.options['command_mode'],
                          acceleration_budget_rad_s2=acceleration,
                          tracking_error_action=self.options['tracking_error_action'],
                          tracking_exceeded_samples=0, tracking_max_error_deg=0.)
@@ -294,6 +327,8 @@ class ServoJointRobot:
             began = last_time = self.monotonic()
             peak_speed = normalized_peak * max(abs(b-a) for a, b in zip(start, target))
             sample_period = min(0.02, math.radians(0.5) / peak_speed) if peak_speed else 0.02
+            if self.options['command_mode'] == 'bounded_blend':
+                sample_period = min(sample_period, .005)
             max_phase_step = math.radians(0.9) / peak_speed if peak_speed else 0.08
             phase_elapsed = 0.0
             scheduling_gap_limit = self.options['scheduling_gap_limit_s']
@@ -327,7 +362,10 @@ class ServoJointRobot:
                 t = min(phase_elapsed / duration, 1.0)
                 u = 10 * t**3 - 15 * t**4 + 6 * t**5
                 if profile == 'trapezoid':
-                    u = trapezoid_position(t * duration, duration, ramp, normalized_peak)
+                    base_peak = normalized_peak / (1 + 4 * blend)
+                    u = trapezoid_position(t * duration, duration, ramp, base_peak)
+                if blend:
+                    u = bounded_blend_progress(u, blend)
                 q = [a + (b - a) * u for a, b in zip(start, target)]
                 if max(abs(a - b) for a, b in zip(q, last)) > math.radians(1):
                     raise RuntimeError("MoveJS command step exceeds 1 degree")

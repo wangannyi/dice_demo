@@ -46,28 +46,19 @@ class FeedbackTests(unittest.TestCase):
         paper = registry.recipe('paper')
         scissors = registry.recipe('scissors')
         self.assertEqual(registry.recipe("rps-ready")["arm_delivery"], "smooth_profile")
-        # 抬臂同时握拳，四指基本闭合后拇指才收拢（interval 须覆盖手指行程：
-        # 定时闭合全程 0.5s（板上已验证），0.4s 时四指已入末段、间隙足够拇指
-        # 通过；rock 的 0.1s 只在四指已预先闭合的衔接场景安全，从张开的手
-        # 起步时拇指 0.1s 出发会与半路的食指相撞——2026-10-10 现场两轮实测）。
         ready = registry.recipe("rps-ready")
-        self.assertEqual(ready["hand_0_100"], [0, 0, 100, 100, 100, 100])
-        # 拇指收拢但留松量（85）：预备态长时间压死（100）会让 home 开手时
-        # 食指中指挣脱预紧而弹跳；rock 出拳时才全闭压紧（[100]*6 不变）。
-        self.assertEqual(ready["hand_sequence"]["poses"],
-                         [[0, 0, 100, 100, 100, 100], [85, 85, 100, 100, 100, 100]])
-        self.assertEqual(ready["hand_sequence"]["interval_s"], .4)
-        self.assertFalse(ready["hand_sequence"]["return_to_initial"])
-        self.assertEqual(ready["hand_sequence"]["cycles"], 1)
+        self.assertEqual(ready["hand_0_100"], [0] * 6)
+        self.assertIsNone(ready["hand_sequence"])
+        self.assertEqual(ready["execution"], dict(mode='together', delay_s=0.0))
         for recipe in (rock, paper, scissors):
             self.assertEqual(recipe['joints_deg'], joints)
             self.assertEqual(recipe['speed_percent'], 100)
             self.assertEqual(recipe['finger_speed_mode'], 'max')
             self.assertEqual(recipe['execution'], dict(mode='together', delay_s=0.0))
-            self.assertEqual(recipe['arm_delivery'], 'smooth_profile')
+            self.assertEqual(recipe['arm_delivery'], 'bounded_blend')
         self.assertEqual(rock['hand_0_100'], [0, 0, 100, 100, 100, 100])
         self.assertFalse(rock['hand_sequence']['return_to_initial'])
-        self.assertEqual(rock['hand_sequence']['interval_s'], .1)
+        self.assertEqual(rock['hand_sequence']['poses'][-1], [100] * 6)
         self.assertEqual(paper['hand_0_100'], [0] * 6)
         self.assertEqual(scissors['hand_0_100'], [100, 100, 0, 0, 100, 100])
 
@@ -134,7 +125,7 @@ class FeedbackTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 feedback.recipe_for(cfg, 'yeah')
 
-    def perform(self, *, blocked=False, fail_arm=False, mode='arm_then_hand'):
+    def perform(self, *, blocked=False, fail_arm=False, mode='arm_then_hand', recipe=None):
         self.config['gestures']['yeah']['execution'] = dict(mode=mode, delay_s=0)
         calls = []
         client = Mock()
@@ -149,11 +140,12 @@ class FeedbackTests(unittest.TestCase):
         planner = Mock(return_value=dict(kind='green_arm_plan', blockers=['collision'] if blocked else [], stages=[]))
         with tempfile.TemporaryDirectory() as tmp:
             cfg = dict(green_cup={})
+            recipe = recipe if recipe is not None else feedback.recipe_for(self.config, 'yeah')
             if blocked or fail_arm:
                 with self.assertRaises((ValueError, RuntimeError)):
-                    feedback.execute_recipe(feedback.recipe_for(self.config,'yeah'), cfg, {}, Path(tmp), client, planner)
+                    feedback.execute_recipe(recipe, cfg, {}, Path(tmp), client, planner)
             else:
-                feedback.execute_recipe(feedback.recipe_for(self.config,'yeah'), cfg, {}, Path(tmp), client, planner)
+                feedback.execute_recipe(recipe, cfg, {}, Path(tmp), client, planner)
                 self.assertTrue((Path(tmp)/'receipt.json').exists())
             self.assertEqual(cfg, dict(green_cup={}))
         return calls, planner
@@ -188,6 +180,55 @@ class FeedbackTests(unittest.TestCase):
         calls, _ = self.perform(mode='together')
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls[0]['plan']['kind'], 'feedback_together')
+
+    def test_endpoint_throw_requests_repeat_only_arm_target(self):
+        from scripts.action_registry import load_registry
+        registry = load_registry()
+        for name in ('rock', 'paper', 'scissors'):
+            with self.subTest(gesture=name):
+                recipe = registry.recipe(name)
+                recipe['arm_delivery'] = 'controller_endpoint'
+                calls, _ = self.perform(recipe=recipe)
+                self.assertEqual(len(calls), 1)
+                request = calls[0]
+                self.assertEqual(request['config']['joint_delivery'], dict(
+                    command_mode='controller_endpoint', endpoint_resend_interval_s=.05))
+                self.assertEqual(request['plan']['kind'], 'feedback_together')
+                self.assertEqual(request['plan']['hand_delay_s'], 0)
+                self.assertEqual(request['plan']['hand_sequence'], recipe['hand_sequence'])
+
+    def test_ready_and_feedback_keep_smooth_delivery(self):
+        from scripts.action_registry import load_registry
+        registry = load_registry()
+        for name in ('rps-ready', 'win', 'lose', 'draw', 'home'):
+            with self.subTest(gesture=name):
+                calls, _ = self.perform(recipe=registry.recipe(name))
+                self.assertTrue(calls)
+                for request in calls:
+                    self.assertEqual(request['config']['joint_delivery'], dict(
+                        command_mode='smooth_profile'))
+
+    def test_bounded_blend_is_scoped_to_throw_request(self):
+        from scripts.action_registry import load_registry
+        registry = load_registry()
+        for name in ('rock', 'paper', 'scissors'):
+            with self.subTest(gesture=name):
+                recipe = registry.recipe(name)
+                calls, _ = self.perform(recipe=recipe)
+                self.assertEqual(len(calls), 1)
+                self.assertEqual(calls[0]['config']['joint_delivery'], dict(
+                    command_mode='bounded_blend', profile='trapezoid',
+                    **recipe['arm_blend']))
+                self.assertEqual(calls[0]['plan']['hand_delay_s'], 0)
+                self.assertEqual(calls[0]['plan']['hand_sequence'], recipe['hand_sequence'])
+
+    def test_invalid_arm_blend_rejected_before_execution(self):
+        for bad in (None, {'unknown': 1}, {'endpoint_blend': .8},
+                    {'endpoint_lead_max_deg': 2}, {'endpoint_blend': True}):
+            with self.subTest(options=bad):
+                self.config['gestures']['yeah']['arm_blend'] = bad
+                with self.assertRaises(ValueError):
+                    feedback.recipe_for(self.config, 'yeah')
 
     def test_invalid_timing(self):
         for execution in [dict(mode='oops'), dict(delay_s=-1), dict(delay_s=float('nan'))]:
