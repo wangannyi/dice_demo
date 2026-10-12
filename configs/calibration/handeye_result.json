@@ -1,26 +1,26 @@
 {
   "schema": 1,
   "mode": "eye_to_hand",
-  "quality_passed": false,
+  "quality_passed": true,
   "direction": "T_base_camera maps camera optical coordinates into arm base",
   "T_base_camera": [
     [
-      0.04336950810204481,
-      -0.9964531672342922,
-      0.0721122130830501,
-      -0.06977581652856535
+      0.028487990050329932,
+      -0.9985507762154,
+      0.04565941022959955,
+      -0.06995854156322374
     ],
     [
-      -0.9966026988383464,
-      -0.0380915535663756,
-      0.07302119017809301,
-      0.3448815516050976
+      -0.9978099935763566,
+      -0.025679547785702864,
+      0.06095717795857876,
+      0.36614071693502287
     ],
     [
-      -0.07001533000073547,
-      -0.0750341192768235,
-      -0.9947199276727305,
-      0.6823531447578488
+      -0.059696324359581276,
+      -0.04729596330707737,
+      -0.9970955023029696,
+      0.678936880754564
     ],
     [
       0.0,
@@ -31,22 +31,22 @@
   ],
   "T_tcp_board": [
     [
-      -0.9977544362433499,
-      0.03269026521947423,
-      -0.05845880187444365,
-      0.18124894954268353
+      -0.9987627931707519,
+      0.04079337598404526,
+      -0.028439118368588576,
+      0.1851336246078382
     ],
     [
-      0.03516234937903035,
-      0.9985082787457004,
-      -0.04177111995680495,
-      -0.0565491690430307
+      0.04199033499729671,
+      0.9981989277905264,
+      -0.04284521355597378,
+      -0.05688494947907191
     ],
     [
-      0.05700608864728428,
-      -0.04373286905954386,
-      -0.997415531271174,
-      -0.005719490311576642
+      0.026640096557127374,
+      -0.043986373272486265,
+      -0.9986768767833567,
+      -0.005707438145537933
     ],
     [
       0.0,
@@ -82,17 +82,17 @@
     ]
   ],
   "pose_base_camera_m_rad": [
-    -0.06977581652856535,
-    0.3448815516050976,
-    0.6823531447578488,
-    -3.066302830614815,
-    0.07007266079416777,
-    -1.5273064164469934
+    -0.06995854156322374,
+    0.36614071693502287,
+    0.678936880754564,
+    -3.094194445817526,
+    0.05973183748523211,
+    -1.5422535646188942
   ],
   "rotation_diversity_singular_values": [
-    2.5395021572300145,
-    0.8587749629471219,
-    0.8077614723652543
+    2.55009273337538,
+    0.8593510960043091,
+    0.8082032121908496
   ],
   "holdout_indices": [
     3,
@@ -103,111 +103,111 @@
   ],
   "holdout_errors_m_deg": [
     [
-      0.004107398974210693,
-      1.4417410852224979
+      0.005636137826864928,
+      1.4647019005570978
     ],
     [
-      0.002445880235309911,
-      1.170300984136398
+      0.0034392150846729976,
+      1.3388318962012973
     ],
     [
-      0.011935979908613038,
-      1.3519769968271902
+      0.014201916333710549,
+      1.5236497733241403
     ],
     [
-      0.0042826338080103705,
-      0.7921155202306254
+      0.006953476631013251,
+      0.8599244498412396
     ],
     [
-      0.01153916481192135,
-      2.0180543104630813
+      0.012274717614332985,
+      1.720439329494446
     ]
   ],
   "all_sample_errors_m_deg": [
     [
-      0.0036342671827702274,
-      2.6638254791062086
+      0.005122293906371012,
+      3.1839696931189527
     ],
     [
-      0.003933334533233542,
-      1.5530359225646213
+      0.003992196202795181,
+      1.6666083244392562
     ],
     [
-      0.0012488657033947973,
-      1.4829779425797074
+      0.0011248041138857627,
+      1.937911464347104
     ],
     [
-      0.0018813677544041144,
-      1.213251046091939
+      0.001959808043924639,
+      1.2877704962537686
     ],
     [
-      0.003332513953905681,
-      1.0398272917957743
+      0.004872908314658567,
+      1.2031379509258828
     ],
     [
-      0.004403921264484062,
-      1.3916321820184632
+      0.00490063946325994,
+      1.5904784558764586
     ],
     [
-      0.00447996469345047,
-      1.0001859815855931
+      0.005182747477832976,
+      1.0986154221731121
     ],
     [
-      0.0019806462703908746,
-      0.9009096947368266
+      0.003030986900961613,
+      0.9476787015461677
     ],
     [
-      0.003577351890356875,
-      0.773456327390678
+      0.004423177323144003,
+      0.47122433121299534
     ],
     [
-      0.004741641508111236,
-      2.167556272114233
+      0.004713039872206636,
+      3.2944498929915733
     ],
     [
-      0.0035471795850945506,
-      1.585277837114963
+      0.0063074497340680664,
+      2.3200679601240846
     ],
     [
-      0.006510913466931634,
-      0.8797688111304688
+      0.006891651533504726,
+      1.0978695649906276
     ],
     [
-      0.005298852906763661,
-      2.3857820454865237
+      0.006714471017779215,
+      2.2153916743435205
     ],
     [
-      0.0024621289668276657,
-      0.9093786597261543
+      0.0030407987844014695,
+      0.9811837790239206
     ],
     [
-      0.004807023870793919,
-      0.7371745847176739
+      0.0051661473934291125,
+      0.8029929377385496
     ],
     [
-      0.002257601889664155,
-      0.7980297478102762
+      0.0033316032102249952,
+      0.8592352192810705
     ],
     [
-      0.0016420509908828145,
-      0.6001327869359958
+      0.0017315084233212427,
+      0.6057149793012649
     ],
     [
-      0.005864266852618928,
-      1.4031986963245904
+      0.00676787008407839,
+      1.881081557517072
     ],
     [
-      0.004156863101227019,
-      2.0756840609089666
+      0.0047831247493038825,
+      2.524718247904265
     ],
     [
-      0.007300194387252242,
-      1.9373976339493328
+      0.0072394151977050345,
+      1.6903131098886977
     ]
   ],
   "thresholds": {
-    "position_m": 0.005,
-    "angle_deg": 2.0
+    "position_m": 0.015,
+    "angle_deg": 5.0
   },
   "sample_count": 20,
   "camera": {
@@ -259,7 +259,7 @@
     "grid_height_mm": 108.0,
     "spacing_x_mm": 21.625,
     "spacing_y_mm": 21.6,
-    "source_dataset": "/home/spacemit/projects/dice-game/dice_demo/calibration/datasets/workflow/20261008_112817_auto_b86220",
+    "source_dataset": "/home/spacemit/projects/dice-game/dice_demo/calibration/datasets/web/datasets/20261012_175949_auto_edbaa1",
     "opencv_version": "4.10.0",
     "recorded_board_config": {
       "type": "charuco",
@@ -294,80 +294,49 @@
       "image_exclude_rois_xyxy": []
     },
     "source_sha256": {
-      "sample_0000.png": "ebd7c533c73cb404504397416148bf3e5f72100b05becc710a022590c5253dc6",
-      "sample_0000.json": "881f11beb3a4f0be9379946289c4aa65645f39843a7f7bde529111c9d51c3411",
-      "sample_0001.png": "b114935c40e96622c64be62ff7a8fe15636873cbb58aa970d670e033015e2cb1",
-      "sample_0001.json": "5aa847e86330529ead2a022ae0bf7e216aeda24bef03a8bc8126a950ac8a2eea",
-      "sample_0002.png": "1df1f9028d32c620c7075fb73d9f34d14f2aacf1a5c69bb7c64c02eaa8bda217",
-      "sample_0002.json": "7ea94e600241a984a587f80250da9f58c443e8e028e80b14c3c3b31ad82d8701",
-      "sample_0003.png": "43a47298a4fe9af2969ae810e8ccd8fd819b643588e2ec5fb8f62a861485c61f",
-      "sample_0003.json": "40331dbe7e3445ddd308879445bcd656b2bbe97a9698721d695fad875d08ccb6",
-      "sample_0004.png": "b63bb251f780450528ebee4db6882c9e40db33f2c7a63c8edf13d6a4fdf7168f",
-      "sample_0004.json": "cfa8273f7a2b485d28f5e3352181d95e6cb332857fa31d43d2564bdb4b6991df",
-      "sample_0005.png": "99682a51a0c45174eafc3ac73ae18a396b31c3ebf27b87a6b69fbb9cbc7da64e",
-      "sample_0005.json": "b3cc85de3880fab34f32530663116c336e4c713323c889fa91899946f34c5fb0",
-      "sample_0006.png": "db291dba683138a953fcaebd3b9a8caf6ddfd2a4f421eb5f59ee0c73d92b7de4",
-      "sample_0006.json": "bd90e23120ea16ae0629f79fc0a618826751f1afc4b24827bfdbd1a8725ed56f",
-      "sample_0007.png": "fcd9f57150c6d9db5c208ce6eb775eddfd452e5cd6381a80e979526d5de28813",
-      "sample_0007.json": "09c7ef38c8e79448c165da6a2011703cb0f8d83bbd2a1f8887007a7af338a551",
-      "sample_0008.png": "ace5e208b5c5295e31588d1194743bde246bf25c5884f41c5e78afe4ffec7452",
-      "sample_0008.json": "4f12f72b4e8910c4d1244c6f716efac15130cf6b20fcef8ef259e0f07a8c8d44",
-      "sample_0009.png": "9034cea42fe365fa210c00d65e77168b649dd871a9c31d559207b6ddee8a1c17",
-      "sample_0009.json": "fccc7f00b416d0c22267ca739c15ad1ccd29109e0e01da8ed612f996f51c6b1f",
-      "sample_0010.png": "f23097f3d3a7479dc3194e9915e81c7c06a01427cf6eb13f83df2f2306db50ba",
-      "sample_0010.json": "2d681dbd45d11bb323f6dc4590c77e09c2c7c619dc5b5492f0e9b8bfd690a800",
-      "sample_0011.png": "b9462b7a0f0008cdeddd33d7b109ff32e95d98f253025d4483cff2c9722e2157",
-      "sample_0011.json": "bc3bd409fc7fe74218470cdf9ad2fc760339da90f9d5fce4dae24345bb57958d",
-      "sample_0012.png": "4a90d3c94b92d93ddbb802ba42383817f9f701ebfa4dccbf80b35b09a28cd7e0",
-      "sample_0012.json": "2cda1d9563de378db55fa32f9e7aae5cfc6c4994409077edf346b33b758690b6",
-      "sample_0013.png": "0b6eae688a19f0a72c8a135e4118f5e5fabaf8d70e8afc1be1fe6277fc53dba7",
-      "sample_0013.json": "7d5513181caf97f0e15a48692c92a32d769bebccb8369f74e2033d8c4b6654d3",
-      "sample_0014.png": "339718e08ee86f7dc1947cda22a6c51a70d1fa4b1daf78f200bca7ed05fb6370",
-      "sample_0014.json": "717bb41bd560abe16b68128ab341e42a4b3f6c907534a6175f9d330f0d4d9283",
-      "sample_0015.png": "8b025529f6b37ae4de5acc88134ef312741246e296dfe8b28e5e0176c08424d4",
-      "sample_0015.json": "a263d15a2c7ffd1fe35c9d3116ef537fbc3813a93eae389ebb0b4bf194ad2c2f",
-      "sample_0016.png": "051a05e6bd24cb82da2d93756368e744ea8f6a351c927d69f5e37cc3af4e16e0",
-      "sample_0016.json": "7bff049fbaa576ff61d421c2e1d0666c8c4793aeb2ee3a72d6f392162dece084",
-      "sample_0017.png": "71a6059eabe15efb58dffe3e5cde908e478c00c3b45af4c18fbe5f4fe2798e6e",
-      "sample_0017.json": "5e6dd2207383380cfbe3b974cd7517bdd53a39fdf9ea13802934f384a3bcc85e",
-      "sample_0018.png": "df5bdc8198d0edc79baa8b4adbe6122e1f346e4bee18a3a3217ae028c2c24144",
-      "sample_0018.json": "916271418d6f7bea5156b8f9d374fd87c24534fa7ab248b845d0cb79c571523a",
-      "sample_0019.png": "1224a86b283286217ad840215260856b52cf6653e9ee29bc81f5a8833926919a",
-      "sample_0019.json": "8954f4acfccbe3ea4fae6efa029181a1668c6681bdd6185ebd9e3aaec9b7ead0",
-      "manifest.json": "b7f67c3673ca56b1067245c52cbba6a82b1027c691f034b068ecd21f07889210"
+      "sample_0000.png": "3d68c2965b91f7dfa1128c03c0544e06fa7e67990ebe2c99f36324fdd25146ff",
+      "sample_0000.json": "846b61e4e843701b20ea72005cf2839bab97fa9c4f5fc8a2fae7e4f27ee58bd8",
+      "sample_0001.png": "06fe1dcb67e1da0509ff02adf38cdb24cef46e4850a8c992bfabc493c267f9dd",
+      "sample_0001.json": "129461eac98ebc07ef5abca7e155587a6ab0660f429d55c60e1d173124cf0903",
+      "sample_0002.png": "f1775b2fc2ff2dbf272c517c6528f1bd80331f70af5c10a74f3bc4a076fc01ee",
+      "sample_0002.json": "18ceeab6de897f629851b54ed886c5c307c57c877c6ff65d84cf4fb7ba6b9824",
+      "sample_0003.png": "ae967ee5f2546b8e66fd14046fdf4f3214c0d9dba949f30c71c86ec4562211b1",
+      "sample_0003.json": "e1035ce4125be7d47bf682b8a0fbbed76006ca1157be072f955c1d362b58a68a",
+      "sample_0004.png": "9b047b9833e013dcd2aa6e6797161692f0cb8e13d1dad80dc9438eee4b7c15b9",
+      "sample_0004.json": "f7b6443e86bb8f2b28be6ddad7c7623fa360bec255eaecf1ab6d6f670b64f2d8",
+      "sample_0005.png": "691ee56e83db04b25ff33104faeaaab5e92d386ef0e3edcf10179ec47f0313d2",
+      "sample_0005.json": "c09d950d9c4354d2e01ccdfd3020b7af69c3ba9e3ee23b2fd2020770ff3379c1",
+      "sample_0006.png": "2f7fb63d74ac493b83cbde44de851d8d09f4753903c2487f8c3ef4c5ba7e70f7",
+      "sample_0006.json": "7e2454b4965e0b4cf361a0af7a702b389df9d7c0d7fac948e163fda6ca4bf0a4",
+      "sample_0007.png": "4c77fee55d516449fc42bbae14e9c980d98873b6f76409cfbf8809470dfaee5e",
+      "sample_0007.json": "96c98455398d943a8bec3f1f4792a7b199d91c53fb1d3b9278cedf309cf8503d",
+      "sample_0008.png": "428f1fac13dc4227bccc8f3b49d59e4598d397a842cc95ac754f10bc003c58ba",
+      "sample_0008.json": "a4233d928d7a8b3b2a4110139de1cbefd550c8d6dfc4e74d4daac5ad9b7f4a23",
+      "sample_0009.png": "e8824825f9061b2e457ef5c90bfffab93492f340df22edaff7d0084ac09accca",
+      "sample_0009.json": "6aaa3798a719871ec8cc50ce984dd2123443038eab2bbf0d0eefb76f839d3645",
+      "sample_0010.png": "6e032d41e1462d07a57e37c20fa21fa30f1322d91f8ba3219e1b37368ec0218e",
+      "sample_0010.json": "849128e254d5c9a019a1e996f5ce90e94efdb921d603e7fbd760c52b80fce432",
+      "sample_0011.png": "d2caacc44be8e6e26988e1c0108f8435e69078d44557fed42a3500dd4759e695",
+      "sample_0011.json": "1dfffbc22b7c4c536902778473afee4b2a121db10e52bcf1f27ccc3b5dfcd694",
+      "sample_0012.png": "b21dd4622d3252fb111e28184fb6a3250dadb55e80e7adf7925fd74c14b5ad57",
+      "sample_0012.json": "cd472807b7457ea76b4ff61c8f530dca9ee4b19cd6546a7de3a98e1abe5eb00e",
+      "sample_0013.png": "6d24cf1e53c511abdf44d2d33bfa6cd31ca27ff84e823b9659350323331cbd54",
+      "sample_0013.json": "5085bd2bb659a920e4d5ecc70e5031e64d83af89144173d4a694d285661ab979",
+      "sample_0014.png": "a78cb67ad440d4baec64bbdc79a6c6f790930bf234a4d52f0e132ee6fddc637a",
+      "sample_0014.json": "1dcaff5c3ff9636dd07fdaba2a554b29a676c95aad9b8139c91d13c955c2b228",
+      "sample_0015.png": "f69225491ad1c0047901d57e30abfa9e1dbf0f20f160b98d5fbbcdc881a04807",
+      "sample_0015.json": "223e11eca15b5ba869ebbdede5a469ea4bf898c95e7a7583fc8ee3aafe08ca87",
+      "sample_0016.png": "acd7d3792e97cfd96160687a76791389abab7ebf54a00de9ac3754ab7afa6677",
+      "sample_0016.json": "e8e8252ddb12c6496a8db8f6af71c02b0afdc1c580e019abfdbb65c01395fc06",
+      "sample_0017.png": "20cc1bd5f5005267f5314138fbe5c9269defbd31d86542b5d4c3550cc016db59",
+      "sample_0017.json": "64ea76fe15a26a5bce1d93d21e354382f79b0ff508d1696e1a836905b3db4a7a",
+      "sample_0018.png": "29a6b30551b0597d5ecf172fcfb5253a91876f9b19079d1226b60cb40418e219",
+      "sample_0018.json": "29c669882c12ecbc55ee1aad531065d150ef366dea8f198195cc9f97ab87196b",
+      "sample_0019.png": "d736d552feb4d786d46fb92bbadb3a6877073aa964f8b26a9c936a8967ab66eb",
+      "sample_0019.json": "98965addc7e7c43fe86f881fe8ff61ed0f775e37b5311357b0dda52a0fe80bbe",
+      "manifest.json": "be7a2db9f93bba71ddc1f3717017e1fbd0c3d1032521c80d1d5e0f5e25a39c0f"
     },
-    "method": "Original marker detection and corner interpolation; measured X/Y grid points for PnP. Original flange poses, sample order, holdouts and gates retained.",
+    "method": "Original marker detection and corner interpolation; measured X/Y grid points for PnP. Original flange poses, sample order and holdouts retained; residual gates recorded in result.thresholds.",
     "scope": "Offline derived observations; not a resumable capture session or a live board config."
-  },
-  "created_unix_s": 1791451332.198116,
-  "extrinsic_method": "fixed_reference_restore",
-  "reference_id": "table_reference_main",
-  "provisional_opt_in": true,
-  "reference_observation_quality": {
-    "frame_count": 20,
-    "max_position_deviation_mm": 0.3372351732894718,
-    "max_angle_deviation_deg": 0.3169866912498092,
-    "max_reprojection_rms_px": 0.1328379457981046
-  },
-  "independent_accuracy_verified": false,
-  "residual_scope": "Retained residuals describe the source hand-eye fit, not the restored camera pose.",
-  "sources": {
-    "registration": {
-      "path": "/home/spacemit/projects/dice-game/dice_demo/calibration/datasets/workflow/20261008_113142_register_771429/registration.json",
-      "sha256": "d663ef0244f12520f3fd9d6b6f5da900fdf356b619cf042b9747d30a884e8f5f"
-    },
-    "observation": "/home/spacemit/projects/dice-game/dice_demo/calibration/datasets/workflow/20261008_172200_restore_102815/observation.json"
-  },
-  "home_start": {
-    "joints_rad": [
-      0.002181661564992912,
-      -1.2276471425602915,
-      -1.5729256284823296,
-      1.7419607665379806,
-      -0.16664403698041858,
-      -0.09079202768874502,
-      0.08833111344343302
-    ],
-    "collision_checked": false
   }
 }
