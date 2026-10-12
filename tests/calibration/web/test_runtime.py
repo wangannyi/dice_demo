@@ -6,7 +6,7 @@ import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import ANY, Mock
 
 import numpy as np
 import pytest
@@ -174,8 +174,11 @@ def test_worker_uses_original_solver_without_hardware(tmp_path):
     assert not (job/'preview.jpg').exists()
 
 
-@pytest.mark.parametrize('observation', ['missing', 'fixed_table', 'correct'])
-def test_auto_attachment_gate_runs_before_can_control(tmp_path, monkeypatch, observation):
+@pytest.mark.parametrize('action', ['auto', 'first'])
+@pytest.mark.parametrize('observation', ['missing', 'partial', 'fixed_table', 'correct'])
+def test_board_validation_at_capture_not_startup(tmp_path, monkeypatch, action, observation):
+    import home_start
+    monkeypatch.setattr(home_start, 'move_home', home_start.move_home)
     import sensors
     import calibrate
     import preview
@@ -188,53 +191,58 @@ def test_auto_attachment_gate_runs_before_can_control(tmp_path, monkeypatch, obs
     write(calibration, {'T_base_camera': ident, 'T_flange_tcp': ident, 'T_tcp_board': ident})
     plan = tmp_path/'plan.json'
     write(plan, {'calibration': str(calibration), 'board': {}})
-    class Camera:
-        def __init__(self, *args, **kwargs):
-            self.K, self.D, self.info = np.eye(3), np.zeros(5), {}
-        def capture(self):
-            time.sleep(.01)
-            return np.zeros((20,30,3), np.uint8)
-        def close(self): pass
-    detector = Mock()
-    observed = np.eye(4)
-    if observation == 'missing':
-        detector.detect.side_effect = ValueError('No board')
+    capture = Mock()
+    if observation in ('missing', 'partial'):
+        capture.side_effect = ValueError('No board' if observation == 'missing' else 'Incomplete board')
     else:
+        observed = np.eye(4)
         if observation == 'fixed_table':
-            observed[0,3] = .3
-        detector.detect.return_value = observed, {'corners':12}, np.zeros((20,30,3), np.uint8)
-    ready = Mock()
-    # Register original attributes with monkeypatch so scoped worker adapters
-    # cannot escape into the remaining legacy regression tests.
-    for obj, name, value in [(sensors,'RealSenseCamera',Camera),
-                             (sensors,'NeroFeedback',sensors.NeroFeedback),
-                             (sensors,'CharucoDetector',lambda cfg: detector),
-                             (calibrate,'capture_sample',calibrate.capture_sample),
-                             (preview,'CollectionPreview',preview.CollectionPreview),
-                             (auto_collect,'AutoCollectionView',auto_collect.AutoCollectionView),
-                             (auto_collect,'ensure_can_control',ready)]:
+            observed[0, 3] = .3
+        capture.return_value = ({'T_base_flange': ident, 'T_camera_board': observed.tolist(),
+                                 'quality': {'corners': 12}}, None, None)
+    ready, detector = Mock(), Mock()
+    for obj, name, value in [(sensors, 'RealSenseCamera', sensors.RealSenseCamera),
+                             (sensors, 'NeroFeedback', sensors.NeroFeedback),
+                             (sensors, 'CharucoDetector', detector),
+                             (calibrate, 'capture_sample', capture),
+                             (preview, 'CollectionPreview', preview.CollectionPreview),
+                             (auto_collect, 'capture_sample', auto_collect.capture_sample),
+                             (auto_collect, 'AutoCollectionView', auto_collect.AutoCollectionView),
+                             (auto_collect, 'ensure_can_control', ready)]:
         monkeypatch.setattr(obj, name, value)
-    _, factory, cameras, _ = install_adapters(job, {'action':'auto'}, {'plan':str(plan)})
-    factory()
-    arm = SimpleNamespace(read=lambda:np.eye(4))
-    try:
-        if observation != 'correct':
+    pending = Mock()
+    install_adapters(job, {'action': action}, {'plan': str(plan)}, on_motion_ready=pending)
+    arm, camera = Mock(), Mock()
+    ready.side_effect = RuntimeError('control not ready')
+    with pytest.raises(RuntimeError, match='control not ready'):
+        auto_collect.ensure_can_control(arm)
+    pending.assert_not_called()
+    ready.side_effect = None
+    ready.reset_mock()
+    # Initial pose and HOME may be out of view. No camera or detector is needed
+    # to enter control mode; the existing controller readiness checks still run.
+    auto_collect.ensure_can_control(arm)
+    ready.assert_called_once_with(arm)
+    pending.assert_called_once_with()
+    detector.assert_not_called()
+    capture.assert_not_called()
+    frame_check = Mock()
+    for attempt in range(2):
+        if observation in ('missing', 'partial') or (action == 'auto' and observation == 'fixed_table'):
             with pytest.raises(ValueError):
-                auto_collect.ensure_can_control(arm)
-            ready.assert_not_called()
+                auto_collect.capture_sample(arm, camera, detector, frame_check=frame_check)
+            assert read(job/'capture_frames'/f'attempt_{attempt:04d}'/'capture.json')['status'] == 'rejected'
         else:
-            auto_collect.ensure_can_control(arm)
-            ready.assert_called_once_with(arm)
-            for camera in cameras:
-                camera.close()
-            # Return HOME must not repeat the pre-sampling board gate after
-            # auto_collect has closed its camera; readiness is still checked.
-            auto_collect.ensure_can_control(arm)
-            assert ready.call_count == 2
-            detector.detect.assert_called_once()
-    finally:
-        for camera in cameras:
-            camera.close()
+            assert auto_collect.capture_sample(arm, camera, detector, frame_check=frame_check) == capture.return_value
+            saved = read(job/'capture_frames'/f'attempt_{attempt:04d}'/'capture.json')
+            assert saved['status'] == 'capture_validated'
+            assert saved['sample']['frame_archive'].endswith(f'attempt_{attempt:04d}')
+        capture.assert_called_with(arm, camera, detector, frame_check=frame_check, frame_observer=ANY)
+    # Return HOME likewise performs readiness without a board visibility gate.
+    auto_collect.ensure_can_control(arm)
+    assert ready.call_count == 2
+    pending.assert_called_once_with()
+    detector.assert_not_called()
 
 
 def test_web_auto_returns_home_only_after_successful_solve(tmp_path, monkeypatch):
@@ -250,7 +258,7 @@ def test_web_auto_returns_home_only_after_successful_solve(tmp_path, monkeypatch
     monkeypatch.setattr(BrowserWorkflow, 'return_to_home', lambda self: order.append(('home', self.state['result'])))
     flow.run('auto', execute=True)
     assert order == [('collect_and_solve', 'auto'), ('home', 'saved-result.json')]
-    assert read(config['state_file'])['home_required'] is True  # only confirmed HOME clears it
+    assert 'home_required' not in read(config['state_file'])  # no motion readiness in this stub
     for error in (KeyboardInterrupt(), RuntimeError('capture failed')):
         def fail(*args, **kwargs):
             raise error
@@ -293,3 +301,39 @@ def test_home_completion_requires_arrival_and_fresh_stationary_feedback(tmp_path
         assert read(job/'home_return.json')['status'] == 'running'
     arm.close.assert_called_once()
     move.assert_called_once()
+
+
+@pytest.mark.parametrize('pending', [True, False])
+@pytest.mark.parametrize('offset', [0., .2, 1.2])
+def test_fresh_home_check_clears_pending_only_when_at_home(tmp_path, offset, pending):
+    from calibration.web.worker import reconcile_home
+    from home_start import load_home
+    job, config = make_job(tmp_path, 'inspect')
+    original = {'home_required': pending, 'result': 'saved-result.json'}
+    write(config['state_file'], original)
+    q = load_home(ROOT/config['home'])
+    q[0] += np.radians(offset)
+    proof = {'confirmed': True, 'observed_at': time.time(), 'sdk_timestamp': 100,
+             'stationary_window_s': .6, 'joints_rad': q}
+    evidence = reconcile_home(job, config, proof)
+    state = read(config['state_file'])
+    assert state['home_required'] == (offset > .8)
+    assert state['result'] == original['result']
+    assert evidence['at_home'] == (offset <= .8)
+    assert evidence['joint_error_deg'] == pytest.approx(offset)
+    assert not (job/'home_return.json').exists()  # checking is not a completed movement
+
+
+@pytest.mark.parametrize('change', [{'observed_at': 0}, {'sdk_timestamp': None},
+                                   {'confirmed': False}, {'stationary_window_s': .1},
+                                   {'joints_rad': [float('nan')]*7}])
+def test_stale_or_unconfirmed_home_never_clears_pending(tmp_path, change):
+    from calibration.web.worker import reconcile_home
+    from home_start import load_home
+    job, config = make_job(tmp_path, 'inspect')
+    write(config['state_file'], {'home_required': True})
+    proof = {'confirmed': True, 'observed_at': time.time(), 'sdk_timestamp': 100,
+             'stationary_window_s': .6, 'joints_rad': load_home(ROOT/config['home'])}
+    with pytest.raises(ValueError, match='新鲜静止'):
+        reconcile_home(job, config, {**proof, **change})
+    assert read(config['state_file'])['home_required'] is True

@@ -10,6 +10,18 @@ from cup_grasp_demo.flow import debug
 
 
 class CaptureProfileTest(unittest.TestCase):
+    def test_table_warmup_override_does_not_change_game_capture_defaults(self):
+        with patch.object(debug.subprocess, 'run') as run:
+            debug.capture_rgbd(Path('/tmp/capture'), {'serial': 'test'})
+            normal = argument_parser().parse_args(run.call_args.args[0][2:])
+            self.assertEqual(normal.warmup_frames, 20)
+            self.assertFalse(normal.unique_warmup)
+            debug.capture_rgbd(Path('/tmp/table'), {'serial': 'test'},
+                               warmup_frames=30, unique_warmup=True)
+            table = argument_parser().parse_args(run.call_args.args[0][2:])
+            self.assertEqual(table.warmup_frames, 30)
+            self.assertTrue(table.unique_warmup)
+
     def _camera(self, **overrides):
         base = dict(serial="test-serial", color_resolution=[1280, 720],
                     depth_resolution=[1280, 720], fps=6,

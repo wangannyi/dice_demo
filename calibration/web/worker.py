@@ -1,5 +1,6 @@
 """One process per web job. Legacy module adapters exist only in this process."""
 import importlib
+import math
 import signal
 import sys
 import threading
@@ -15,6 +16,28 @@ sys.path.insert(0, str(ROOT/'calibration'))
 sys.path.insert(0, str(ROOT/'nero_revo2_control'))
 
 
+def reconcile_home(job, config, proof):
+    """Record a fresh stationary HOME check without issuing any motion command."""
+    from home_start import load_home
+    home = resolve(config['home'])
+    q = proof.get('joints_rad', [])
+    if (not proof.get('confirmed') or proof.get('sdk_timestamp') is None
+            or not 0 <= time.time()-proof.get('observed_at', 0) <= 3
+            or proof.get('stationary_window_s', 0) < .5
+            or len(q) != 7 or not all(math.isfinite(v) for v in q)):
+        raise ValueError('缺少新鲜静止反馈，不能确认 HOME')
+    error = math.degrees(max(abs(a-b) for a, b in zip(q, load_home(home))))
+    evidence = dict(proof, home_file=str(home), home_sha256=digest(home),
+                    joint_error_deg=error, at_home=error <= .8)
+    event(job/'home_check.json', **evidence)
+    path = resolve(config['state_file'])
+    state = read(path, {})
+    state['home_check'] = evidence
+    state['home_required'] = not evidence['at_home'] or bool(state.get('hand_home_required'))
+    write(path, state)
+    return evidence
+
+
 class BrowserWorkflow(Workflow):
     def __init__(self, job):
         self.job = job
@@ -27,7 +50,7 @@ class BrowserWorkflow(Workflow):
         from home_start import load_home, return_home
         from sensors import NeroFeedback
         import math
-        self.save(home_required=True)
+        self.save(home_required=True, home_return=None, home_check=None)
         event(self.job/'stage.json', script='web_home_return')
         progress = read(self.job/'progress.json', {})
         event(self.job/'progress.json', **{k: v for k, v in progress.items() if k not in ('time', 'phase', 'message')},
@@ -56,7 +79,6 @@ class BrowserWorkflow(Workflow):
         if action in ('auto', 'home'):
             if not execute:
                 raise ValueError('回 HOME 需要明确确认机械臂运动')
-            self.save(home_required=True)
         if action == 'home':
             self.return_to_home()
             return
@@ -109,8 +131,15 @@ class BrowserWorkflow(Workflow):
             self.producing = False
 
     def save(self, **values):
+        # HOME adapters write fresh hand evidence outside Workflow's cached state.
+        persisted = read(resolve(self.c['state_file']), {})
+        for key in ('hand_home_required', 'hand_home'):
+            if key in persisted and key not in values:
+                self.state[key] = persisted[key]
+        if self.state.get('hand_home_required'):
+            values['home_required'] = True
         # Legacy save stringifies artifact paths; keep Web motion evidence typed.
-        for key in ("home_required", "home_return"):
+        for key in ("home_required", "home_return", "home_check", "hand_home_required", "hand_home"):
             if key in values:
                 self.state[key] = values.pop(key)
         if 'teaching_dataset' in values:
@@ -154,7 +183,7 @@ class BrowserWorkflow(Workflow):
             raise RuntimeError(f'{script} 失败（{code}），后续步骤未执行')
 
 
-def install_adapters(job, request, config):
+def install_adapters(job, request, config, on_motion_ready=None):
     import sensors
     import calibrate
     import preview
@@ -163,6 +192,28 @@ def install_adapters(job, request, config):
     cameras = []
     stop_evidence = []
     motion_armed = False
+
+    # Patch only this Web worker; existing arm-only CLI HOME remains unchanged.
+    import home_start
+    original_home = home_start.move_home
+
+    def home_with_hand(arm, *args, **kwargs):
+        from calibration.web.hand_home import reset_hand
+        path = resolve(config['state_file'])
+        state = read(path, {})
+        state.update(home_required=True, hand_home_required=True, hand_home=None)
+        write(path, state)
+        actual = original_home(arm, *args, **kwargs)
+        event(job/'progress.json', phase='HAND_HOME', message='机械臂已到 HOME，正在将灵巧手六路归零')
+        proof = reset_hand(arm, job)
+        event(job/'progress.json', phase='HAND_COMMAND_SENT', message='灵巧手归零指令已发送')
+        state = read(path, {})
+        state.update(hand_home_required=False, hand_home=proof)
+        write(path, state)
+        return actual
+
+    if request['action'] in MOTION:
+        home_start.move_home = home_with_hand
 
     def camera_factory(*args, **kwargs):
         # restore opens the stream before HOME, and observe reuses that same stream.
@@ -193,8 +244,19 @@ def install_adapters(job, request, config):
     original_capture = calibrate.capture_sample
     previous = []
 
-    def checked_capture(*args, **kwargs):
+    def validate_capture(*args, **kwargs):
         sample, image, vis = original_capture(*args, **kwargs)
+        if request['action'] == 'auto':
+            # Validate the actual settled sample, not the initial/HOME pose,
+            # where the end-effector board is allowed to be outside the image.
+            plan = read(resolve(config['plan']))
+            cal = read(plan['calibration'])
+            expected = (inverse(matrix(cal['T_base_camera'])) @ matrix(sample['T_base_flange'])
+                        @ matrix(cal['T_flange_tcp']) @ matrix(cal['T_tcp_board']))
+            pos, angle = distance(expected, matrix(sample['T_camera_board']))
+            if pos > .04 or angle > 15:
+                raise ValueError('采样姿态的末端板位置与示教安装不一致；请遮挡桌面板并检查末端板')
+            event(job/'detection.json', detected=True, quality=sample['quality'])
         for old in previous:
             arm_change = distance(matrix(old['T_base_flange']), matrix(sample['T_base_flange']))
             board_change = distance(matrix(old['T_camera_board']), matrix(sample['T_camera_board']))
@@ -203,26 +265,35 @@ def install_adapters(job, request, config):
         previous.append(sample)
         return sample, image, vis
 
+    attempt_count = 0
+
+    def checked_capture(*args, **kwargs):
+        from calibration.web.frame_archive import FrameArchive
+        nonlocal attempt_count
+        path = job/'capture_frames'/f'attempt_{attempt_count:04d}'
+        attempt_count += 1
+        archive = FrameArchive(path)
+        try:
+            sample, image, vis = validate_capture(*args, **kwargs, frame_observer=archive.record)
+            sample['frame_archive'] = str(path)
+            archive.finish('capture_validated', sample=sample,
+                           note='是否用于求解以数据集中的 sample_*.json 为准')
+            return sample, image, vis
+        except BaseException as exc:
+            archive.finish('rejected', error=str(exc) or type(exc).__name__)
+            raise
+
     calibrate.capture_sample = checked_capture
     import auto_collect
     auto_collect.AutoCollectionView = lambda box, total: BrowserAutoView(job, box, total)
+    auto_collect.capture_sample = checked_capture
     original_ready = auto_collect.ensure_can_control
 
     def guarded_ready(arm):
         nonlocal motion_armed
-        if request['action'] == 'auto' and not motion_armed:
-            plan = read(resolve(config['plan']))
-            cal = read(plan['calibration'])
-            camera = next(c for c in cameras if not c.closed)
-            detector = sensors.CharucoDetector(plan['board'])
-            pose, quality, _ = detector.detect(camera.capture(), camera.K, camera.D)
-            expected = (inverse(matrix(cal['T_base_camera'])) @ arm.read()
-                        @ matrix(cal['T_flange_tcp']) @ matrix(cal['T_tcp_board']))
-            pos, angle = distance(expected, pose)
-            if pos > .04 or angle > 15:
-                raise ValueError('末端板位置与示教安装不一致；可能误识别桌面板。请检查后重新标定')
-            event(job/'detection.json', detected=True, quality=quality)
         original_ready(arm)
+        if not motion_armed and on_motion_ready is not None:
+            on_motion_ready()
         motion_armed = True
 
     auto_collect.ensure_can_control = guarded_ready
@@ -287,8 +358,10 @@ def main():
     try:
         if (job/'cancel.json').exists():
             raise KeyboardInterrupt
-        base_arm, camera_factory, cameras, stop_evidence = install_adapters(job, request, config)
         w = BrowserWorkflow(job)
+        base_arm, camera_factory, cameras, stop_evidence = install_adapters(
+            job, request, config,
+            on_motion_ready=lambda: w.save(home_required=True, home_return=None, home_check=None))
         if request.get('source_path'):
             if digest(request['source_path']) != request['source_sha256']:
                 raise ValueError('源标定文件已改变，请重新检查和确认')
@@ -331,6 +404,8 @@ def main():
                 arm = base_arm(config['channel'])
                 proof = confirm_stationary(arm)
                 event(job/'stop.json', **proof)
+                if action in MOTION or action == 'inspect':
+                    reconcile_home(job, config, proof)
             except Exception as exc:
                 event(job/'stop.json', confirmed=False, error=str(exc))
                 outcome['needs_device_check'] = True

@@ -2,6 +2,7 @@
 import http.client
 import json
 import threading
+from urllib.parse import urlencode
 
 import pytest
 
@@ -84,3 +85,64 @@ def test_engineer_unlock_is_session_scoped(http_server):
     request(http_server, '/api/lock', 'POST', {}, headers)
     _, _, body = request(http_server, '/api/status', headers={'Cookie':headers['Cookie']})
     assert json.loads(body)['engineer_unlocked'] is False
+
+
+def gallery_dataset(server):
+    service = server.service
+    path = service.data/'datasets'/'saved'
+    path.mkdir(parents=True)
+    write(path/'manifest.json', {'schema': 1, 'mode': 'eye_to_hand'})
+    write(service.state_path, {'dataset': str(path)})
+    write(path/'sample_0000.json', {'quality': {'corners': 12, 'reprojection_rms_px': .12}})
+    (path/'sample_0000.png').write_bytes(b'raw image')
+    (path/'sample_0000_detected.png').write_bytes(b'annotated image')
+    return path
+
+
+def test_gallery_supports_historical_samples_and_missing_images(http_server):
+    code, _, body = request(http_server, '/api/samples')
+    assert code == 200 and json.loads(body)['samples'] == []
+    path = gallery_dataset(http_server)
+    _, _, body = request(http_server, '/api/samples')
+    listing = json.loads(body)
+    assert len(listing['samples']) == 1
+    frame = listing['samples'][0]['frames'][0]
+    assert frame['id'] == 'selected'
+    for kind, expected in [('raw', b'raw image'), ('detected', b'annotated image')]:
+        code, headers, body = request(http_server, frame[kind])
+        assert code == 200 and body == expected
+        assert headers['Content-Type'] == 'image/png'
+    code, _, body = request(http_server, frame['data'])
+    assert code == 200 and json.loads(body)['quality']['corners'] == 12
+    (path/'sample_0000_detected.png').unlink()
+    _, _, body = request(http_server, '/api/samples')
+    assert json.loads(body)['samples'][0]['frames'][0]['detected'] is None
+    assert http_server.service.active is None
+
+
+def test_gallery_frame_selection_and_file_boundaries(http_server):
+    path = gallery_dataset(http_server)
+    archive = http_server.service.data/'jobs/20261012_120000_aabbccdd/capture_frames/attempt_0000'
+    archive.mkdir(parents=True)
+    write(path/'sample_0000.json', {'frame_archive': str(archive), 'selected_frame_index': 1})
+    for index in range(3):
+        write(archive/f'frame_{index:03d}.json', {'frame_index': index, 'status': 'detected'})
+        (archive/f'frame_{index:03d}.png').write_bytes(b'raw')
+        (archive/f'frame_{index:03d}_detected.png').write_bytes(b'detection')
+    _, _, body = request(http_server, '/api/samples')
+    listing = json.loads(body)
+    frames = listing['samples'][0]['frames']
+    assert len(frames) == 4 and '被选中' in frames[2]['label']
+    code, _, body = request(http_server, frames[2]['data'])
+    assert code == 200 and json.loads(body)['frame_index'] == 1
+    params = dict(sample='sample_0000', frame='selected', key=listing['key'], kind='data')
+    for invalid in ({'sample': '../../engineer'}, {'frame': '../config'},
+                    {'kind': 'config'}, {'key': 'stale-dataset-key'}):
+        assert request(http_server, '/api/sample-file?'+urlencode(dict(params, **invalid)))[0] == 400
+    secret = http_server.service.data/'engineer.json'
+    write(secret, {'secret': 'not a sample'})
+    (archive/'frame_000.json').unlink()
+    (archive/'frame_000.json').symlink_to(secret)
+    assert request(http_server, frames[1]['data'])[0] == 404
+    write(path/'sample_0000.json', {'frame_archive': str(http_server.service.data)})
+    assert request(http_server, frames[2]['data'])[0] == 400

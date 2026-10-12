@@ -81,7 +81,7 @@ def read_resume_dataset(path, board, tcp_name, tcp):
     return manifest, samples
 
 
-def capture_sample(arm, camera, detector, frame_check=None):
+def capture_sample(arm, camera, detector, frame_check=None, frame_observer=None):
     from sensors import assert_still
     poses = []
     # Require stationary fresh observations before and around image acquisition.
@@ -99,14 +99,33 @@ def capture_sample(arm, camera, detector, frame_check=None):
             frame_check(frame)
     start = time.monotonic()
     observations = []
-    for _ in range(3):
+    for frame_index in range(3):
         poses.append(arm.read())
         image = camera.capture()
+        captured_at = time.time()
         frame_joints = arm.read_joints()
-        board, quality, vis = detector.detect(image, camera.K, camera.D)
-        if frame_check is not None:
-            frame_check(image, board)
-        poses.append(arm.read())
+        board = quality = vis = None
+        frame_record = {'frame_index': frame_index, 'time_unix_s': captured_at,
+                        'T_base_flange_before': poses[-1].tolist(),
+                        'joint_observation': frame_joints}
+        if frame_observer is not None:
+            frame_record.update(camera=camera.info, board=detector.cfg,
+                                transform_units='metres', joint_units='radians_and_degrees')
+        try:
+            board, quality, vis = detector.detect(image, camera.K, camera.D)
+            if frame_check is not None:
+                frame_check(image, board)
+            poses.append(arm.read())
+            frame_record['T_base_flange_after'] = poses[-1].tolist()
+        except BaseException as exc:
+            if frame_observer is not None:
+                frame_observer(image, vis, dict(frame_record, status='rejected',
+                               error=str(exc) or type(exc).__name__, quality=quality,
+                               T_camera_board=None if board is None else board.tolist()))
+            raise
+        if frame_observer is not None:
+            frame_observer(image, vis, dict(frame_record, status='detected', quality=quality,
+                                           T_camera_board=board.tolist()))
         observations.append((board, quality, image, vis, poses[-1], frame_joints))
     assert_still(poses)
     if any(p > .002 or a > 1. for p, a in
@@ -116,7 +135,10 @@ def capture_sample(arm, camera, detector, frame_check=None):
     joints_after = arm.read_joints()
     if np.max(np.abs(np.asarray(joints_after['joints_rad']) - joints_before['joints_rad'])) > np.radians(.2):
         raise ValueError('Joints moved during calibration sample')
-    return {'T_base_flange': flange.tolist(), 'T_camera_board': board.tolist(),
+    archive_selection = ({'selected_frame_index': min(range(len(observations)),
+                          key=lambda i: observations[i][1]['reprojection_rms_px'])}
+                         if frame_observer is not None else {})
+    return {**archive_selection, 'T_base_flange': flange.tolist(), 'T_camera_board': board.tolist(),
             'joints_rad': joints_after['joints_rad'], 'joints_deg': joints_after['joints_deg'],
             'joint_observations': {'before': joints_before, 'after': joints_after},
             'frame_joint_observations': [o[5] for o in observations],

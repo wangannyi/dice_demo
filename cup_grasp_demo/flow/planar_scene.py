@@ -17,7 +17,9 @@ def capture(args):
     pending.write_text('table capture incomplete\n')
     cfg = load_config(args.config)
     run = common.new_run(args.session, 'planar_table_capture')
-    common.capture_rgbd(run / 'rgbd', cfg)
+    # Table depth becomes a persistent motion reference. Wait for complete,
+    # advancing sets here; retain the existing game capture timing.
+    common.capture_rgbd(run / 'rgbd', cfg, warmup_frames=30, unique_warmup=True)
     scene, quality = home_scene(run, cfg)
     paths = [args.config, Path(cfg['calibration']), Path(cfg['tcp_candidate'])]
     paths += list((run / 'rgbd').glob('*'))

@@ -19,6 +19,32 @@ QUALITY = dict(max_mean_edge_error_px=.8, max_view_edge_error_px=1.,
                max_center_spread_mm=3., max_height_spread_mm=5., max_diameter_spread_mm=5.)
 
 
+def workspace_options(raw=None):
+    defaults = dict(min_saturation=70, min_value=50)
+    raw = {} if raw is None else raw
+    if not isinstance(raw, dict) or set(raw) - set(defaults):
+        raise ValueError('Unknown red_workspace parameter')
+    result = dict(defaults, **raw)
+    for key, value in result.items():
+        if type(value) is not int or not 0 <= value < 255:
+            raise ValueError('red_workspace.' + key + ' must be an integer in 0..254')
+    return result
+
+
+def workspace_masks(image, raw=None):
+    options = workspace_options(raw)
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    red = (((hsv[:, :, 0] < 15) | (hsv[:, :, 0] > 165)) &
+           (hsv[:, :, 1] > options['min_saturation']) &
+           (hsv[:, :, 2] > options['min_value']))
+    contours, _ = cv2.findContours(red.astype('uint8'), cv2.RETR_EXTERNAL,
+                                  cv2.CHAIN_APPROX_SIMPLE)
+    workspace = np.zeros(red.shape, np.uint8)
+    if contours:
+        cv2.drawContours(workspace, [max(contours, key=cv2.contourArea)], -1, 1, cv2.FILLED)
+    return red, workspace
+
+
 class RimEdgeQualityError(ValueError):
     """A fresh image can recover edge noise; never substitutes a stale target."""
     def __init__(self, report):
@@ -339,18 +365,24 @@ def fit_fixed_sequence(views_by_frame, table, normal, seeds, radius_range,
 def detect_stereo(run, depth, image, meta, opts, plane_tolerance_mm, instances, diagnostics,
                   *, fixed_table=None):
     quality = quality_options(opts.get('stereo_rim'))
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    red = (((hsv[:, :, 0] < 15) | (hsv[:, :, 0] > 165)) &
-           (hsv[:, :, 1] > 70) & (hsv[:, :, 2] > 50))
+    red, workspace = workspace_masks(image, opts.get('red_workspace'))
+    candidates = []
+    eligible = []
+    for item in instances:
+        mask = np.asarray(item['mask'], bool)
+        area = int(np.count_nonzero(mask))
+        fraction = float(np.count_nonzero(mask & (workspace > 0)) / area) if area else 0.
+        accepted = area >= opts['min_area_px'] and fraction >= opts.get('min_workspace_fraction', .9)
+        candidates.append(dict(area_px=area, workspace_fraction=fraction, accepted=accepted))
+        if accepted:
+            eligible.append(item)
+    diagnostics['red_workspace'] = dict(
+        thresholds=workspace_options(opts.get('red_workspace')),
+        red_pixels=int(red.sum()), workspace_pixels=int(workspace.sum()),
+        min_workspace_fraction=opts.get('min_workspace_fraction', .9), candidates=candidates)
     table, normal, fraction, rms, table_source = resolve_table(
         depth, red, meta, plane_tolerance_mm, fixed_table)
     diagnostics['table_plane_source'] = table_source
-    contours, _ = cv2.findContours(red.astype('uint8'), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    workspace = np.zeros(red.shape, np.uint8)
-    cv2.drawContours(workspace, [max(contours, key=cv2.contourArea)], -1, 1, cv2.FILLED)
-    eligible = [item for item in instances if np.count_nonzero(item['mask']) >= opts['min_area_px']
-                and np.count_nonzero(np.asarray(item['mask'], bool) & (workspace > 0)) /
-                np.count_nonzero(item['mask']) >= opts.get('min_workspace_fraction', .9)]
     if len(eligible) != 1:
         raise ValueError('Stereo rim requires one YOLO cup in the red workspace')
     mask = np.asarray(eligible[0]['mask'], bool)

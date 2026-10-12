@@ -32,8 +32,7 @@ class FreshnessTests(unittest.TestCase):
 
     def test_fast_warmup_counts_all_streams_not_api_returns(self):
         from vision.capture.realsense_session import CaptureSession
-        args=argument_parser().parse_args(['--serial','test','--output','/tmp/test','--stereo','--warmup-frames','5'])
-        args.unique_warmup=True
+        args=argument_parser().parse_args(['--serial','test','--output','/tmp/test','--stereo','--warmup-frames','5','--unique-warmup'])
         def pair(c,d,ir):
             f=frame(c,d)
             f.get_infrared_frame.return_value.get_frame_number.return_value=ir

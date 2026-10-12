@@ -194,7 +194,11 @@ class CharucoDetector:
         _, cc, ci = cv.aruco.interpolateCornersCharuco(corners, ids, detection_image, self.board,
                                                       cameraMatrix=K, distCoeffs=D)
         if ci is None or len(ci) < self.cfg.get('min_corners', 6):
-            raise ValueError('Too few ChArUco corners')
+            count = 0 if ci is None else len(ci)
+            required = self.cfg.get('min_corners', 6)
+            region = f'；识别区域 {list(self.roi)}' if self.roi is not None else ''
+            raise ValueError(f'Too few ChArUco corners: 角点不足（{count}/{required}）'
+                             f'{region}。请检查整板是否位于识别区域内、是否遮挡或模糊')
         obj = np.asarray(self.points[ci.ravel()], dtype=np.float64)
         img = np.asarray(cc, dtype=np.float64).reshape(-1, 2)
         if np.linalg.matrix_rank(obj-obj.mean(axis=0), tol=1e-7) < 2:

@@ -6,6 +6,7 @@
     <title>手眼标定 · NERO</title>
     <link rel="stylesheet" href="/style.css" />
     <script src="/app.js" defer></script>
+    <script src="/gallery.js" defer></script>
   </head>
   <body>
     <aside class="sidebar">
@@ -30,7 +31,7 @@
       </nav>
       <div class="sidebar-bottom">
         <span class="small-dot" aria-hidden="true"></span> 固定相机 · 末端标定板
-        <p>浏览器是操作界面。<br />硬件急停请使用现场急停装置。</p>
+        <p>紧急情况请使用硬件急停。</p>
         <button type="button" class="engineer-toggle" id="engineer-open">
           工程师入口 <span aria-hidden="true">↗</span>
         </button>
@@ -50,7 +51,7 @@
             <p class="eyebrow">HAND–EYE CALIBRATION</p>
             <h1 id="title">首次安装</h1>
             <p id="subtitle">
-              跟随引导完成示教、采样和验证，让相机准确定位机械臂周围的物体。
+              按步骤完成示教、采样和标定。
             </p>
           </div>
           <span class="version-label">NERO · RealSense</span>
@@ -72,7 +73,7 @@
               <div id="camera-empty" class="empty-state">
                 <span class="camera-icon" aria-hidden="true">▣</span>
                 <h3>先检查设备，再开始标定</h3>
-                <p>设备检查会读取相机和关节反馈，<br />不会驱动机械臂。</p>
+                <p>检查连接时机械臂不移动。</p>
                 <button type="button" class="primary" id="inspect-start">
                   连接并检查设备
                 </button>
@@ -108,7 +109,7 @@
             <div id="completion-notice" class="completion-notice" role="status" hidden>
               <p id="completion-title" class="completion-title"></p>
               <p id="completion-message"></p>
-              <a id="completion-result-link" href="#result-title" hidden>查看标定结果和每组误差 ↓</a>
+              <a id="completion-result-link" href="#result-title" hidden>查看标定结果</a>
             </div>
             <h2 id="step-title">准备设备与工作区</h2>
             <p id="step-description" class="muted"></p>
@@ -118,10 +119,10 @@
             <div id="progress-area" hidden>
               <label for="sample-progress"
                 >采样进度 <span id="progress-label"></span></label
-              ><progress id="sample-progress" max="20" value="0"></progress>
+              ><progress id="sample-progress" max="1" value="0" hidden></progress>
               <p id="progress-message" role="status"></p>
             </div>
-            <button type="button" class="secondary" id="return-home">回 HOME，为后续登记做准备</button>
+            <button type="button" class="secondary" id="return-home">回 HOME</button>
             <div class="guide-actions">
               <button type="button" class="primary" id="start-action">
                 连接并检查设备</button
@@ -151,7 +152,7 @@
             <span class="badge">原始图像坐标</span>
           </div>
           <p class="muted">
-            在首张采样图上拖出矩形，覆盖示教过程中整块末端板可能出现的范围。也可使用下方坐标输入。此范围用于路线可见性检查，不是碰撞检查。
+            拖动框选标定板可见范围，也可输入坐标。此范围不代表机械臂安全区域。
           </p>
           <canvas
             id="window-canvas"
@@ -200,7 +201,7 @@
             <span id="result-badge" class="badge">尚无结果</span>
           </div>
           <div id="result-empty" class="muted">
-            完成采样和求解后，这里会显示误差与质量判定。求解完成不会自动应用结果。
+            完成标定后显示结果，应用前请确认精度。
           </div>
           <div id="result-content" hidden>
             <p id="result-context" class="muted"></p>
@@ -233,10 +234,12 @@
                 重试桌面登记
               </button>
             </div>
-            <h3>每组标定误差</h3>
-            <p class="muted">每组均显示位置和角度误差；留出验证使用未参与该次拟合的样本，单独列出。任一误差超过门槛即为“未通过”。</p>
-            <div id="residuals" tabindex="0" role="region" aria-label="每组标定误差表"></div>
-            <details>
+            <details class="result-details" id="residuals-details">
+              <summary>每组标定误差</summary>
+              <p class="muted">每组均显示位置和角度误差；留出验证使用未参与该次拟合的样本，单独列出。任一误差超过门槛即为“未通过”。</p>
+              <div id="residuals" tabindex="0" role="region" aria-label="每组标定误差表"></div>
+            </details>
+            <details class="result-details">
               <summary>坐标变换矩阵与完整结果</summary>
               <pre id="matrix"></pre>
               <p>
@@ -247,6 +250,35 @@
               <p id="result-source" class="caption"></p>
             </details>
           </div>
+          <details class="result-details" id="gallery-details">
+            <summary id="gallery-title">标定检测图片</summary>
+            <div class="panel-heading">
+              <button type="button" class="secondary" id="gallery-refresh">刷新图片列表</button>
+            </div>
+            <p class="muted">历史采样图片，可查看检测标注和原图。</p>
+            <p id="gallery-status" role="status">正在读取已保存的图片…</p>
+            <div id="gallery-content" hidden>
+              <div class="gallery-controls">
+                <button type="button" class="secondary" id="gallery-prev">上一组</button>
+                <label>样本组<select id="gallery-sample"></select></label>
+                <button type="button" class="secondary" id="gallery-next">下一组</button>
+                <label>检测帧<select id="gallery-frame"></select></label>
+                <label>图片类型<select id="gallery-kind"><option value="detected">检测标注图</option><option value="raw">原始图片</option></select></label>
+              </div>
+              <figure class="gallery-figure">
+                <img id="gallery-image" alt="已保存的标定检测图" hidden />
+                <figcaption id="gallery-image-status" role="status"></figcaption>
+              </figure>
+              <p id="gallery-summary" class="inline-note"></p>
+              <p id="gallery-frame-note" class="caption"></p>
+              <div class="gallery-links">
+                <a id="gallery-download-image" download>下载当前图片</a>
+                <a id="gallery-download-data" download>下载此帧 JSON</a>
+              </div>
+              <details><summary>查看此帧完整数据</summary><pre id="gallery-data"></pre></details>
+              <p id="gallery-source" class="caption"></p>
+            </div>
+          </details>
         </section>
         <details class="panel history-panel">
           <summary>操作记录与诊断</summary>
@@ -266,7 +298,7 @@
         <div id="motion-confirm" hidden>
           <label class="check"
             ><input id="motion-checked" type="checkbox" /><span
-              >工作区已清空，路线已经现场检查，急停装置可及；允许机械臂运动。</span
+              >已确认工作区无人、运动路径畅通、急停可用，允许机械臂与灵巧手运动。</span
             ></label
           >
         </div>
@@ -274,7 +306,7 @@
           <div id="quality-detail" class="notice"></div>
           <label class="check"
             ><input id="quality-checked" type="checkbox" /><span
-              >我已核对当前误差，接受本次临时精度，质量标记保持“未达标”。</span
+              >我接受当前误差，确认临时使用（仍为未达标）。</span
             ></label
           ><label class="field"
             >临时使用原因<textarea
@@ -300,7 +332,7 @@
       <form id="engineer-form">
         <h2 id="engineer-title">工程师解锁</h2>
         <p class="muted">
-          解锁有效期为 10 分钟。同一结果与门槛仅需批准一次，后续步骤自动复用；结果或门槛变化后重新判断。
+          解锁有效期 10 分钟。当前结果批准后无需重复确认。
         </p>
         <label class="field"
           >工程师 PIN<input

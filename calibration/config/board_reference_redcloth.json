@@ -10,11 +10,11 @@
   "max_reprojection_px": 0.5,
   "image_roi_xyxy": [
     520,
-    440,
-    740,
+    425,
+    800,
     700
   ],
-  "note": "1280x720 RGB cropped to 960x720 at x=220,y=0. ROI verified for installation 2026-09-20. Board physical dimensions must match before final solve.",
+  "note": "1280x720 RGB cropped to 960x720 at x=220,y=0. Reference-only ROI includes the full current tabletop board with margin. Verify this ROI for each installation; board physical dimensions must match before final solve.",
   "image_profile": {
     "color_resolution": [
       1280,

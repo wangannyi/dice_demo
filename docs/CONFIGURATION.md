@@ -39,6 +39,21 @@
 
 主配置中的动作调参和策略中的抓取参数支持热加载，在下次独立动作或新一轮 HOME 前生效，不会修改正在执行的轨迹。相机、标定和 HOME 等受保护配置的生效规则见[参数热加载说明](HOT_RELOAD.md)。
 
+## 红色桌面工作区
+
+在 `configs/green_cup.json` 的 `green_cup.perception` 中修改：
+
+```json
+{
+  "red_workspace": {"min_saturation": 50, "min_value": 50},
+  "min_workspace_fraction": 0.1
+}
+```
+
+以上为对象内字段的节选。`red_workspace` 仅用于 `stereo_rim` 杯沿定位：色相固定选择红色（OpenCV H < 15 或 H > 165），饱和度和值分别要求严格大于 `min_saturation`、`min_value`。两项均为 0–254 的整数；未配置时保持原阈值 70、50。现场饱和度阈值设为 50，以保留反光导致饱和度降低的红色桌面。
+
+`min_workspace_fraction` 仍为 0.1，即杯子掩膜至少 10% 落在工作区内，且必须只选出一个杯子。颜色参数不改写已保存的手眼标定或桌面登记，但会影响杯子候选筛选，以及未指定固定桌面时的平面拟合区域。保存配置后在下一轮热加载；首次更新程序代码需要重启应用。采样目录中的 `rim_diagnostics.json` 会记录颜色阈值、工作区面积及各杯子的重叠比例。
+
 ## 摇晃动作
 
 [`configs/actions/joint_shake.json`](../configs/actions/joint_shake.json) 配置参与关节、幅度、速度、加速度、周期和目标更新频率。`command_rate_hz` 是七轴位置目标的发送频率，不是杯子的往返频率。实际频率受行程、轨迹和控制器限制。

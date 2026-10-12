@@ -12,6 +12,21 @@ from tools import register_home_table, table_capture
 
 
 class TableRegistrationTests(unittest.TestCase):
+    def test_table_capture_waits_for_depth_and_keeps_failure_pending(self):
+        from types import SimpleNamespace
+        from cup_grasp_demo.flow import planar_scene
+        session = self.root / 'table-session'
+        session.mkdir()
+        with patch.object(planar_scene, 'load_config', return_value={}), \
+             patch.object(planar_scene.common, 'new_run', return_value=session / 'run'), \
+             patch.object(planar_scene.common, 'capture_rgbd', side_effect=ValueError('bad depth')) as capture:
+            with self.assertRaisesRegex(ValueError, 'bad depth'):
+                planar_scene.capture(SimpleNamespace(session=session, config=self.config))
+        capture.assert_called_once_with(session / 'run/rgbd', {},
+                                        warmup_frames=30, unique_warmup=True)
+        self.assertTrue((session / 'planar_table_scene.pending').exists())
+        self.assertFalse((session / 'planar_table_scene.json').exists())
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)

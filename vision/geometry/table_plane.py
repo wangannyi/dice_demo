@@ -104,7 +104,7 @@ def deproject(depth, mask, intrinsics, depth_scale_m):
     fx, fy, cx, cy = [float(intrinsics[k]) for k in ('fx', 'fy', 'cx', 'cy')]
     if not np.isfinite([fx, fy, cx, cy]).all() or min(fx, fy) <= 0:
         raise ValueError('Invalid pinhole intrinsics')
-    valid = mask & np.isfinite(depth) & (depth > 0)
+    valid = mask & np.isfinite(depth) & (depth > 0) & (depth < 65535)
     v, u = np.nonzero(valid)
     z = depth[valid].astype(float) * depth_scale_m
     if not np.isfinite(z).all():
@@ -114,6 +114,8 @@ def deproject(depth, mask, intrinsics, depth_scale_m):
 
 def _plane(points, cfg):
     # Deterministic RANSAC limits CPU and rejects contaminated table masks.
+    if len(points) < cfg.min_points:
+        raise ValueError('table_plane_insufficient_valid_depth')
     rng = np.random.default_rng(7)
     sample = points[rng.choice(len(points), min(len(points), 3000), replace=False)]
     best = np.zeros(len(sample), dtype=bool)

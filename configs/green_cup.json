@@ -122,6 +122,10 @@
       "iou_threshold": 0.45,
       "mask_threshold": 0.5,
       "min_workspace_fraction": 0.1,
+      "red_workspace": {
+        "min_saturation": 50,
+        "min_value": 50
+      },
       "geometry_method": "stereo_rim",
       "reference_dimensions_mm": {
         "height": 65,

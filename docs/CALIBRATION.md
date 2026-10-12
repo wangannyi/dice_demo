@@ -1,6 +1,6 @@
 # 标定与外参恢复
 
-在仓库根目录使用 `bash calibrate.sh <操作>`。脚本自动加载 Python 环境，无需每次 `source`、切换目录或填写相机和速度参数。旧命令仍可用，见 [底层命令说明](CALIBRATION_ADVANCED.md)。
+在仓库根目录使用 `bash calibrate.sh <操作>`。脚本自动加载 Python 环境，无需每次 `source`、切换目录或填写相机和速度参数。现场操作员可使用 [Web 标定工作台](CALIBRATION_WEB.md)，其状态目录与本节 CLI 独立。旧命令仍可用，见 [底层命令说明](CALIBRATION_ADVANCED.md)。
 
 ## 常用命令
 
@@ -32,6 +32,7 @@
 | `motion.speed_percent` | SDK 速度百分比，1–100 |
 | `motion.speed_deg_s`、`motion.acc_deg_s2` | HOME 和自动采样平滑速度、加速度 |
 | `measurement` | 实测棋盘格总宽/高，单位 mm，不含白边；null 表示使用板文件名义尺寸 |
+| `quality_thresholds.position_mm`、`quality_thresholds.angle_deg` | 全样本拟合及留出验证的最大误差门槛；当前配置为 15 mm / 5°，缺省为 5 mm / 2° |
 | `allow_provisional` | 默认 false；明确接受误差时设 true，允许未通过质量门槛的结果用于规划、恢复和应用；不会改写质量标志 |
 | `capture_only_visibility` | true 表示只要求采样位完整可见，途中可出框 |
 | `max_step_deg`、`margin_px` | 生成计划时的关节插值步长与图像边距 |
@@ -123,6 +124,8 @@ bash calibrate.sh apply
 apply 先保存 pipeline_config.json、handeye_result.json 和 home_table_scene.json 到新的 backup 目录，status 显示其路径。然后调用原有应用工具，将抓取流程设为“等待桌面登记”；只有桌面采集与绑定成功才解除该状态。
 
 如果桌面采集失败，解决相机占用或桌面遮挡后执行 `bash calibrate.sh table`。不要只改哈希或手动清除等待标记。
+
+桌面登记会先等待 30 组帧号持续更新的 RGB／深度／IR 帧；这不会增加游戏每轮采集的等待。深度中的 0、65535 和非有限值在多帧合并前剔除，避免饱和值被误拟合为远处桌面。若提示 `table_plane_insufficient_valid_depth` 或 `table_region_too_narrow`，说明有效桌面深度不足，应检查桌面可见范围和相机状态后重新登记，不能放宽杯沿定位门槛。旧版已保存的异常桌面需要重新运行 `bash calibrate.sh table` 才能替换。
 
 桌面采集和绑定入口位于 `calibration/tools/table_capture.py`、`calibration/tools/register_home_table.py`。`apply` 在修改标定前确认这两个工具存在；旧版若在标定安装后因缺少工具停止，更新仓库后运行 `bash calibrate.sh table` 补完桌面登记，无需重新采样或再次应用标定。
 

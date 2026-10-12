@@ -1,13 +1,36 @@
 """Contact geometry regressions independent of cameras, CAN, and learned models."""
 import unittest
+import json
+import tempfile
+from pathlib import Path
 
 import numpy as np
 
-from vision.capture.frame_io import ray_surface_x, section
+from vision.capture.frame_io import load_batch, ray_surface_x, section
 from vision.geometry.table_plane import Config
 
 
 class IndexPreviewTests(unittest.TestCase):
+    def test_batch_discards_saturated_depth_before_temporal_median(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Path(temp)
+            (run / 'rgbd').mkdir()
+            meta = dict(serial='test', intrinsics={}, depth_scale_m=.001,
+                        depth_registered_to='color_optical')
+            for i, depth in enumerate(([[0, 65535], [700, 700]],
+                                       [[65535, 0], [65535, 702]],
+                                       [[65535, 65535], [0, 704]])):
+                path = run / 'rgbd' / f'frame_{i:03d}'
+                path.with_suffix('.json').write_text(json.dumps(meta))
+                np.savez(path.with_suffix('.npz'), depth=np.array(depth, np.uint16),
+                         color=np.zeros((2, 2, 3), np.uint8))
+            _, depth, _, _ = load_batch(run)
+            np.testing.assert_array_equal(depth, [[0, 0], [700, 702]])
+            for i in (1, 2):
+                (run / 'rgbd' / f'frame_{i:03d}.json').unlink()
+            _, depth, _, _ = load_batch(run, min_frames=1)
+            np.testing.assert_array_equal(depth, [[0, 0], [700, 700]])
+
     def test_section_uses_tilted_table_height_and_local_radius(self):
         # A tapered cylinder: using the old 0.6H radius must yield a different target.
         theta = np.linspace(0, 2 * np.pi, 180, endpoint=False)

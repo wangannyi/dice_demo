@@ -16,6 +16,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from calibration.web.common import ROOT, pin_record, write
 from calibration.web.service import Conflict, Service
+from calibration.web import gallery
 
 STATIC = Path(__file__).parent/'static'
 
@@ -73,7 +74,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             self.host()
             path = urlsplit(self.path)
-            if path.path in ('/', '/app.js', '/style.css'):
+            if path.path in ('/', '/app.js', '/gallery.js', '/style.css'):
                 file = STATIC/('index.html' if path.path == '/' else path.path[1:])
                 self.send(200, file.read_bytes(), mimetypes.guess_type(file)[0]+'; charset=utf-8')
                 return
@@ -85,6 +86,13 @@ class Handler(BaseHTTPRequestHandler):
             elif path.path == '/api/image':
                 query = parse_qs(path.query)
                 file = self.server.service.image_path(query.get('kind', ['preview'])[0], query.get('job', [None])[0])
+                self.send(200, file.read_bytes(), mimetypes.guess_type(file)[0])
+            elif path.path == '/api/samples':
+                self.send(200, gallery.catalog(self.server.service), cookie=token)
+            elif path.path == '/api/sample-file':
+                query = parse_qs(path.query)
+                file = gallery.asset(self.server.service, **{
+                    key: query.get(key, [''])[0] for key in ('sample', 'frame', 'key', 'kind')})
                 self.send(200, file.read_bytes(), mimetypes.guess_type(file)[0])
             elif path.path == '/api/result':
                 file = self.server.service.selected('result')

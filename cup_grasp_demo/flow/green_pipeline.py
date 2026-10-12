@@ -199,8 +199,9 @@ def validate(cfg):
     from vision.geometry.circle_rim import height_options
     height_options(p)
     if p.get("geometry_method") == "stereo_rim":
-        from vision.geometry.circle_rim import quality_options
+        from vision.geometry.circle_rim import quality_options, workspace_options
         quality_options(p.get("stereo_rim"))
+        workspace_options(p.get("red_workspace"))
     return g
 
 

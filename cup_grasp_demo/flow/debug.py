@@ -56,9 +56,13 @@ def bridge(command, output, cfg, request=None):
     return read_json(output)
 
 
-def capture_rgbd(output, cfg, *, frames=5):
+def capture_rgbd(output, cfg, *, frames=5, warmup_frames=None, unique_warmup=False):
     from cup_grasp_demo.flow.green_capture import capture_arguments
     extra = capture_arguments(cfg)
+    if warmup_frames is not None:
+        extra += ['--warmup-frames', str(warmup_frames)]
+    if unique_warmup:
+        extra += ['--unique-warmup']
     subprocess.run([sys.executable, str(ROOT / 'vision/capture/realsense_session.py'),
                     '--serial', cfg['serial'], '--frames', str(frames), '--output', str(output), *extra],
                    cwd=ROOT, check=True)

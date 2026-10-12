@@ -105,7 +105,10 @@ def load_batch(dataset, *, min_frames=3):
         if meta['depth_registered_to'] != 'color_optical':
             raise ValueError('Depth must be registered to color')
     stack = np.array([np.load(p.with_suffix('.npz'))['depth'].astype(float) for p in frames])
-    stack[stack == 0] = np.nan
+    # Z16 zero and saturated depth are missing measurements, not surfaces.
+    # Filter before the median: a valid value mixed with 65535 would otherwise
+    # become a fictitious surface tens of metres away.
+    stack[(stack <= 0) | (stack >= 65535) | ~np.isfinite(stack)] = np.nan
     if len(frames) == 1:
         # The median of one sample is that sample; avoid per-pixel masked
         # sorting and all-NaN warnings at missing-depth pixels in FAST mode.

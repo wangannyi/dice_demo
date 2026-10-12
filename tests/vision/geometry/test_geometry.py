@@ -102,6 +102,9 @@ class GeometryTests(unittest.TestCase):
         np.testing.assert_allclose(points[-1], [.01, .01, 1])
         points = deproject(np.full((2, 2), 1000, dtype=np.uint16), mask, intr, .0001)
         np.testing.assert_allclose(points[-1], [.001, .001, .1])
+        points = deproject(np.array([[0, 65535], [1000, 65535]], dtype=np.uint16),
+                           mask, intr, .001)
+        np.testing.assert_allclose(points, [[0, .01, 1]])
         intr['dist_coeffs'][0] = .01
         with self.assertRaisesRegex(ValueError, 'rectify'):
             deproject(np.ones((2, 2)), mask, intr, .001)
@@ -130,6 +133,13 @@ class GeometryTests(unittest.TestCase):
 
 
 class PlaneRefinementTest(unittest.TestCase):
+    def test_missing_depth_cannot_produce_a_table(self):
+        from vision.geometry.table_plane import _plane, Config
+        for count in (0, 2, 99):
+            with self.subTest(count=count), self.assertRaisesRegex(
+                    ValueError, 'table_plane_insufficient_valid_depth'):
+                _plane(np.zeros((count, 3)), Config())
+
     def test_refine_before_support_gate(self):
         from unittest.mock import Mock, patch
         from vision.geometry.table_plane import _plane, Config

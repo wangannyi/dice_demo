@@ -36,6 +36,8 @@ def argument_parser():
     parser.add_argument('--stereo', action='store_true', help='Save both calibrated IR streams')
     parser.add_argument('--fps', type=int, default=15, choices=(6, 15, 30))
     parser.add_argument('--warmup-frames', type=int, default=20, choices=range(1, 61))
+    parser.add_argument('--unique-warmup', action='store_true',
+                        help='Count advancing RGB/depth/IR sets during warmup')
     parser.add_argument('--fresh-discard-frames', type=int, default=2, choices=range(0, 6))
     return parser
 

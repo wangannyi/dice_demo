@@ -33,56 +33,56 @@ const workflows = {
   restore: ["inspect", "restore", "apply"],
 };
 const copy = {
-  home: ["回 HOME，为后续登记做准备", "机械臂按配置的低速回到 HOME，确认到位并静止后结束。不改变手指状态。请确认回程路径畅通，工作区无人，急停可及。", "回 HOME", []],
+  home: ["回 HOME", "机械臂回到 HOME，灵巧手归零。", "回 HOME", []],
   inspect: [
     "准备设备与工作区",
-    "先退出占用设备的程序。连接检查只读取图像和关节反馈，不驱动机械臂。",
+    "退出占用设备的程序，再检查连接。检查时机械臂不移动。",
     "连接并检查设备",
     [
-      "已正常退出摇骰子程序和其他相机、机械臂控制会话",
+      "已退出其他设备控制程序",
       "相机已固定，连接线不会被机械臂拉扯",
     ],
   ],
   first: [
     "手动示教并保存姿态",
-    "使用现场既有的手动示教方式移动机械臂，每次停稳后点击“保存当前姿态”。建议 15–20 个不同姿态，至少 12 个，并绕至少两个轴改变朝向。此步骤不驱动机械臂。",
+    "手动调整姿态，停稳后保存。至少 12 组，建议 15–20 组，并改变位置与朝向。",
     "开始手动采样",
     [
-      "末端 ChArUco 板已刚性固定，桌面同型板已遮挡",
-      "已确认手动示教方式，整块末端板在画面中可见",
+      "末端标定板已固定，桌面板已遮挡",
+      "已确认示教方式，整块末端板清晰可见",
     ],
   ],
   window: [
     "设定整板可见范围",
-    "在下方首张采样图上绘制范围，覆盖全部示教姿态中的整块标定板。保存后，下一步生成路线。",
+    "框选所有示教姿态中标定板的可见范围，然后保存。",
     "在下方保存范围",
     [],
   ],
   plan: [
     "生成自动采样路线",
-    "根据示教时逐帧记录的关节路径生成路线。只计算，不驱动机械臂。修改可见范围后需要重新生成。",
+    "根据示教记录生成路线。修改可见范围后需重新生成。",
     "生成路线",
     [],
   ],
   auto: [
-    "回 HOME，然后自动采样",
-    "机械臂先回到 HOME，再沿示教路线逐点采样。完成后自动求解并回 HOME，确认到位、静止后再登记固定板。不自动应用结果。路线检查不包含环境碰撞检查。",
+    "自动采样",
+    "沿示教路线采样，完成后回 HOME 并将灵巧手归零。开始时无需看见标定板。",
     "开始自动标定",
     [
       "末端板安装关系与示教时一致，桌面板已遮挡",
-      "当前整块末端板可见；HOME 往返路径和示教路线已经现场检查",
+      "已检查 HOME 和采样路线；各采样点整板可见",
       "相机、基座和周围障碍物的位置与示教时一致",
     ],
   ],
   register: [
     "登记桌面固定板",
-    "保持相机与基座不动，露出固定桌面板。此步骤只拍摄，为以后相机位置变化时恢复外参建立依据。",
+    "露出桌面固定板，保持相机与基座不动。",
     "登记固定板",
     ["桌面固定板已露出且不会移动", "相机与机械臂基座自本次标定后未移动"],
   ],
   restore: [
     "通过固定板恢复相机位置",
-    "适用于只有相机位置发生变化的情况。机械臂先回 HOME，再观测固定板；基座或固定板移动过，应选择“首次安装”。",
+    "先回 HOME，再拍摄固定板。基座或固定板移动过，请选择“首次安装”。",
     "开始恢复",
     [
       "基座和桌面固定板自登记后没有移动",
@@ -92,7 +92,7 @@ const copy = {
   ],
   apply: [
     "应用结果并登记桌面",
-    "先备份现有配置，再安装标定并拍摄桌面。请拆除末端板，人工确认机械臂处于 HOME，并露出红布桌面；本步骤不移动机械臂。",
+    "拆除末端板，确认机械臂在 HOME，露出红布桌面。",
     "应用并登记桌面",
     [
       "末端标定板已拆除，机械臂已在 HOME",
@@ -102,16 +102,16 @@ const copy = {
   ],
   table: [
     "重新登记桌面",
-    "上次桌面登记失败时，保留运行限制。调整桌面后重试，成功前不能将配置视为可用。",
+    "调整桌面后重试，登记成功后才可使用。",
     "重试桌面登记",
     ["末端板已拆除，机械臂已在 HOME，红布桌面已露出"],
   ],
 };
 const titles = { first: "首次安装", auto: "重新标定", restore: "相机位置变了" };
 const subtitles = {
-  first: "跟随引导完成示教、采样和验证，让相机准确定位机械臂周围的物体。",
-  auto: "复用已记录的安全示教路线，重新采样、检查精度并应用结果。",
-  restore: "保持基座和桌面固定板不动，通过固定板恢复相机与机械臂的位置关系。",
+  first: "按步骤完成示教、采样和标定。",
+  auto: "沿已保存的路线重新标定。",
+  restore: "通过桌面固定板恢复相机位置。",
 };
 function text(id, value) {
   if ($(id).textContent !== String(value)) $(id).textContent = value;
@@ -225,7 +225,7 @@ function completionFor(action) {
   if (!state || state.active || state.recovery_required) return null;
   if (["auto", "register", "apply"].includes(action) && state.state?.home_required) return null;
   if (action === "inspect") return state.inspection_ready && !state.busy.length
-    ? { title: "设备检查已完成", message: "相机与七轴反馈正常，设备已释放。" } : null;
+    ? { title: "设备检查已完成", message: "设备已就绪，可进入下一步。" } : null;
   if (action === "window") return state.state?.teaching_dataset && state.actions.plan?.ready
     ? { title: "可见范围已保存", message: "请继续生成自动采样路线。" } : null;
   const attempts = state.jobs || [];
@@ -243,9 +243,9 @@ function completionFor(action) {
   if (!artifacts[action]) return null;
   const messages = {
     first: ["示教与求解已完成", "采样数据已保存。请继续绘制可见范围。"],
-    plan: ["采样路线已生成", "本次路线计算已完成，请进入自动采样并核对现场条件。"],
-    auto: ["自动采样与求解已完成", "本次采样和标定结果已保存，尚未自动应用。"],
-    register: ["固定板登记已完成", "固定板信息已保存，请继续应用结果并登记桌面。"],
+    plan: ["采样路线已生成", "请进入自动采样。"],
+    auto: ["自动采样与求解已完成", "结果已保存，尚未应用。"],
+    register: ["固定板登记已完成", "请继续应用结果并登记桌面。"],
     restore: ["相机位置恢复已完成", "恢复结果已保存，尚未自动应用。"],
     apply: ["本次标定流程已完成", "标定结果已应用，桌面登记已完成。"],
   };
@@ -258,11 +258,13 @@ function renderCompletion(action) {
   if (done) {
     text("completion-title", "✓ " + done.title);
     let message = done.message;
-    if (action === "auto" && state.state?.home_return?.confirmed) message += " 已回 HOME 并确认静止。";
+    if (action === "auto" && state.state?.home_return?.confirmed) {
+      message += " 已回 HOME 并确认静止。";
+      if (state.state?.hand_home?.command_sent) message += " 灵巧手归零指令已发送。";
+    }
     if (["first", "auto", "restore"].includes(action) && state.result) {
       const r = state.result;
-      message += ` ${r.sample_count} 组样本，最大位置误差 ${r.max_position_mm?.toFixed(2) ?? "未知"} mm，最大角度误差 ${r.max_angle_deg?.toFixed(2) ?? "未知"}°。`;
-      message += r.quality_passed ? "误差通过当前门槛。" : "误差未通过门槛；关键步骤仍需管理员批准。";
+      message += r.quality_passed ? " 误差达标。" : " 误差未达标，临时使用需管理员批准。";
     }
     text("completion-message", message);
   }
@@ -289,41 +291,42 @@ function renderControls() {
   const completed = renderCompletion(action);
   if (completed) badge("job-badge", "本次操作已完成", "good");
   text("step-title", completed ? completed.title : copy[action][0]);
-  text("step-description", completed ? "本次操作已完成。下方准备事项仅在需要重新执行时核对。" : copy[action][1]);
-  const sourceSummary = readiness?.source?.summary;
-  $("quality-policy").hidden = !sourceSummary || !!completed;
-  if (sourceSummary)
-    text("quality-policy", `当前验收门槛：${sourceSummary.thresholds.position_m * 1000} mm / ${sourceSummary.thresholds.angle_deg}°。本步骤参考误差：${sourceSummary.max_position_mm?.toFixed(2) ?? "未知"} mm / ${sourceSummary.max_angle_deg?.toFixed(2) ?? "未知"}°。`);
+  text("step-description", completed ? "本步骤已完成。" : copy[action][1]);
+  $("quality-policy").hidden = true;
   const hardware = !["plan", "window", "solve"].includes(action);
   const inspectionReady = action === "inspect" && state.inspection_ready && !active && !state.busy.length;
   let reason = "";
   if (state.readonly) reason = "当前为只读界面预览，不执行标定。";
   else if (pendingInspectionAdvance && active)
-    reason = "正在结束检查并释放设备；收到静止反馈后将进入下一步。";
+    reason = "正在完成检查，请稍候。";
   else if (action === "inspect" && state.inspection_connected)
     reason = own
-      ? "设备连接已完成：实时图像和七轴关节反馈正常。可继续预览，或点击“完成检查并进入下一步”。"
-      : "设备连接已完成：实时图像和七轴关节反馈正常。请在启动检查的页面继续操作。";
+      ? "设备已连接，请点击“完成检查并进入下一步”。"
+      : "设备已连接，请在原控制页面继续。";
   else if (active)
     reason = own
-      ? "作业正在进行。请保持此控制页面连接。"
+      ? "正在操作，请保持页面连接。"
       : "其他页面正在控制标定。此页面仅查看状态。";
   else if (hardware && state.busy.length)
     reason = "设备被其他程序占用，请先正常退出原程序，再点击“重新检测”。";
   else if (state.recovery_required && hardware && action !== "inspect")
     reason = "上次设备状态未确认，请先完成设备检查。";
   else if (state.state?.home_required && ["auto", "register", "apply"].includes(action))
-    reason = "需要先回 HOME。已保存的数据和结果保留，请点击下方“回 HOME”完成到位检查。";
+    reason = state.state?.hand_home_required
+      ? "灵巧手归零指令未完成，请重试回 HOME。"
+      : state.state?.home_check?.at_home === false
+      ? "尚未到 HOME，请回 HOME 后继续。"
+      : "HOME 状态待确认，请重新检查设备。";
   else if (readiness && !readiness.ready) reason = readiness.reason;
-  else if (inspectionReady) reason = "准备工作已就绪：相机与机械臂反馈检查完成，设备已释放。请点击“进入下一步”。";
+  else if (inspectionReady) reason = "设备已就绪，请进入下一步。";
   else if (completed) reason = "";
-  else if (!prepared()) reason = "请逐项核对并勾选以上现场准备事项。";
+  else if (!prepared()) reason = (state.state?.home_check?.at_home ? "已确认在 HOME。" : "") + "请勾选准备事项。";
   else if (action === "window")
-    reason = "可见范围用于判断整块板是否可见，不用于排除其他同型板。";
+    reason = "请框选并保存可见范围。";
   else if (readiness?.source?.approval_required)
-    reason = "此关键步骤需要管理员确认一次当前结果；批准后，后续步骤自动复用。";
+    reason = "当前结果需要管理员批准。";
   else if (readiness?.source?.approved && !readiness.source.quality_passed)
-    reason = "管理员已批准临时使用当前结果，可继续操作，无需重复确认。";
+    reason = "管理员已批准临时使用，可继续。";
   text("prerequisite", reason);
   $("prerequisite").classList.toggle("ready-notice", !!inspectionReady || (action === "inspect" && state.inspection_connected));
   text("start-action", completed ? ({inspect: "重新检查设备", first: "重新示教", plan: "重新生成路线", auto: "重新自动标定", register: "重新登记固定板", restore: "重新恢复位置", apply: "重新应用并登记桌面"}[action] || copy[action]?.[2]) : copy[action]?.[2]);
@@ -384,11 +387,10 @@ function render() {
   else if (state.busy.length)
     notice =
       "设备占用中 · " +
-      state.busy.map((p) => "PID " + p.pid).join(" / ") +
-      "。请正常退出原程序后重新检测，本工具不会停止其他服务。";
+      "请退出占用程序后重新检测。";
   else if (state.recovery_required)
     notice =
-      "需要现场检查设备。完成“连接并检查设备”并取得静止反馈后，才能再次标定。";
+      "请先完成设备检查，再继续标定。";
   text("global-notice", notice);
   $("global-notice").hidden = !notice;
   const job = state.job,
@@ -425,18 +427,21 @@ function render() {
   if (job?.needs_device_check)
     text(
       "stop-status",
-      "未确认设备已安全停止或释放。请现场检查，必要时使用硬件急停；完成设备检查后才能再次标定。",
+      "未确认停止，请现场检查，必要时使用硬件急停。",
     );
   else if (job?.error)
     text(
       "stop-status",
-      job.error +
+      operatorFailure(job.error) +
         (job.stop?.confirmed
-          ? " · 已收到静止反馈。"
+          ? " · 机械臂已停止。"
           : " · 未确认机械臂停止，请现场检查。"),
     );
   else if (job?.status === "stopping")
-    text("stop-status", "停止请求已发送；正在等待清理和新鲜静止反馈。");
+    text("stop-status", "正在停止，请等待确认。");
+  else if (job?.status === "completed" && ["home", "auto"].includes(job.action) &&
+      state.state?.home_return?.confirmed && state.state?.hand_home?.command_sent)
+    text("stop-status", "机械臂已回 HOME，灵巧手归零指令已发送。");
   else
     text(
       "stop-status",
@@ -491,31 +496,59 @@ function render() {
   text(
     "detection-reason",
     freshDetection && !detection.detected
-      ? detection.reason
+      ? "标定板未识别，请检查是否清晰可见。"
       : "采手眼数据时，末端板必须固定牢固，并遮挡桌面固定板。",
   );
   $("progress-area").hidden = !state.active || job?.action === "inspect";
-  const returningHome = job?.action === "home" || job?.stage?.script === "web_home_return";
-  $("progress-area").querySelector("label").hidden = returningHome;
-  $("sample-progress").hidden = returningHome;
-  const total = progress?.total || 20,
-    count = progress?.accepted || 0;
-  $("sample-progress").max = total;
-  $("sample-progress").value = count;
-  text("progress-label", `${count} / ${total}`);
-  text(
-    "progress-message",
-    progress?.message ||
-      { HOME: "正在回 HOME", READY: "正在检查末端板与示教安装" }[
-        progress?.phase
-      ] ||
-      progress?.phase ||
-      "正在准备设备…",
-  );
+  const display = jobProgress(job);
+  $("progress-area").querySelector("label").hidden = !display.counted;
+  $("sample-progress").hidden = !display.counted;
+  $("sample-progress").max = display.total || 1;
+  $("sample-progress").value = display.count;
+  text("progress-label", display.counted ? `${display.count} / ${display.total}` : "");
+  text("progress-message", display.message);
   renderControls();
   renderResult();
+  window.calibrationGallery?.update(state);
   renderLiveRange();
   renderHistory();
+}
+function operatorFailure(error) {
+  const value = String(error || "");
+  if (/no fresh .*Revo2 position feedback|missing Revo2 position timestamp/i.test(value))
+    return "未收到手指位置反馈，请检查灵巧手通信。";
+  if (/Revo2|灵巧手|手指/i.test(value)) return "灵巧手复位未完成，请检查连接和活动空间后重试。";
+  if (/ChArUco|corners|markers|标定板/i.test(value)) return "标定板识别失败，请调整画面后重试。";
+  if (/camera|RealSense|相机/i.test(value)) return "相机连接异常，请检查后重试。";
+  return "操作未完成，请查看“操作记录与诊断”。";
+}
+function jobProgress(job) {
+  const progress = job?.progress || {}, action = job?.action;
+  const script = job?.stage?.script;
+  const home = action === "home" || script === "web_home_return" ||
+    ["HOME", "HAND_HOME", "HAND_COMMAND_SENT", "RETURN_HOME", "HOME_READY"].includes(progress.phase);
+  const table = action === "apply" || action === "table";
+  const total = progress.total;
+  // Only automatic hand-eye sampling reports a known number of target poses.
+  const counted = action === "auto" && !home &&
+    script === "calibration/auto_collect.py" && Number.isInteger(total) && total > 0;
+  const count = Number.isInteger(progress.accepted) && progress.accepted >= 0 ? progress.accepted : 0;
+  const tableStages = {
+    "calibration/apply_result.py": "正在应用标定结果…",
+    "calibration/tools/table_capture.py": "正在拍摄桌面并拟合桌面平面…",
+    "calibration/tools/register_home_table.py": "正在保存桌面配置…",
+  };
+  const message = table
+    ? tableStages[script] || (action === "apply" ? "正在备份配置并准备应用结果…" : "正在准备桌面拍摄…")
+    : { HOME: "正在回 HOME…", RETURN_HOME: "正在回 HOME…", HAND_HOME: "正在将灵巧手归零…",
+        HAND_COMMAND_SENT: "灵巧手归零指令已发送。", HOME_READY: "已回 HOME，灵巧手归零指令已发送。", READY: "正在准备采样…", ACCEPTED: "样本已保存，继续采样…" }[progress.phase] ||
+      (action === "first" && ["sampling", "capturing"].includes(progress.phase)
+        ? progress.last_accepted === false ? "样本未保存，请调整姿态后重试。"
+          : progress.phase === "capturing" ? "正在采样，请保持静止…" : `已保存 ${count} 组手眼样本`
+        : /^MOVING to sample \d+$/.test(progress.phase || "") ? "正在前往下一采样点…"
+          : script === "calibration/calibrate.py" || script === "calibration/tools/reprocess_dimensions.py" ? "正在计算标定结果…"
+            : "正在处理，请稍候…");
+  return {counted, total: counted ? total : null, count, message};
 }
 function liveRangeGeometry(v, frame, imageWidth, imageHeight) {
   if (!v?.available || !v.live_compatible || !frame ||
@@ -534,8 +567,7 @@ function renderLiveRange() {
     $("live-range").setAttribute("viewBox", geometry.viewBox);
     for (const key of ["x", "y", "width", "height"])
       $("live-range-box").setAttribute(key, geometry[key]);
-    const [x0, y0, x1, y1] = v.window_xyxy;
-    text("live-range-caption", `绿色框：已保存可见范围 (${x0}, ${y0}) → (${x1}, ${y1})${!state.active ? " · 叠加在最后一帧上" : ""}`);
+    text("live-range-caption", `绿色框：标定可见范围${!state.active ? "（最后一帧）" : ""}`);
   } else {
     text("live-range-caption", !v?.available ? "尚未保存标定可见范围。" : !frame
       ? "连接相机后，将在视频中显示绿色可见范围框。"
@@ -557,7 +589,7 @@ function renderResult() {
     return;
   }
   text("result-context", state.active && ["first", "auto", "restore", "solve"].includes(state.job?.action)
-    ? "正在生成新结果；下方为上一次完成的标定结果。" : "当前已保存的标定结果 · 每组误差如下");
+    ? "正在标定，下方为上次结果。" : "当前已保存的标定结果");
   const positionLimit = r.thresholds?.position_m ?? 0.005,
     angleLimit = r.thresholds?.angle_deg ?? 2;
   text("position-threshold", `门槛 ≤ ${positionLimit * 1000} mm`);
@@ -592,10 +624,10 @@ function renderResult() {
   text(
     "result-message",
     r.data.extrinsic_method === "fixed_reference_restore"
-      ? "当前结果由固定板恢复。以下残差继承自原手眼标定，不代表恢复后的独立精度验证。"
+      ? "相机位置已恢复。误差来自原标定，本次未独立验证精度。"
       : r.quality_passed
-        ? "留出验证和全部样本拟合均通过当前门槛。请继续完成固定板登记、应用及桌面登记。"
-        : "求解已产生结果，但误差超过门槛。建议检查板安装、实际尺寸和姿态分布后重新标定；临时使用由管理员在关键步骤批准一次，后续步骤复用。",
+        ? "误差达标，请继续后续步骤。"
+        : "误差未达标，建议重新标定；临时使用需管理员批准。",
   );
   const resultKey = `${r.sha256}:${positionLimit}:${angleLimit}`;
   if (lastResultHash !== resultKey) {
@@ -693,7 +725,9 @@ function renderHistory() {
   }
   table.append(tbody);
   $("history").replaceChildren(table);
-  text("job-log", state.job?.log || "尚无作业日志。");
+  text("job-log", [state.job?.error, state.job?.detection?.reason,
+    state.job?.progress && JSON.stringify(state.job.progress, null, 2), state.job?.log,
+    state.busy.length ? JSON.stringify(state.busy, null, 2) : null].filter(Boolean).join("\n\n") || "尚无作业日志。");
 }
 async function prepareAction(action) {
   showError("");
@@ -723,8 +757,8 @@ async function prepareAction(action) {
   text(
     "quality-detail",
     summary
-      ? `源结果未达标。最大位置误差 ${summary.max_position_mm?.toFixed(2) ?? "未知"} mm，最大角度误差 ${summary.max_angle_deg?.toFixed(2) ?? "未知"}°。该结果门槛为 ${(summary.thresholds?.position_m ?? 0.005) * 1000} mm / ${summary.thresholds?.angle_deg ?? 2}°。`
-      : "固定板登记继承了未达标的源标定；本次恢复不会使其变成达标结果。",
+      ? `误差未达标：位置 ${summary.max_position_mm?.toFixed(2) ?? "未知"} mm，最大角度误差 ${summary.max_angle_deg?.toFixed(2) ?? "未知"}°。该结果门槛为 ${(summary.thresholds?.position_m ?? 0.005) * 1000} mm / ${summary.thresholds?.angle_deg ?? 2}°。`
+      : "原标定未达标，本次恢复后仍需管理员批准。",
   );
   $("confirm-dialog").showModal();
 }

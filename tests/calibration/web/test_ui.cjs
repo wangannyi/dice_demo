@@ -51,3 +51,52 @@ assert.equal(geometry(visibility,null),null);
 assert.equal(geometry(visibility,{width:1280,height:720}),null);
 assert.equal(geometry(visibility,{width:960,height:720},1280,720),null);
 console.log('6 live overlay geometry checks passed');
+const progressSource = source.slice(source.indexOf('function jobProgress('), source.indexOf('function liveRangeGeometry('));
+function progress(job) {
+  return runInNewContext(progressSource + '\njobProgress(job)', {job});
+}
+for (const action of ['apply', 'table']) {
+  for (const [script, message] of [
+    ['calibration/apply_result.py', '正在应用标定结果…'],
+    ['calibration/tools/table_capture.py', '正在拍摄桌面并拟合桌面平面…'],
+    ['calibration/tools/register_home_table.py', '正在保存桌面配置…'],
+  ]) {
+    const p = progress({action, stage: {script}, progress: {total:20, accepted:0, message:'旧采样进度'}});
+    assert.equal(p.counted, false);
+    assert.equal(p.total, null);
+    assert.equal(p.message, message);
+  }
+  assert.equal(progress({action}).counted, false);
+}
+const auto = {action:'auto',stage:{script:'calibration/auto_collect.py'}};
+assert.equal(progress(auto).counted, false);
+for (const total of [0, -1, NaN, Infinity, '20']) {
+  assert.equal(progress({...auto,progress:{total}}).counted, false);
+}
+const sampling = progress({...auto,progress:{total:12,accepted:7,phase:'ACCEPTED'}});
+assert.equal(sampling.counted, true);
+assert.equal(sampling.total, 12);
+assert.equal(sampling.count, 7);
+for (const phase of ['HOME', 'HAND_HOME', 'HAND_COMMAND_SENT', 'RETURN_HOME', 'HOME_READY']) {
+  assert.equal(progress({...auto,progress:{total:20,phase}}).counted, false);
+}
+for (const script of ['web_home_return','calibration/calibrate.py','calibration/tools/reprocess_dimensions.py']) {
+  assert.equal(progress({...auto,stage:{script},progress:{total:20}}).counted, false);
+}
+for (const action of ['inspect','home','register','restore','plan','solve','first']) {
+  assert.equal(progress({action,progress:{total:20}}).counted, false);
+}
+assert.equal(progress({action:'first',progress:{phase:'sampling',accepted:4}}).message, '已保存 4 组手眼样本');
+console.log('Job progress checks passed: table stages, real auto totals, manual capture and HOME');
+assert.equal(progress({...auto,progress:{phase:'MOVING to sample 7',total:20,accepted:6}}).message, '正在前往下一采样点…');
+assert.equal(progress({action:'home',progress:{phase:'HAND_HOME',message:'internal details'}}).message, '正在将灵巧手归零…');
+assert.equal(progress({action:'first',progress:{phase:'sampling',accepted:4,last_accepted:false,message:'Traceback'}}).message, '样本未保存，请调整姿态后重试。');
+assert.equal(progress({action:'solve',progress:{phase:'internal debug value'}}).message, '正在处理，请稍候…');
+const failureSource = source.slice(source.indexOf('function operatorFailure('), source.indexOf('function jobProgress('));
+function failure(error) { return runInNewContext(failureSource + '\noperatorFailure(error)', {error}); }
+assert.equal(failure('no fresh HOME Revo2 position feedback within 2s'), '未收到手指位置反馈，请检查灵巧手通信。');
+assert.match(failure('未确认灵巧手六路归零；请检查手指反馈后重试回 HOME'), /灵巧手复位未完成/);
+assert.match(failure('Too few ChArUco corners'), /标定板识别失败/);
+assert.match(failure('RealSense disconnected'), /相机连接异常/);
+assert.match(failure('Traceback: /tmp/private/session'), /操作记录与诊断/);
+console.log('Concise operator message checks passed');

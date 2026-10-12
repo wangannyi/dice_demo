@@ -2,7 +2,6 @@
 import json
 import tempfile
 import unittest
-import warnings
 from pathlib import Path
 from unittest.mock import patch
 import cv2
@@ -20,16 +19,13 @@ class SingleFrameDepthTests(unittest.TestCase):
             np.savez(prefix.with_suffix('.npz'),depth=depth,
                      color=np.zeros((*depth.shape,3),np.uint8))
 
-    def test_single_frame_matches_nanmedian_without_computing_it(self):
+    def test_single_frame_filters_invalid_depth_without_computing_median(self):
         depth=np.array([[0,123,65535],[np.nan,np.inf,-np.inf]],dtype=float)
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);self.dataset(root,[depth])
-            stack=depth[None].copy();stack[stack==0]=np.nan
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore');expected=np.nan_to_num(np.nanmedian(stack,axis=0))
             with patch('numpy.nanmedian',side_effect=AssertionError('single frame needs no median')):
                 _,actual,_,_=load_batch(root,min_frames=1)
-            np.testing.assert_array_equal(actual,expected)
+            np.testing.assert_array_equal(actual,[[0,123,0],[0,0,0]])
             with self.assertRaises(ValueError):load_batch(root)
 
     def test_multiple_frames_still_ignore_missing_depth(self):
