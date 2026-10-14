@@ -141,6 +141,60 @@ class ControlSessionTest(unittest.TestCase):
         flow._snapshot_cache = None
         return flow
 
+    def test_terminal_and_json_commands_share_phases_and_reset(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            output = io.StringIO()
+            incoming = io.StringIO(
+                '\nnext\nuntil grip\nrun\ng\n'
+                '{"id":"step","command":"advance"}\n'
+                '{"id":"step","command":"advance"}\nquit\n')
+            server = control.ControlSession(
+                flow, Path(directory) / 'state.json', incoming, output, io.StringIO())
+            self.assertEqual(server.serve(), 0)
+            self.assertEqual([call.args[0] for call in flow.perform.call_args_list],
+                             list(control.PHASES) * 2 + ['HOME'])
+            reports = events(output)
+            self.assertEqual(sum(e['event'] == 'run_completed' for e in reports), 2)
+            self.assertEqual([e['code'] for e in reports if e['event'] == 'rejected'],
+                             ['duplicate_id'])
+            self.assertEqual(reports[-1]['event'], 'closed')
+
+    def test_terminal_errors_help_and_blank_lines_never_move(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            output = io.StringIO()
+            incoming = io.StringIO(
+                '\n \nhelp\n?\nstatus\nactions\nrun extra\nuntil\n'
+                'action\nuntil typo\n{"command":\nnull\n[]\n23\nquit\n')
+            server = control.ControlSession(
+                flow, Path(directory) / 'state.json', incoming, output, io.StringIO())
+            self.assertEqual(server.serve(), 0)
+            flow.perform.assert_not_called()
+            reports = events(output)
+            self.assertEqual(sum(e['event'] == 'help' for e in reports), 2)
+            self.assertCountEqual([e['code'] for e in reports if e['event'] == 'rejected'],
+                             ['invalid_command'] * 3 + ['invalid_phase', 'invalid_json']
+                             + ['invalid_request'] * 3)
+
+    def test_terminal_action_keeps_flow_guard_and_json_id(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = self.fake_flow()
+            output = io.StringIO()
+            action = Mock(return_value=dict(name='rock'))
+            server = control.ControlSession(
+                flow, Path(directory) / 'state.json', io.StringIO(
+                    'action rock\nnext\nhome\naction rock\nuntil home\n'
+                    '{"id":"finish","command":"advance","until":"RETURN_HOME"}\nq\n'),
+                output, io.StringIO(), actions=('home', 'rock'), run_action=action)
+            self.assertEqual(server.serve(), 0)
+            action.assert_called_once_with('rock')
+            reports = events(output)
+            self.assertEqual([e['code'] for e in reports if e['event'] == 'rejected'],
+                             ['flow_in_progress', 'flow_in_progress', 'already_completed'])
+            self.assertTrue(any(e['event'] == 'command_completed' and e['id'] == 'finish'
+                                for e in reports))
+
     def test_waits_after_target_and_advances_only_on_next_command(self):
         with tempfile.TemporaryDirectory() as directory:
             flow = self.fake_flow()

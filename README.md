@@ -73,9 +73,12 @@ bash run.sh fast
 # 连续完成抓杯、摇晃、放杯和归位
 bash run.sh fast --execute
 
-# 常驻进程，由上层逐阶段调度
+# 常驻进程，支持手动简短命令及上层 JSON 调度
 bash run.sh control --execute
 ```
+
+`control` 就绪后，在同一终端输入 `run` 并回车可完成一轮；输入 `next` 只执行下一阶段。
+`status` 查看状态，`help` 显示全部命令，`quit` 在当前命令完成后退出。
 
 默认配置和会话目录：
 
@@ -97,7 +100,7 @@ bash run.sh fast --execute
 | 模式 | 用途 |
 | --- | --- |
 | `fast` | 一次连续执行到目标阶段，复用 SDK、相机和模型 |
-| `control` | 进程常驻，通过逐行 JSON 命令推进阶段 |
+| `control` | 进程常驻，通过简短命令或逐行 JSON 推进阶段 |
 
 分阶段停止与单项测试见[调试指南](docs/DEBUG.md#2-分阶段运行)；常驻进程协议见[接入文档](docs/INTEGRATION.md)。
 

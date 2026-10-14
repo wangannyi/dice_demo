@@ -1,4 +1,4 @@
-"""JSON-lines control for one persistent green-cup pipeline process.
+"""JSON-lines and terminal control for one persistent green-cup pipeline process.
 
 The resident process is a ready-state dispatcher over one SDK/CAN connection:
 static actions (gestures, HOME) dispatch directly whenever the grasp flow is
@@ -16,6 +16,7 @@ import threading
 import time
 
 from cup_grasp_demo.flow.core import cached_screen_geometry
+from cup_grasp_demo.flow.control_commands import HELP, parse_command
 from cup_grasp_demo.flow.green_pipeline import PHASES, Workflow
 from cup_grasp_demo.flow.core import save
 from cup_grasp_demo.flow.session_storage import session_lock
@@ -299,6 +300,9 @@ class ControlSession:
                 self._reject(request_id, code, message)
                 return True
         command = request.get("command")
+        if command == "help":
+            self._reply("help", request_id, commands=list(HELP))
+            return True
         if command == "status":
             self._reply("status", request_id, completed_phases=[
                 item["phase"] for item in self.state["events"]],
@@ -410,9 +414,14 @@ class ControlSession:
                     self._reject(None, "invalid_request", "单条命令超过 4096 字符")
                     continue
                 try:
-                    request = json.loads(line)
+                    request = parse_command(line)
                 except json.JSONDecodeError:
-                    self._reject(None, "invalid_json", "每行必须是完整 JSON")
+                    self._reject(None, "invalid_json", "JSON 不完整；也可输入 help 查看简短命令")
+                    continue
+                except ValueError as error:
+                    self._reject(None, "invalid_command", str(error))
+                    continue
+                if not line.strip():
                     continue
                 if not isinstance(request, dict):
                     self._reject(None, "invalid_request", "每行必须是 JSON 对象")
@@ -422,7 +431,11 @@ class ControlSession:
                     self._reject(request_id, code, message)
                     continue
                 command = request.get("command")
-                if command == "status":
+                if command == "help":
+                    self._reply("help", request_id, commands=list(HELP))
+                    self.diagnostic.write("\n".join(HELP) + "\n")
+                    self.diagnostic.flush()
+                elif command == "status":
                     self._reply("status", request_id, completed_phases=[
                         item["phase"] for item in list(self.state["events"])],
                         state_file=str(self.state_path))
@@ -450,6 +463,9 @@ class ControlSession:
     def serve(self):
         self._reply("ready", phases=list(PHASES), actions=sorted(set(self.actions)),
                     state_file=str(self.state_path))
+        if getattr(self.incoming, "isatty", lambda: False)():
+            self.diagnostic.write("简短命令：next 下一步 / run 完整流程 / status 状态 / quit 退出 / help 帮助\n")
+            self.diagnostic.flush()
         reader = threading.Thread(target=self._reader_loop, daemon=True,
                                   name="control-reader")
         reader.start()
