@@ -10,6 +10,7 @@ import numpy as np
 
 from cup_grasp_demo.flow import green_pipeline as flow
 from cup_grasp_demo.flow.core import ROOT, load_config
+from vision.geometry.circle_rim import WorkspaceCupSelectionError
 from vision.inference.detector import YOLOOutputError, cap_outputs
 
 
@@ -99,6 +100,33 @@ class DetectionRecheckTests(unittest.TestCase):
         self.assertEqual(self.locate.call_count, 1)
         self.assertIn("Nonfinite", self.read("yolo_seg.json", True)["error"])
         self.assertTrue(self.read("green_scene.json")["valid"])
+
+    def test_new_table_colors_keep_cpu_recheck_and_reject_bad_geometry(self):
+        for color in ('green', 'gray'):
+            self.run = self.root / color
+            self.run.mkdir()
+            with self.subTest(color=color), patch.object(flow.common, 'new_run', return_value=self.run):
+                self.infer.reset_mock()
+                self.infer.side_effect = [self.prediction(0), self.prediction(1)]
+                self.locate.side_effect = [WorkspaceCupSelectionError(color),
+                                           ValueError('bad stereo edges')]
+                with self.assertRaisesRegex(ValueError, 'bad stereo edges'):
+                    self.w._capture_once()
+                self.assertEqual(self.infer.call_count, 2)
+                self.assertIn(color + ' workspace', self.read('yolo_cpu_recheck.json', True)['reason'])
+                self.assertFalse(self.read('green_scene.json')['valid'])
+
+    def test_new_table_colors_keep_one_fresh_frame_retry_only(self):
+        self.w._vision = object()
+        for color in ('green', 'gray'):
+            error = WorkspaceCupSelectionError(color)
+            with self.subTest(color=color), patch.object(self.w, '_capture_once', side_effect=[error, 'fresh']) as capture:
+                self.assertEqual(self.w.capture(), 'fresh')
+                self.assertEqual(capture.call_count, 2)
+            with patch.object(self.w, '_capture_once', side_effect=error) as capture:
+                with self.assertRaises(WorkspaceCupSelectionError):
+                    self.w.capture()
+                self.assertEqual(capture.call_count, 2)
 
     def test_successful_ai_needs_no_cpu_and_default_or_cpu_mode_never_falls_back(self):
         self.infer.return_value = self.prediction(1)

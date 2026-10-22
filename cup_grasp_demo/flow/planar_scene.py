@@ -3,9 +3,9 @@ from pathlib import Path
 import json
 import time
 
-import cv2
 from vision.capture.frame_io import load_batch
 from vision.geometry.table_plane import Config, _plane, deproject
+from vision.geometry.workspace import workspace_masks, workspace_options
 
 from cup_grasp_demo.flow import debug as common
 from cup_grasp_demo.flow.core import configured_tcp, digest, load_config, read_json
@@ -52,17 +52,19 @@ def verify(path, config_path):
 
 
 def home_scene(run, cfg):
-    """Fit the red table without requiring a visible, unoccluded cup."""
+    """Fit the configured table surface without requiring a visible cup."""
     meta, depth, image, _ = load_batch(run)
     camera, quality = common.camera_transform(meta, cfg)
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    red = (((hsv[:, :, 0] < 15) | (hsv[:, :, 0] > 165))
-           & (hsv[:, :, 1] > 70) & (hsv[:, :, 2] > 50))
+    options = workspace_options(cfg.get('green_cup', {}).get('perception', {}).get('workspace'))
+    surface, _ = workspace_masks(image, options)
+    if not surface.any():
+        raise ValueError('没有检测到配置的桌面工作区（' + options['color'] + '），请检查桌布颜色与光照')
     table, normal, fraction, rms = _plane(
-        deproject(depth, red, meta['intrinsics'], meta['depth_scale_m']),
+        deproject(depth, surface, meta['intrinsics'], meta['depth_scale_m']),
         Config(plane_tolerance_m=cfg['plane_tolerance_mm'] / 1000))
     scene = dict(cup_support_base_m=(camera[:3, :3] @ table + camera[:3, 3]).tolist(),
                  cup_normal_base=(camera[:3, :3] @ normal).tolist(),
                  cup_envelope_radius_m=0, geometry=dict(height_m=0),
-                 table_fit=dict(inlier_fraction=fraction, rms_mm=rms * 1000))
+                 table_fit=dict(inlier_fraction=fraction, rms_mm=rms * 1000),
+                 workspace=options)
     return scene, quality

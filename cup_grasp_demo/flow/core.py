@@ -86,6 +86,9 @@ def load_config(path):
     from cup_grasp_demo.flow.cup_selection import selection_options
     from cup_grasp_demo.flow.contact_geometry import contact_azimuth
     cfg = read_json(path)
+    if 'green_cup' in cfg:
+        from vision.geometry.workspace import perception_workspace
+        perception_workspace(cfg['green_cup'].get('perception', {}))
     from cup_grasp_demo.flow.cup_perception import perception_options
     if 'cup_perception' in cfg:
         cfg['cup_perception'] = perception_options(cfg)

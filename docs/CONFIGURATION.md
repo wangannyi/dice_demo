@@ -39,20 +39,51 @@
 
 主配置中的动作调参和策略中的抓取参数支持热加载，在下次独立动作或新一轮 HOME 前生效，不会修改正在执行的轨迹。相机、标定和 HOME 等受保护配置的生效规则见[参数热加载说明](HOT_RELOAD.md)。
 
-## 红色桌面工作区
+## 桌布颜色与机械臂工作区
 
 在 `configs/green_cup.json` 的 `green_cup.perception` 中修改：
 
 ```json
 {
-  "red_workspace": {"min_saturation": 50, "min_value": 50},
+  "workspace": {"color": "green", "min_saturation": 30, "min_value": 40},
   "min_workspace_fraction": 0.1
 }
 ```
 
-以上为对象内字段的节选。`red_workspace` 仅用于 `stereo_rim` 杯沿定位：色相固定选择红色（OpenCV H < 15 或 H > 165），饱和度和值分别要求严格大于 `min_saturation`、`min_value`。两项均为 0–254 的整数；未配置时保持原阈值 70、50。现场饱和度阈值设为 50，以保留反光导致饱和度降低的红色桌面。
+以上为对象内字段的节选。`workspace` 同时供标定后的桌面登记和绿杯定位使用，选择的是**机械臂侧桌布**，不是杯子颜色或玩家显示位置。绿色杯沿的 `image_rim` 参数独立保留。
 
-`min_workspace_fraction` 仍为 0.1，即杯子掩膜至少 10% 落在工作区内，且必须只选出一个杯子。颜色参数不改写已保存的手眼标定或桌面登记，但会影响杯子候选筛选，以及未指定固定桌面时的平面拟合区域。保存配置后在下一轮热加载；首次更新程序代码需要重启应用。采样目录中的 `rim_diagnostics.json` 会记录颜色阈值、工作区面积及各杯子的重叠比例。
+| `workspace.color` | 默认 OpenCV HSV 范围 | 用途 |
+| --- | --- | --- |
+| `green` | H 25–55，S > 30，V > 40 | 进迭绿桌布，设计色 `#B0E237` |
+| `gray` | H 不限，S ≤ 60，35 < V ≤ 190 | 灰色桌布，设计色 `#666666` |
+| `red` 或省略 | H 0–14 或 166–179，S > 70，V > 50 | 保持原红色桌布默认值 |
+
+相机曝光、白平衡和反光会改变 RGB，不能按设计色号精确匹配。可在 `workspace` 中覆盖 `hue_ranges`（例如 `[[25,55]]`）、`min_saturation`、`max_saturation`、`min_value`、`max_value`。H 为 0–179 的闭区间；S/V 的下限严格大于、上限小于等于。下限为 -1–254 的整数（-1 表示包含 0），上限为 0–255，且下限必须小于上限。绿／灰模式只保留最大的连通桌面，并要求可见颜色面积不少于画面 5%；`min_region_fraction` 可在 0–1 内调整。该检查防止把一只绿杯或一块灰色机器外壳误作桌面。
+
+如果桌布受照明影响偏黄，可按实际图像将 `hue_ranges` 调为 `[[20,55]]`。若反光形成与桌边相连的缺口，导致杯子被排除，可设置 `region_shape: "convex_hull"`，用最大桌面轮廓的凸包补齐选杯区域；适用于矩形等凸形工作区。默认 `contour` 保留原轮廓行为。凸包只影响杯子是否位于工作区，**不把反光缺口、杯子或阴影补成桌面深度点**，也不降低杯子唯一性、尺寸或双目质量门槛。
+
+旧 `red_workspace` 继续兼容原 `stereo_rim` 红色筛选阈值，但不影响旧版桌面登记行为。切换到新桌布时删除 `red_workspace`，只保留 `workspace`；两者同时存在会报错，避免配置冲突。仓库参考配置保留旧红布设置，绿灰现场需显式选择新模式。
+
+`min_workspace_fraction` 仍为 0.1，即杯子掩膜至少 10% 落在工作区内，且必须只选出一个杯子。颜色配置不改写已保存的手眼标定，不降低深度和平面质量门槛。换桌布后在标定网页重新登记桌面；若手眼结果已安装而桌面登记失败，可使用 `bash calibrate.sh table` 补做桌面登记，无需重新采样。保存配置后在下一轮热加载；首次更新程序代码需要重启应用。采样目录中的 `rim_diagnostics.json` 的 `workspace` 字段记录颜色阈值、工作区面积及各杯子的重叠比例。
+
+游戏主仓库的 USB 摄像头使用独立配置 `backend/games/dice/adjudicator_config.json`：设置 `divider_colors: "green_gray"` 识别绿灰两侧分界。它不替代此处深度相机的桌面配置，也不改变 `display.player_side` 或判决归属。
+
+## 暗光下的双目杯沿定位
+
+红外画面中杯口过暗、底座边缘更明显时，可在 `green_cup.perception` 内设置以下字段；`image_rim` 中其他已有字段保留：
+
+```json
+{
+  "stereo_ir_contrast": "clahe",
+  "image_rim": {"opening_value_quantile": 0.5}
+}
+```
+
+`stereo_ir_contrast` 默认为 `none`，沿用原始红外图；`clahe` 在提取边缘前做局部对比度增强（clip limit 2、32×32 网格）。它不修改保存的原图、相机曝光、深度或标定，不改变 Canny 阈值和双目质量门槛。
+
+`image_rim.opening_value_quantile` 控制用于生成杯口初始猜测的 RGB 暗部范围，取值 0.2–0.7。双目模式未显式配置时保留原值 0.3；暗帧可设为 0.5，以免只提取到零散的最暗像素。该值不指定杯子直径，最终位置和尺寸仍由双目拟合得到，且必须通过边缘支撑、竞争圆和参考尺寸检查。代码更新需重新加载控制进程；配置在下一轮热加载。
+
+双目拟合先检查每个候选圆的整体误差、单目误差和两侧边缘支撑比例，再在合格候选之间判断是否存在竞争圆。未通过质量门槛的杯身或底座边缘不参与歧义比较；若全部候选不合格，仍返回质量错误，若多个合格圆位置或直径差异过大，仍拒绝定位。`rim_diagnostics.json` 的 `frames` 中记录 `qualified_candidate_count` 和 `rejected_candidate_quality`，便于区分被排除候选和实际采用的杯沿。
 
 ## 摇晃动作
 

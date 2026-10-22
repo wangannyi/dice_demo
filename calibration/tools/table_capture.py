@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Capture a checked red-cloth table plane; never command the arm or hand."""
+"""Capture the configured tabletop plane; never command the arm or hand."""
 import argparse
 import sys
 from pathlib import Path

@@ -3,6 +3,7 @@
 import cv2
 import numpy as np
 from vision.geometry.table_plane import Config, _circle, _plane, deproject
+from vision.geometry.workspace import workspace_masks
 
 
 def rim_geometry(points, table, normal, opts):
@@ -65,21 +66,11 @@ def detect(
 ):
     diagnostics = diagnostics if diagnostics is not None else {}
     diagnostics.update(valid=False, candidates=[])
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    red = (
-        ((hsv[:, :, 0] < 15) | (hsv[:, :, 0] > 165))
-        & (hsv[:, :, 1] > 70)
-        & (hsv[:, :, 2] > 50)
-    )
-    contours, _ = cv2.findContours(
-        red.astype("uint8"), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-    )
-    if not contours:
-        raise ValueError("没有检测到红色工作区")
-    workspace = np.zeros(depth.shape, np.uint8)
-    cv2.drawContours(workspace, [max(contours, key=cv2.contourArea)], -1, 1, cv2.FILLED)
+    surface, workspace = workspace_masks(image, opts.get('workspace'))
+    if not surface.any():
+        raise ValueError("没有检测到配置的桌面工作区")
     table, normal, fraction, rms = _plane(
-        deproject(depth, red, meta["intrinsics"], meta["depth_scale_m"]),
+        deproject(depth, surface, meta["intrinsics"], meta["depth_scale_m"]),
         Config(plane_tolerance_m=plane_tolerance_mm / 1000),
     )
     candidates = []

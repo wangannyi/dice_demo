@@ -163,6 +163,8 @@ def validate(cfg):
     if np.linalg.norm(g["place_offset_base_mm"]) > 100:
         raise ValueError("Place offset >100 mm")
     p = g["perception"]
+    from vision.geometry.workspace import perception_workspace
+    perception_workspace(p)
     runtime_settings(p)
     if type(p.get("cpu_recheck_on_detection_failure", False)) is not bool:
         raise ValueError("green_cup.perception.cpu_recheck_on_detection_failure must be boolean")
@@ -199,9 +201,9 @@ def validate(cfg):
     from vision.geometry.circle_rim import height_options
     height_options(p)
     if p.get("geometry_method") == "stereo_rim":
-        from vision.geometry.circle_rim import quality_options, workspace_options
+        from vision.geometry.circle_rim import ir_contrast_mode, quality_options
         quality_options(p.get("stereo_rim"))
-        workspace_options(p.get("red_workspace"))
+        ir_contrast_mode(p)
     return g
 
 
@@ -488,8 +490,8 @@ class Workflow:
             try:
                 return self._capture_once()
             except ValueError as exc:
-                from vision.geometry.circle_rim import RimEdgeQualityError
-                transient = isinstance(exc, RimEdgeQualityError) or str(exc) in (
+                from vision.geometry.circle_rim import RimEdgeQualityError, WorkspaceCupSelectionError
+                transient = isinstance(exc, (RimEdgeQualityError, WorkspaceCupSelectionError)) or str(exc) in (
                     'table_plane_not_supported',
                     'Stereo rim requires one YOLO cup in the red workspace',
                 )
@@ -571,7 +573,7 @@ class Workflow:
 
         try:
             if self.g["perception"].get("geometry_method") == "stereo_rim":
-                from vision.geometry.circle_rim import detect_stereo, table_from_base_scene
+                from vision.geometry.circle_rim import detect_stereo, table_from_base_scene, WorkspaceCupSelectionError
                 fixed_table = None
                 if self.g.get('table_plane_source', 'live_depth') == 'calibrated':
                     fixed_table = table_from_base_scene(self.table_scene, camera)
@@ -581,7 +583,9 @@ class Workflow:
                         self.cfg["plane_tolerance_mm"], instances, diagnostic,
                         fixed_table=fixed_table)
                 except ValueError as exc:
-                    if (str(exc) != "Stereo rim requires one YOLO cup in the red workspace"
+                    selection_error = (isinstance(exc, WorkspaceCupSelectionError)
+                        or str(exc) == "Stereo rim requires one YOLO cup in the red workspace")
+                    if (not selection_error
                             or not self._cpu_recheck_enabled()
                             or "inference_recheck" in diagnostic):
                         raise

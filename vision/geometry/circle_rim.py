@@ -11,6 +11,7 @@ from scipy.ndimage import map_coordinates
 from scipy.optimize import least_squares
 from vision.geometry.table_plane import Config, _plane, deproject
 from cup_grasp_demo.flow.green_image_rim import image_contour
+from vision.geometry.workspace import perception_workspace, workspace_masks as table_workspace_masks
 
 
 QUALITY = dict(max_mean_edge_error_px=.8, max_view_edge_error_px=1.,
@@ -32,17 +33,13 @@ def workspace_options(raw=None):
 
 
 def workspace_masks(image, raw=None):
-    options = workspace_options(raw)
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    red = (((hsv[:, :, 0] < 15) | (hsv[:, :, 0] > 165)) &
-           (hsv[:, :, 1] > options['min_saturation']) &
-           (hsv[:, :, 2] > options['min_value']))
-    contours, _ = cv2.findContours(red.astype('uint8'), cv2.RETR_EXTERNAL,
-                                  cv2.CHAIN_APPROX_SIMPLE)
-    workspace = np.zeros(red.shape, np.uint8)
-    if contours:
-        cv2.drawContours(workspace, [max(contours, key=cv2.contourArea)], -1, 1, cv2.FILLED)
-    return red, workspace
+    return table_workspace_masks(image, workspace_options(raw))
+
+
+class WorkspaceCupSelectionError(ValueError):
+    """No unique cup in the configured workspace; no target may be used."""
+    def __init__(self, color):
+        super().__init__('Stereo rim requires one YOLO cup in the ' + color + ' workspace')
 
 
 class RimEdgeQualityError(ValueError):
@@ -139,7 +136,15 @@ def resolve_table(depth, red, meta, plane_tolerance_mm, fixed_table=None):
             None if rms_mm is None else rms_mm/1000, 'calibrated')
 
 
-def make_view(image, record):
+def ir_contrast_mode(opts):
+    mode = opts.get('stereo_ir_contrast', 'none')
+    if mode not in ('none', 'clahe'):
+        raise ValueError('stereo_ir_contrast must be none or clahe')
+    return mode
+
+
+def make_view(image, record, *, contrast='none'):
+    ir_contrast_mode({'stereo_ir_contrast': contrast})
     k = record['intrinsics']
     if any(abs(float(x)) > 1e-8 for x in k['dist_coeffs']):
         raise ValueError('Stereo rim requires rectified zero-distortion IR images')
@@ -155,7 +160,12 @@ def make_view(image, record):
     if (not np.allclose(rotation.T @ rotation, np.eye(3), atol=1e-4)
             or not np.isclose(np.linalg.det(rotation), 1, atol=1e-4)):
         raise ValueError('Non-orthogonal stereo extrinsics')
-    edges = cv2.Canny(image, 25, 60)
+    # Enhance intensity only: retain the original pixels, coordinates, stereo
+    # calibration and Canny thresholds. Dark rims must remain observable in
+    # both views; this does not replace edge or ambiguity checks.
+    edge_image = (cv2.createCLAHE(clipLimit=2., tileGridSize=(32, 32)).apply(image)
+                  if contrast == 'clahe' else image)
+    edges = cv2.Canny(edge_image, 25, 60)
     distance = cv2.distanceTransform(255-edges, cv2.DIST_L2, 5)
     return dict(k=k, R=rotation, t=translation, image=image, distance=distance,
 )
@@ -266,14 +276,28 @@ def fit_circle(views, table, normal, seeds, radius_range, height_range, quality=
         fits.append((float(errors.mean()), p, errors, h))
     if not fits:
         raise ValueError('Stereo rim has no in-range solution')
-    fits.sort(key=lambda row: row[0]); score, p, errors, h = fits[0]
-    # Reject competing circles before consulting the manual dimensions.
-    plausible = [row for row in fits if row[0] < score+quality['ambiguity_score_margin_px']]
+    fits.sort(key=lambda row: row[0])
+    qualified = []
+    rejected = []
+    for score, p, errors, h in fits:
+        try:
+            report = check_edge_quality(errors, quality, h, p[3])
+        except RimEdgeQualityError as exc:
+            rejected.append(exc.report)
+            continue
+        qualified.append((score, p, errors, h, report))
+    if not qualified:
+        # Preserve the best raw candidate's failure and all original gates.
+        raise RimEdgeQualityError(rejected[0])
+    score, p, errors, h, edge_report = qualified[0]
+    # Only independently qualified observations can compete. An unsupported
+    # cup-body/base circle must not veto a valid rim merely by having a similar
+    # mean score. Manual dimensions remain a separate downstream check.
+    plausible = [row for row in qualified if row[0] < score+quality['ambiguity_score_margin_px']]
     for other in plausible[1:]:
         if (np.linalg.norm(other[1][:3]-p[:3])*1000 > quality['max_competing_center_distance_mm']
                 or abs(other[1][3]-p[3])*2000 > quality['max_competing_diameter_difference_mm']):
             raise ValueError(f'Stereo rim has ambiguous competing circles: best={score:.3f}px/{h*1000:.1f}mm, alternative={other[0]:.3f}px/{other[3]*1000:.1f}mm')
-    edge_report = check_edge_quality(errors, quality, h, p[3])
     support = np.asarray(edge_report['edge_support'])
     pts = p[:3]+p[3]*unit
     for view in views:
@@ -285,6 +309,8 @@ def fit_circle(views, table, normal, seeds, radius_range, height_range, quality=
     return dict(center=p[:3].tolist(), radius_m=float(p[3]), height_m=h,
                 mean_edge_error_px=score, edge_support=support.tolist(),
                 edge_quality=edge_report,
+                qualified_candidate_count=len(qualified),
+                rejected_candidate_quality=rejected,
                 basis=basis.tolist(), outline=pts.tolist(),
                 competing_height_range_mm=[min(row[3] for row in plausible)*1000,
                                            max(row[3] for row in plausible)*1000])
@@ -365,7 +391,15 @@ def fit_fixed_sequence(views_by_frame, table, normal, seeds, radius_range,
 def detect_stereo(run, depth, image, meta, opts, plane_tolerance_mm, instances, diagnostics,
                   *, fixed_table=None):
     quality = quality_options(opts.get('stereo_rim'))
-    red, workspace = workspace_masks(image, opts.get('red_workspace'))
+    contrast = ir_contrast_mode(opts)
+    # Honour an explicit opening setting; preserve the historical stereo
+    # default (0.3) for existing installations that do not configure it.
+    opening_quantile = opts.get('image_rim', {}).get('opening_value_quantile', .3)
+    diagnostics['stereo_image_processing'] = dict(
+        ir_contrast=contrast, opening_value_quantile=opening_quantile,
+        canny_thresholds=[25, 60])
+    workspace_config = perception_workspace(opts)
+    surface, workspace = table_workspace_masks(image, workspace_config)
     candidates = []
     eligible = []
     for item in instances:
@@ -376,19 +410,22 @@ def detect_stereo(run, depth, image, meta, opts, plane_tolerance_mm, instances, 
         candidates.append(dict(area_px=area, workspace_fraction=fraction, accepted=accepted))
         if accepted:
             eligible.append(item)
-    diagnostics['red_workspace'] = dict(
-        thresholds=workspace_options(opts.get('red_workspace')),
-        red_pixels=int(red.sum()), workspace_pixels=int(workspace.sum()),
+    diagnostics['workspace'] = dict(
+        thresholds=workspace_config,
+        surface_pixels=int(surface.sum()), workspace_pixels=int(workspace.sum()),
         min_workspace_fraction=opts.get('min_workspace_fraction', .9), candidates=candidates)
+    if 'workspace' not in opts:
+        diagnostics['red_workspace'] = dict(diagnostics['workspace'],
+            thresholds=workspace_options(opts.get('red_workspace')), red_pixels=int(surface.sum()))
     table, normal, fraction, rms, table_source = resolve_table(
-        depth, red, meta, plane_tolerance_mm, fixed_table)
+        depth, surface, meta, plane_tolerance_mm, fixed_table)
     diagnostics['table_plane_source'] = table_source
     if len(eligible) != 1:
-        raise ValueError('Stereo rim requires one YOLO cup in the red workspace')
+        raise WorkspaceCupSelectionError(workspace_config['color'])
     mask = np.asarray(eligible[0]['mask'], bool)
     k = meta['intrinsics']
     seed_ellipses = []
-    for source, quantile in [('opening', .3), ('green_outline', .5)]:
+    for source, quantile in [('opening', opening_quantile), ('green_outline', .5)]:
         configured = dict(opts, image_rim=dict(opts.get('image_rim', {}),
                           contour_source=source, opening_value_quantile=quantile))
         seed_diagnostic = {}
@@ -444,7 +481,8 @@ def detect_stereo(run, depth, image, meta, opts, plane_tolerance_mm, instances, 
         if current['serial'] != meta['serial'] or current['intrinsics'] != k:
             raise ValueError('Stereo batch camera changed')
         with np.load(file.with_suffix('.npz')) as data:
-            views = [make_view(data['ir_'+side], records[side]) for side in ('left', 'right')]
+            views = [make_view(data['ir_'+side], records[side], contrast=contrast)
+                     for side in ('left', 'right')]
         if index and any(records[side] != first_records[side] for side in ('left', 'right')):
             raise ValueError('Stereo calibration changed within batch')
         if index == 0:
