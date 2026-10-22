@@ -7,6 +7,7 @@ import numpy as np
 
 from cup_grasp_demo.flow import planar_scene
 from vision.geometry.circle_rim import detect_stereo
+from vision.geometry.cup_height import detect as detect_depth
 from vision.geometry.workspace import perception_workspace, workspace_masks, workspace_options
 
 
@@ -120,3 +121,36 @@ class WorkspaceColorTests(unittest.TestCase):
             depth[:] = 0
             with self.assertRaisesRegex(ValueError, 'insufficient_valid_depth'):
                 planar_scene.home_scene(None, cfg)
+
+    def test_depth_modes_use_configured_admission_and_keep_unique_cup_gate(self):
+        for color in ('green', 'gray'):
+            with self.subTest(color=color):
+                image = self.scene()
+                if color == 'gray':
+                    image = image[:, ::-1].copy()
+                depth = np.full(image.shape[:2], 700, np.uint16)
+                meta = {'intrinsics': {'frame': 'color_optical', 'width': 320,
+                                       'height': 240, 'fx': 300, 'fy': 300,
+                                       'cx': 160, 'cy': 120, 'dist_coeffs': [0]*5},
+                        'depth_scale_m': .001}
+                mask = np.zeros(depth.shape, bool)
+                mask[70:110, 145:165] = True  # 25% on the configured table side
+                outside = np.zeros(depth.shape, bool)
+                outside[70:110, 20:40] = True
+                opts = {'workspace': {'color': color}, 'min_area_px': 10}
+                with patch('vision.geometry.cup_height.rim_geometry', return_value={}) as geometry:
+                    with self.assertRaisesRegex(ValueError, '候选数：0'):
+                        detect_depth(depth, image, meta, opts, 6, instances=[{'mask': mask}])
+                    geometry.assert_not_called()
+                    opts['min_workspace_fraction'] = .1
+                    diagnostic = {}
+                    detect_depth(depth, image, meta, opts, 6,
+                                 instances=[{'mask': mask}], diagnostics=diagnostic)
+                    self.assertTrue(diagnostic['valid'])
+                    self.assertEqual(diagnostic['workspace']['thresholds']['color'], color)
+                    self.assertAlmostEqual(diagnostic['workspace']['candidates'][0]['workspace_fraction'], .25)
+                    with self.assertRaisesRegex(ValueError, '候选数：0'):
+                        detect_depth(depth, image, meta, opts, 6, instances=[{'mask': outside}])
+                    with self.assertRaisesRegex(ValueError, '候选数：2'):
+                        detect_depth(depth, image, meta, opts, 6,
+                                     instances=[{'mask': mask}, {'mask': mask}])

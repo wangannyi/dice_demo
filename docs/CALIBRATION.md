@@ -69,7 +69,7 @@ bash calibrate.sh plan
 bash calibrate.sh register
 ```
 
-机械臂放到 HOME，确保红布桌面充分可见，再应用并登记桌面：
+机械臂放到 HOME，确保机械臂侧桌面充分可见，再应用并登记桌面：
 
 ```bash
 bash calibrate.sh apply
@@ -100,7 +100,7 @@ bash calibrate.sh auto --execute
 bash calibrate.sh apply
 ```
 
-在两个命令之间拆下末端手眼板，将机械臂放到 HOME 并露出红布桌面；apply 本身不移动机械臂。自动采样结束不会自动回 HOME。自动标定更新手眼外参后，如果需要把它作为以后固定板恢复的基准，请重新 register。
+在两个命令之间拆下末端手眼板，将机械臂放到 HOME 并露出机械臂侧桌面；apply 本身不移动机械臂。自动采样结束不会自动回 HOME。自动标定更新手眼外参后，如果需要把它作为以后固定板恢复的基准，请重新 register。
 
 窗口在采样停稳时更新，平滑运动时不处理 X11 事件。Ctrl+C 中断后保留数据和不完整标记，不继续求解、应用。
 

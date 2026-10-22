@@ -3,7 +3,7 @@
 import cv2
 import numpy as np
 from vision.geometry.table_plane import Config, _circle, _plane, deproject
-from vision.geometry.workspace import workspace_masks
+from vision.geometry.workspace import workspace_masks, workspace_options
 
 
 def rim_geometry(points, table, normal, opts):
@@ -66,7 +66,14 @@ def detect(
 ):
     diagnostics = diagnostics if diagnostics is not None else {}
     diagnostics.update(valid=False, candidates=[])
-    surface, workspace = workspace_masks(image, opts.get('workspace'))
+    workspace_config = workspace_options(opts.get('workspace'))
+    surface, workspace = workspace_masks(image, workspace_config)
+    admission = opts.get('min_workspace_fraction', 0.9)
+    selection = []
+    diagnostics['workspace'] = dict(
+        thresholds=workspace_config, surface_pixels=int(surface.sum()),
+        workspace_pixels=int(workspace.sum()),
+        min_workspace_fraction=admission, candidates=selection)
     if not surface.any():
         raise ValueError("没有检测到配置的桌面工作区")
     table, normal, fraction, rms = _plane(
@@ -80,10 +87,10 @@ def detect(
         if mask.shape != depth.shape:
             raise ValueError("YOLO mask resolution mismatch")
         area = int(np.count_nonzero(mask))
-        if (
-            area < opts["min_area_px"]
-            or np.count_nonzero((mask > 0) & (workspace > 0)) / area < 0.9
-        ):
+        fraction_in_workspace = float(np.count_nonzero((mask > 0) & (workspace > 0)) / area) if area else 0.
+        accepted = area >= opts['min_area_px'] and fraction_in_workspace >= admission
+        selection.append(dict(area_px=area, workspace_fraction=fraction_in_workspace, accepted=accepted))
+        if not accepted:
             continue
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:

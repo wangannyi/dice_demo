@@ -83,7 +83,7 @@ python3 scripts/set_camera_profile.py usb3
 
 `configs/green_cup.json` 中的 `green_cup.perception.cpu_recheck_on_detection_failure`
 控制异常复核。发布配置启用此项；省略时保持原行为。SpaceMIT 推理返回无效张量，
-或双目定位没有找到红色区域内唯一杯子时，用 CPU 对同一张已保存的彩色图复核一次。
+或双目定位没有找到配置的机械臂工作区内唯一杯子时，用 CPU 对同一张已保存的彩色图复核一次。
 正常推理不增加复核耗时。CPU 沿用模型、置信度、掩码和几何质量门槛；杯子仍缺失、
 候选仍不唯一或杯沿质量不合格时继续停止，不使用上一局的杯位。
 
