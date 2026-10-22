@@ -122,10 +122,6 @@
       "iou_threshold": 0.45,
       "mask_threshold": 0.5,
       "min_workspace_fraction": 0.1,
-      "red_workspace": {
-        "min_saturation": 50,
-        "min_value": 50
-      },
       "geometry_method": "stereo_rim",
       "reference_dimensions_mm": {
         "height": 65,
@@ -151,7 +147,8 @@
         "depth_sectors": 36,
         "min_depth_sector_fraction": 0.5,
         "min_depth_arc_deg": 180,
-        "min_depth_points": 40
+        "min_depth_points": 40,
+        "opening_value_quantile": 0.5
       },
       "stereo_rim": {
         "max_mean_edge_error_px": 1.0,
@@ -174,7 +171,20 @@
       "inference_cpu_ids": [
         12,
         13
-      ]
+      ],
+      "workspace": {
+        "color": "green",
+        "min_saturation": 30,
+        "min_value": 40,
+        "hue_ranges": [
+          [
+            20,
+            55
+          ]
+        ],
+        "region_shape": "convex_hull"
+      },
+      "stereo_ir_contrast": "clahe"
     },
     "home_table_scene": "cup_grasp_demo/flow/green_open_cup/home_table_scene.json",
     "table_plane_source": "calibrated",

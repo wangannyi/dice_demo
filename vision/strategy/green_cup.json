@@ -2,12 +2,12 @@
   "contact_offset_base_mm": [
     0,
     0,
-    60
+    65
   ],
   "tcp_offset_flange_mm": [
     25,
     0,
-    0
+    10
   ],
   "wrist_reference_deg": [
     15,
